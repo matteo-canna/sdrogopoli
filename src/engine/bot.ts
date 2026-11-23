@@ -142,9 +142,9 @@ function chooseTradeResponse(state: GameState, ctx: GameContext): Action {
     t.get.spaces.reduce((sum, id) => {
       const space = spaceOf(ctx, id);
       const price = 'price' in space ? space.price : 0;
-      return sum + (wouldComplete(state, ctx, t.from, id) ? price * 2.2 : price) + (wouldCompleteMine(id) ? price * 1.5 : 0);
+      return sum + (wouldComplete(state, ctx, t.from, id) ? price * 2 : price) + (wouldCompleteMine(id) ? price * 1.5 : 0);
     }, 0);
-  return received >= lost * 1.2 && received > 0 ? { type: 'acceptTrade' } : { type: 'rejectTrade' };
+  return received >= lost * 1.15 && received > 0 ? { type: 'acceptTrade' } : { type: 'rejectTrade' };
 
   // vero se la casella fa parte di un quartiere che possiedo già tutto
   function wouldCompleteMine(id: string): boolean {
@@ -166,8 +166,9 @@ function tryProposeTrade(state: GameState, ctx: GameContext): Action | null {
     const own = state.ownership[target.id];
     if (!own || state.players[own.owner].bankrupt) continue;
     if (group.some((s) => (state.ownership[s.id]?.houses ?? 0) > 0)) continue;
-    const offer = Math.min(Math.round(target.price * 2.4), money - RESERVE);
-    if (offer < target.price * 1.3) continue;
+    const offer = Math.min(Math.round(target.price * 2.5), money - RESERVE);
+    // sotto questa cifra l'altro computer rifiuterebbe comunque
+    if (offer < target.price * 2.3) continue;
     const give: TradeSide = { money: offer, spaces: [] };
     return { type: 'proposeTrade', offer: { to: own.owner, give, get: { money: 0, spaces: [target.id] } } };
   }

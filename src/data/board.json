@@ -388,14 +388,14 @@
       "name": "Via del Campanile",
       "group": "centro",
       "price": 260,
-      "housePrice": 150,
+      "housePrice": 130,
       "rent": [
         22,
-        110,
-        330,
-        880,
-        1210,
-        1540
+        130,
+        395,
+        1055,
+        1450,
+        1850
       ],
       "mortgage": 130
     },
@@ -405,14 +405,14 @@
       "name": "Piazza della Fontana Rotta",
       "group": "centro",
       "price": 260,
-      "housePrice": 150,
+      "housePrice": 130,
       "rent": [
         22,
-        110,
-        330,
-        880,
-        1210,
-        1540
+        130,
+        395,
+        1055,
+        1450,
+        1850
       ],
       "mortgage": 130
     },
@@ -433,14 +433,14 @@
       "name": "Corso degli Archi",
       "group": "centro",
       "price": 280,
-      "housePrice": 150,
+      "housePrice": 130,
       "rent": [
         24,
-        120,
-        360,
-        960,
-        1320,
-        1680
+        145,
+        430,
+        1150,
+        1585,
+        2015
       ],
       "mortgage": 140
     },
@@ -455,14 +455,14 @@
       "name": "Viale dei Pini Marittimi",
       "group": "colline",
       "price": 300,
-      "housePrice": 200,
+      "housePrice": 160,
       "rent": [
-        26,
-        130,
-        390,
-        1040,
-        1430,
-        1820
+        28,
+        175,
+        525,
+        1400,
+        1925,
+        2450
       ],
       "mortgage": 150
     },
@@ -472,14 +472,14 @@
       "name": "Via delle Ville",
       "group": "colline",
       "price": 300,
-      "housePrice": 200,
+      "housePrice": 160,
       "rent": [
-        26,
-        130,
-        390,
-        1040,
-        1430,
-        1820
+        28,
+        175,
+        525,
+        1400,
+        1925,
+        2450
       ],
       "mortgage": 150
     },
@@ -495,14 +495,14 @@
       "name": "Belvedere del Tramonto",
       "group": "colline",
       "price": 320,
-      "housePrice": 200,
+      "housePrice": 160,
       "rent": [
-        28,
-        140,
-        420,
-        1120,
-        1540,
-        1960
+        30,
+        190,
+        560,
+        1500,
+        2060,
+        2625
       ],
       "mortgage": 160
     },
@@ -533,12 +533,12 @@
       "price": 350,
       "housePrice": 200,
       "rent": [
-        35,
-        175,
-        525,
-        1400,
-        1925,
-        2450
+        32,
+        135,
+        410,
+        1090,
+        1495,
+        1905
       ],
       "mortgage": 175
     },
@@ -556,12 +556,12 @@
       "price": 400,
       "housePrice": 200,
       "rent": [
-        50,
-        250,
-        750,
-        2000,
-        2750,
-        3500
+        44,
+        185,
+        560,
+        1495,
+        2055,
+        2620
       ],
       "mortgage": 200
     }
