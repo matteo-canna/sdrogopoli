@@ -10,7 +10,7 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 2. ✅ Contenuti originali: tabellone, caselle, prezzi, affitti e carte in JSON (`src/data/`).
 3. ✅ Motore di gioco con test: turni, dadi, movimento, acquisto, affitti, carte, prigione, bancarotta, vincitore.
 4. ✅ Interfaccia minima
-5. 🟡 Vista 3D con camera che segue la pedina (in revisione): tabellone HTML/CSS, 2-4 giocatori sullo stesso dispositivo.
+5. ✅ Vista 3D con camera che segue la pedina: tabellone HTML/CSS, 2-4 giocatori sullo stesso dispositivo.
 
 ## Decisioni
 - Interfaccia in HTML/CSS + TypeScript semplice (niente React per ora; si può rivalutare).
@@ -32,6 +32,13 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 - 2026-11-23: regole della casa (soldi iniziali, durata in giri con vittoria a patrimonio, montepremi della Panchina).
 - 2026-11-23: simulazione di bilanciamento (`npm run simula`), rapporto in `docs/bilanciamento.md`; ritoccati affitti di Centro Storico, Colline e Lungolago e gli scambi del computer.
 - 2026-11-23: suoni e musica originali generati con la Web Audio API (`src/ui/audio.ts`), nessun file audio; pulsanti Effetti e Musica.
+- 2026-11-23: ritocchi 3D: camera più vicina, pedine di forma diversa (pedone, torre, gemma, anello), freccia sulla pedina di turno, dadi 3D che cadono e si fermano sul risultato.
+
+## Prossimi passi possibili
+- Multiplayer online (rimandato da Matteo).
+- Compensare il leggero vantaggio di chi gioca per primo (vedi `docs/bilanciamento.md`).
 
 ## Regole semplificate nel prototipo
 - Con un debito il giocatore vende case o ipoteca; se non basta dichiara bancarotta.
+- Negli scambi le caselle ipotecate passano senza il 10% di interessi.
+- Con la carta "compleanno" chi non ha soldi paga solo quello che ha.
