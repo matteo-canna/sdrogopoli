@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { board, cards } from '../src/data';
-import { applyAction, createGame, computeRent, RuleError, JAIL_FINE, unmortgageCost, netWorth, MAX_LOG } from '../src/engine';
+import { applyAction, createGame, computeRent, RuleError, JAIL_FINE, unmortgageCost, netWorth, MAX_LOG, actingPlayer } from '../src/engine';
 import { ctxWith, newGame, indexOf, own } from './helpers';
 
 const salary = 200;
@@ -36,11 +36,12 @@ describe('movimento e acquisto', () => {
     expect(s.phase).toBe('endTurn');
   });
 
-  it('si può rinunciare all\'acquisto', () => {
+  it('rinunciando all\'acquisto la casella va all\'asta', () => {
     let s = applyAction(newGame(), { type: 'roll' }, ctxWith(1, 2));
     s = applyAction(s, { type: 'decline' }, ctxWith());
     expect(s.ownership['periferia-2']).toBeUndefined();
-    expect(s.phase).toBe('endTurn');
+    expect(s.phase).toBe('auction');
+    expect(s.auction?.bidders).toEqual([0, 1]);
   });
 
   it('non si compra senza soldi a sufficienza', () => {
@@ -366,5 +367,99 @@ describe('patrimonio e registro', () => {
     s = applyAction(s, { type: 'roll' }, ctxWith(1, 3));
     expect(s.log.length).toBe(MAX_LOG);
     expect(s.eventCount).toBeGreaterThan(before);
+  });
+});
+
+describe('aste', () => {
+  function auctionOn(names = ['Anna', 'Bruno', 'Carla']) {
+    let s = applyAction(newGame(names), { type: 'roll' }, ctxWith(1, 2)); // Via del Cassonetto, 60
+    s = applyAction(s, { type: 'decline' }, ctxWith());
+    return s;
+  }
+
+  it('si rilancia a turno e vince l\'offerta più alta quando gli altri passano', () => {
+    let s = auctionOn();
+    expect(actingPlayer(s)).toBe(0);
+    s = applyAction(s, { type: 'bid', amount: 20 }, ctxWith());
+    expect(actingPlayer(s)).toBe(1);
+    s = applyAction(s, { type: 'bid', amount: 40 }, ctxWith());
+    s = applyAction(s, { type: 'pass' }, ctxWith()); // Carla
+    s = applyAction(s, { type: 'pass' }, ctxWith()); // Anna
+    expect(s.phase).toBe('endTurn');
+    expect(s.ownership['periferia-2'].owner).toBe(1);
+    expect(s.players[1].money).toBe(1500 - 40);
+    expect(s.auction).toBeNull();
+  });
+
+  it('se tutti passano la casella resta libera', () => {
+    let s = auctionOn(['Anna', 'Bruno']);
+    s = applyAction(s, { type: 'pass' }, ctxWith());
+    s = applyAction(s, { type: 'pass' }, ctxWith());
+    expect(s.ownership['periferia-2']).toBeUndefined();
+    expect(s.phase).toBe('endTurn');
+  });
+
+  it('l\'offerta deve superare quella attuale e stare nei soldi disponibili', () => {
+    let s = auctionOn();
+    s = applyAction(s, { type: 'bid', amount: 30 }, ctxWith());
+    expect(() => applyAction(s, { type: 'bid', amount: 30 }, ctxWith())).toThrow(RuleError);
+    expect(() => applyAction(s, { type: 'bid', amount: 5000 }, ctxWith())).toThrow(RuleError);
+  });
+
+  it('dopo un\'asta con doppio si rilancia', () => {
+    let s = newGame(['Anna', 'Bruno']);
+    s.players[0].position = 1;
+    s = applyAction(s, { type: 'roll' }, ctxWith(1, 1)); // 1 + 2 = 3, doppio
+    s = applyAction(s, { type: 'decline' }, ctxWith());
+    s = applyAction(s, { type: 'pass' }, ctxWith());
+    s = applyAction(s, { type: 'pass' }, ctxWith());
+    expect(s.phase).toBe('roll');
+  });
+});
+
+describe('scambi', () => {
+  function endTurnState() {
+    const s = applyAction(newGame(['Anna', 'Bruno', 'Carla']), { type: 'roll' }, ctxWith(1, 3));
+    own(s, 'periferia-1', 0);
+    own(s, 'periferia-2', 1);
+    return s;
+  }
+
+  it('uno scambio accettato sposta soldi e caselle', () => {
+    let s = endTurnState();
+    s = applyAction(s, { type: 'proposeTrade', offer: { to: 1, give: { money: 100, spaces: [] }, get: { money: 0, spaces: ['periferia-2'] } } }, ctxWith());
+    expect(actingPlayer(s)).toBe(1);
+    const moneyA = s.players[0].money;
+    s = applyAction(s, { type: 'acceptTrade' }, ctxWith());
+    expect(s.ownership['periferia-2'].owner).toBe(0);
+    expect(s.players[0].money).toBe(moneyA - 100);
+    expect(s.players[1].money).toBe(1600);
+    expect(s.trade).toBeNull();
+    expect(actingPlayer(s)).toBe(0);
+  });
+
+  it('uno scambio rifiutato non cambia nulla', () => {
+    let s = endTurnState();
+    s = applyAction(s, { type: 'proposeTrade', offer: { to: 1, give: { money: 10, spaces: [] }, get: { money: 0, spaces: ['periferia-2'] } } }, ctxWith());
+    s = applyAction(s, { type: 'rejectTrade' }, ctxWith());
+    expect(s.ownership['periferia-2'].owner).toBe(1);
+    expect(s.trade).toBeNull();
+  });
+
+  it('con uno scambio in sospeso non si fanno altre azioni', () => {
+    const s = applyAction(endTurnState(), { type: 'proposeTrade', offer: { to: 1, give: { money: 10, spaces: [] }, get: { money: 0, spaces: [] } } }, ctxWith());
+    expect(() => applyAction(s, { type: 'endTurn' }, ctxWith())).toThrow(RuleError);
+  });
+
+  it('non si scambiano caselle altrui o di quartieri con case', () => {
+    const s = endTurnState();
+    expect(() => applyAction(s, { type: 'proposeTrade', offer: { to: 1, give: { money: 0, spaces: ['periferia-2'] }, get: { money: 0, spaces: [] } } }, ctxWith())).toThrow(RuleError);
+    own(s, 'borgo-1', 1, 1);
+    expect(() => applyAction(s, { type: 'proposeTrade', offer: { to: 1, give: { money: 0, spaces: [] }, get: { money: 0, spaces: ['borgo-1'] } } }, ctxWith())).toThrow(RuleError);
+  });
+
+  it('non si offrono più soldi di quelli che si hanno', () => {
+    const s = endTurnState();
+    expect(() => applyAction(s, { type: 'proposeTrade', offer: { to: 1, give: { money: 99999, spaces: [] }, get: { money: 0, spaces: ['periferia-2'] } } }, ctxWith())).toThrow(RuleError);
   });
 });

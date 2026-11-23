@@ -34,7 +34,33 @@ export interface Ownership {
 //  - 'roll': deve lanciare i dadi
 //  - 'buy': è finito su una proprietà libera e deve decidere se comprarla
 //  - 'endTurn': ha finito di muoversi e può gestire le proprietà o passare il turno
-export type Phase = 'roll' | 'buy' | 'endTurn' | 'gameOver';
+//  - 'auction': la casella rifiutata va all'asta tra tutti i giocatori
+export type Phase = 'roll' | 'buy' | 'auction' | 'endTurn' | 'gameOver';
+
+// Asta in corso: i giocatori rilanciano a turno, chi passa esce dall'asta.
+export interface Auction {
+  spaceId: string;
+  highestBid: number;
+  highestBidder: number | null;
+  // giocatori ancora in gara, nell'ordine in cui rilanciano
+  bidders: number[];
+  // indice in "bidders" di chi deve rispondere ora
+  turn: number;
+}
+
+// Parte di uno scambio: soldi e caselle che un giocatore cede.
+export interface TradeSide {
+  money: number;
+  spaces: string[];
+}
+
+// Proposta di scambio del giocatore di turno ("from") a un altro giocatore ("to").
+export interface TradeOffer {
+  from: number;
+  to: number;
+  give: TradeSide;
+  get: TradeSide;
+}
 
 export interface GameState {
   players: Player[];
@@ -50,6 +76,10 @@ export interface GameState {
   decks: Record<DeckId, string[]>;
   // creditore del debito in corso (null = la banca), se il giocatore ha soldi negativi
   creditor: number | null;
+  auction: Auction | null;
+  trade: TradeOffer | null;
+  // il computer propone al massimo uno scambio per turno
+  tradeProposedThisTurn: boolean;
   winner: number | null;
   log: string[];
   // numero totale di eventi registrati (il registro tiene solo gli ultimi)
@@ -111,6 +141,9 @@ export function createGame(players: (string | PlayerSetup)[], ctx: GameContext):
     extraRoll: false,
     decks,
     creditor: null,
+    auction: null,
+    trade: null,
+    tradeProposedThisTurn: false,
     winner: null,
     log: ['Inizia la partita!'],
     eventCount: 1,

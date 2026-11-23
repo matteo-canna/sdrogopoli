@@ -1,8 +1,8 @@
 // Controller dell'interfaccia: collega i clic alle azioni del motore e ridisegna la pagina.
 import './style.css';
 import { board, cards } from '../data';
-import { applyAction, chooseBotAction, createGame, RuleError, type Action, type GameContext, type GameState } from '../engine';
-import { PLAYER_COLORS, escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTurnActions } from './view';
+import { actingPlayer, applyAction, chooseBotAction, createGame, RuleError, type Action, type GameContext, type GameState } from '../engine';
+import { PLAYER_COLORS, escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
 
 const SAVE_KEY = 'sdrogopoli-partita';
@@ -24,6 +24,8 @@ let botTimer: ReturnType<typeof setTimeout> | null = null;
 // eventi da mostrare in evidenza: da quando ha agito l'ultima persona
 let newsFrom = state?.eventCount ?? 0;
 let lastActorBot = false;
+// scambio che la persona di turno sta preparando
+let tradeDraft: TradeDraft | null = null;
 
 // ---------- salvataggio nel browser (facoltativo: se non funziona si gioca lo stesso) ----------
 
@@ -108,7 +110,7 @@ function renderSetup(): void {
 
 // Parte centrale: turno, azioni, cosa è appena successo, scheda della casella e registro.
 function hudHtml(s: GameState): string {
-  const p = s.players[s.current];
+  const p = s.players[actingPlayer(s)];
   const fresh = Math.min(Math.max((s.eventCount ?? 0) - newsFrom, 0), s.log.length, 8);
   const news = fresh ? s.log.slice(-fresh) : [];
   const total = s.lastRoll ? s.lastRoll[0] + s.lastRoll[1] : 0;
@@ -118,7 +120,7 @@ function hudHtml(s: GameState): string {
       <span>Tocca a <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong></span>
       ${s.lastRoll ? `<span class="roll">${renderDice(s)}<span class="roll-total">${total}</span></span>` : ''}
     </div>
-    <div class="actions">${renderTurnActions(s)}</div>
+    ${tradeDraft ? renderTradeEditor(s, tradeDraft) : `<div class="actions">${renderTurnActions(s)}</div>`}
     ${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}
     ${news.length ? `<div class="news" aria-live="polite"><h4>Cosa è successo</h4><ul>${news.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul></div>` : ''}
     ${selected ? renderSpaceDetails(s, selected) : '<p class="hint">Tocca una casella per vedere i dettagli.</p>'}
@@ -150,7 +152,7 @@ function render(): void {
 // ---------- giocatori controllati dal computer ----------
 
 function botToPlay(): boolean {
-  return !!state && state.phase !== 'gameOver' && !!state.players[state.current].isBot;
+  return !!state && state.phase !== 'gameOver' && !!state.players[actingPlayer(state)].isBot;
 }
 
 // Fa giocare il computer con una piccola pausa, così si capisce cosa succede.
@@ -234,7 +236,7 @@ function destroy3d(): void {
 
 function act(action: Action): void {
   if (!state) return;
-  const actorBot = !!state.players[state.current].isBot;
+  const actorBot = !!state.players[actingPlayer(state)].isBot;
   // le azioni di una persona azzerano le notizie; quelle del computer si accumulano
   if (!actorBot || !lastActorBot) newsFrom = state.eventCount ?? 0;
   lastActorBot = actorBot;
@@ -243,7 +245,10 @@ function act(action: Action): void {
     error = '';
     // dopo il lancio mostra la casella di arrivo
     if (action.type === 'roll') selected = board.spaces[state.players[state.current].position]?.id ?? null;
-    if (action.type === 'endTurn' || action.type === 'bankrupt') selected = null;
+    if (action.type === 'endTurn' || action.type === 'bankrupt') {
+      selected = null;
+      tradeDraft = null;
+    }
   } catch (e) {
     if (e instanceof RuleError) error = e.message;
     else throw e;
@@ -268,6 +273,21 @@ app.addEventListener('click', (e) => {
     return render();
   }
   switch (action) {
+    case 'openTrade': {
+      const to = state.players.find((o) => o.id !== state!.current && !o.bankrupt)!.id;
+      tradeDraft = { to, give: { money: 0, spaces: [] }, get: { money: 0, spaces: [] } };
+      error = '';
+      return render();
+    }
+    case 'closeTrade':
+      tradeDraft = null;
+      return render();
+    case 'bid':
+      return act({ type: 'bid', amount: Number(target.dataset.amount) });
+    case 'pass':
+    case 'acceptTrade':
+    case 'rejectTrade':
+      return act({ type: action });
     case 'toggleView':
       viewMode = viewMode === '3d' ? '2d' : '3d';
       writePref(VIEW_KEY, viewMode);
@@ -299,6 +319,40 @@ app.addEventListener('click', (e) => {
     case 'bankrupt':
       return act({ type: action });
   }
+});
+
+// Modifiche al modulo dello scambio.
+app.addEventListener('change', (e) => {
+  const el = e.target as HTMLInputElement | HTMLSelectElement;
+  const field = el.dataset.trade;
+  if (!field || !tradeDraft || !state) return;
+  if (field === 'to') {
+    tradeDraft = { to: Number(el.value), give: tradeDraft.give, get: { money: 0, spaces: [] } };
+    return render();
+  }
+  if (field === 'give-money' || field === 'get-money') {
+    const side = field === 'give-money' ? tradeDraft.give : tradeDraft.get;
+    side.money = Math.max(0, Math.floor(Number(el.value) || 0));
+    return;
+  }
+  const side = field === 'give-space' ? tradeDraft.give : tradeDraft.get;
+  const id = el.value;
+  side.spaces = (el as HTMLInputElement).checked ? [...side.spaces, id] : side.spaces.filter((x) => x !== id);
+});
+
+app.addEventListener('submit', (e) => {
+  if ((e.target as HTMLElement).id !== 'trade-form' || !tradeDraft) return;
+  e.preventDefault();
+  // legge anche i campi soldi non ancora confermati
+  const form = e.target as HTMLFormElement;
+  for (const input of form.querySelectorAll<HTMLInputElement>('input[type=number]')) {
+    const side = input.dataset.trade === 'give-money' ? tradeDraft.give : tradeDraft.get;
+    side.money = Math.max(0, Math.floor(Number(input.value) || 0));
+  }
+  const draft = tradeDraft;
+  act({ type: 'proposeTrade', offer: { to: draft.to, give: draft.give, get: draft.get } });
+  if (!error) tradeDraft = null;
+  render();
 });
 
 // Chiede conferma con un secondo tocco, senza finestre di dialogo del browser.

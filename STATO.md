@@ -28,8 +28,7 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 - 2026-11-23: vista 3D: tabellone con caselle disegnate, pedine che saltano casella per casella, case e palazzi, camera che segue la pedina o vista d'insieme.
 - 2026-11-23: avversari controllati dal computer (`src/engine/bot.ts`), scelta Persona/Computer nella schermata iniziale.
 - 2026-11-23: pannello più chiaro ("Cosa è successo", patrimonio, posizione, registro completo), layout per telefono con pulsanti grandi, avviso di salvataggio automatico.
+- 2026-11-23: aste (quando chi arriva non compra) e scambi tra giocatori, anche con il computer.
 
 ## Regole semplificate nel prototipo
-- Se un giocatore non compra una casella, resta libera (niente asta).
-- Niente scambi tra giocatori.
 - Con un debito il giocatore vende case o ipoteca; se non basta dichiara bancarotta.

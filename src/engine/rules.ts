@@ -1,6 +1,6 @@
 // Regole di gioco: ogni azione produce un nuovo stato senza modificare quello precedente.
 import { rollDice } from './dice';
-import { JAIL_FINE, MAX_JAIL_ATTEMPTS, type GameContext, type GameState, type Player } from './state';
+import { JAIL_FINE, MAX_JAIL_ATTEMPTS, type GameContext, type GameState, type Player, type TradeOffer, type TradeSide } from './state';
 import type { Card, CardEffect, DeckId, PropertySpace, Space } from './types';
 
 export type Action =
@@ -14,7 +14,22 @@ export type Action =
   | { type: 'mortgage'; spaceId: string }
   | { type: 'unmortgage'; spaceId: string }
   | { type: 'endTurn' }
-  | { type: 'bankrupt' };
+  | { type: 'bankrupt' }
+  | { type: 'bid'; amount: number }
+  | { type: 'pass' }
+  | { type: 'proposeTrade'; offer: Omit<TradeOffer, 'from'> }
+  | { type: 'acceptTrade' }
+  | { type: 'rejectTrade' };
+
+export const MIN_BID = 10;
+
+// Chi deve agire adesso: di solito il giocatore di turno, ma durante un'asta
+// rilancia chi è di mano, e con uno scambio in sospeso risponde il destinatario.
+export function actingPlayer(state: GameState): number {
+  if (state.trade) return state.trade.to;
+  if (state.phase === 'auction' && state.auction) return state.auction.bidders[state.auction.turn];
+  return state.current;
+}
 
 // Errore per un'azione non permessa in questo momento: l'interfaccia può mostrarlo.
 export class RuleError extends Error {}
@@ -330,10 +345,124 @@ function doBuy(state: GameState, ctx: GameContext): void {
   finishMove(state);
 }
 
-function doDecline(state: GameState): void {
+function doDecline(state: GameState, ctx: GameContext): void {
   requirePhase(state, 'buy');
-  log(state, `${current(state).name} non compra.`);
+  const p = current(state);
+  log(state, `${p.name} non compra.`);
+  startAuction(state, ctx);
+}
+
+// ---------- aste ----------
+
+function startAuction(state: GameState, ctx: GameContext): void {
+  const p = current(state);
+  const n = state.players.length;
+  const bidders: number[] = [];
+  for (let k = 0; k < n; k++) {
+    const id = (p.id + k) % n;
+    if (!state.players[id].bankrupt && state.players[id].money >= MIN_BID) bidders.push(id);
+  }
+  if (bidders.length === 0) {
+    finishMove(state);
+    return;
+  }
+  const space = ctx.board.spaces[p.position];
+  state.auction = { spaceId: space.id, highestBid: 0, highestBidder: null, bidders, turn: 0 };
+  state.phase = 'auction';
+  log(state, `Asta per ${space.name}!`);
+}
+
+function doBid(state: GameState, ctx: GameContext, amount: number): void {
+  requirePhase(state, 'auction');
+  const a = state.auction!;
+  const bidder = state.players[a.bidders[a.turn]];
+  if (!Number.isInteger(amount) || amount < Math.max(MIN_BID, a.highestBid + 1)) throw new RuleError('L\'offerta deve superare quella attuale.');
+  if (amount > bidder.money) throw new RuleError('Non hai abbastanza soldi.');
+  a.highestBid = amount;
+  a.highestBidder = bidder.id;
+  log(state, `${bidder.name} offre ${amount}.`);
+  a.turn = (a.turn + 1) % a.bidders.length;
+  checkAuctionEnd(state, ctx);
+}
+
+function doPass(state: GameState, ctx: GameContext): void {
+  requirePhase(state, 'auction');
+  const a = state.auction!;
+  const id = a.bidders[a.turn];
+  log(state, `${state.players[id].name} passa.`);
+  a.bidders.splice(a.turn, 1);
+  if (a.turn >= a.bidders.length) a.turn = 0;
+  checkAuctionEnd(state, ctx);
+}
+
+function checkAuctionEnd(state: GameState, ctx: GameContext): void {
+  const a = state.auction!;
+  const onlyWinnerLeft = a.bidders.length === 1 && a.bidders[0] === a.highestBidder;
+  if (a.bidders.length > 0 && !onlyWinnerLeft) return;
+  const space = spaceById(ctx, a.spaceId);
+  if (a.highestBidder !== null) {
+    const w = state.players[a.highestBidder];
+    w.money -= a.highestBid;
+    state.ownership[a.spaceId] = { owner: w.id, houses: 0, mortgaged: false };
+    log(state, `${w.name} vince l'asta: ${space.name} per ${a.highestBid}.`);
+  } else {
+    log(state, `Nessuna offerta: ${space.name} resta libera.`);
+  }
+  state.auction = null;
   finishMove(state);
+}
+
+// ---------- scambi ----------
+
+function validateSide(state: GameState, ctx: GameContext, owner: number, side: TradeSide): void {
+  if (!Number.isInteger(side.money) || side.money < 0) throw new RuleError('Somma non valida.');
+  if (side.money > Math.max(state.players[owner].money, 0)) throw new RuleError(`${state.players[owner].name} non ha abbastanza soldi.`);
+  for (const id of side.spaces) {
+    const space = spaceById(ctx, id);
+    if (state.ownership[id]?.owner !== owner) throw new RuleError(`${space.name} non appartiene a ${state.players[owner].name}.`);
+    if (space.type === 'property' && groupProperties(ctx, space.group).some((g) => (state.ownership[g.id]?.houses ?? 0) > 0)) {
+      throw new RuleError(`Prima vendi le case del quartiere di ${space.name}.`);
+    }
+  }
+}
+
+function doProposeTrade(state: GameState, ctx: GameContext, offer: Omit<TradeOffer, 'from'>): void {
+  requirePhase(state, 'roll', 'endTurn');
+  const from = state.current;
+  const to = state.players[offer.to];
+  if (!to || to.bankrupt || to.id === from) throw new RuleError('Scegli un altro giocatore.');
+  const empty = (x: TradeSide) => x.money === 0 && x.spaces.length === 0;
+  if (empty(offer.give) && empty(offer.get)) throw new RuleError('Lo scambio è vuoto.');
+  validateSide(state, ctx, from, offer.give);
+  validateSide(state, ctx, offer.to, offer.get);
+  state.trade = { from, ...offer, give: { ...offer.give, spaces: [...offer.give.spaces] }, get: { ...offer.get, spaces: [...offer.get.spaces] } };
+  if (current(state).isBot) state.tradeProposedThisTurn = true;
+  log(state, `${current(state).name} propone uno scambio a ${to.name}.`);
+}
+
+function transfer(state: GameState, from: number, to: number, side: TradeSide): void {
+  state.players[from].money -= side.money;
+  state.players[to].money += side.money;
+  for (const id of side.spaces) state.ownership[id].owner = to;
+}
+
+function doAcceptTrade(state: GameState, ctx: GameContext): void {
+  const t = state.trade;
+  if (!t) throw new RuleError('Nessuno scambio in sospeso.');
+  // le condizioni potrebbero essere cambiate: si ricontrolla tutto
+  validateSide(state, ctx, t.from, t.give);
+  validateSide(state, ctx, t.to, t.get);
+  transfer(state, t.from, t.to, t.give);
+  transfer(state, t.to, t.from, t.get);
+  state.trade = null;
+  log(state, `${state.players[t.to].name} accetta lo scambio.`);
+}
+
+function doRejectTrade(state: GameState): void {
+  const t = state.trade;
+  if (!t) throw new RuleError('Nessuno scambio in sospeso.');
+  state.trade = null;
+  log(state, `${state.players[t.to].name} rifiuta lo scambio.`);
 }
 
 function doPayJailFine(state: GameState): void {
@@ -428,6 +557,7 @@ function nextPlayer(state: GameState): void {
   state.doublesInRow = 0;
   state.extraRoll = false;
   state.creditor = null;
+  state.tradeProposedThisTurn = false;
   log(state, `Tocca a ${state.players[i].name}.`);
 }
 
@@ -474,11 +604,18 @@ function doBankrupt(state: GameState, ctx: GameContext): void {
 // Applica un'azione e restituisce il nuovo stato. Lancia RuleError se l'azione non è valida.
 export function applyAction(state: GameState, action: Action, ctx: GameContext): GameState {
   if (state.phase === 'gameOver') throw new RuleError('La partita è finita.');
+  // con uno scambio in sospeso si può solo accettare o rifiutare
+  if (state.trade && action.type !== 'acceptTrade' && action.type !== 'rejectTrade') {
+    throw new RuleError('Prima si deve rispondere allo scambio.');
+  }
   const next = structuredClone(state);
+  // compatibilità con partite salvate prima di aste e scambi
+  next.auction ??= null;
+  next.trade ??= null;
   switch (action.type) {
     case 'roll': doRoll(next, ctx); break;
     case 'buy': doBuy(next, ctx); break;
-    case 'decline': doDecline(next); break;
+    case 'decline': doDecline(next, ctx); break;
     case 'payJailFine': doPayJailFine(next); break;
     case 'useJailCard': doUseJailCard(next, ctx); break;
     case 'build': doBuild(next, ctx, action.spaceId); break;
@@ -487,6 +624,11 @@ export function applyAction(state: GameState, action: Action, ctx: GameContext):
     case 'unmortgage': doUnmortgage(next, ctx, action.spaceId); break;
     case 'endTurn': doEndTurn(next); break;
     case 'bankrupt': doBankrupt(next, ctx); break;
+    case 'bid': doBid(next, ctx, action.amount); break;
+    case 'pass': doPass(next, ctx); break;
+    case 'proposeTrade': doProposeTrade(next, ctx, action.offer); break;
+    case 'acceptTrade': doAcceptTrade(next, ctx); break;
+    case 'rejectTrade': doRejectTrade(next); break;
   }
   // si tengono solo gli ultimi eventi: lo stato resta piccolo da copiare e salvare
   if (next.log.length > MAX_LOG) next.log.splice(0, next.log.length - MAX_LOG);
