@@ -1,6 +1,6 @@
 // Giocatore controllato dal computer: sceglie sempre un'azione valida in base allo stato.
-import { ownsWholeGroup, unmortgageCost, HOTEL, type Action } from './rules';
-import type { GameContext, GameState } from './state';
+import { actingPlayer, ownsWholeGroup, unmortgageCost, HOTEL, MIN_BID, type Action } from './rules';
+import type { GameContext, GameState, TradeSide } from './state';
 import { JAIL_FINE } from './state';
 import type { PropertySpace, Space } from './types';
 
@@ -92,9 +92,95 @@ function tryUnmortgage(state: GameState, ctx: GameContext): Action | null {
   return h ? { type: 'unmortgage', spaceId: h.id } : null;
 }
 
+// ---------- aste e scambi ----------
+
+function groupOf(ctx: GameContext, group: string): PropertySpace[] {
+  return ctx.board.spaces.filter((s): s is PropertySpace => s.type === 'property' && s.group === group);
+}
+
+// Vero se, ottenendo "spaceId", il giocatore completerebbe il quartiere.
+function wouldComplete(state: GameState, ctx: GameContext, playerId: number, spaceId: string): boolean {
+  const space = spaceOf(ctx, spaceId);
+  if (space.type !== 'property') return false;
+  return groupOf(ctx, space.group).every((g) => g.id === spaceId || state.ownership[g.id]?.owner === playerId);
+}
+
+// Quanto vale una casella per un giocatore che la riceve.
+function valueFor(state: GameState, ctx: GameContext, playerId: number, spaceId: string): number {
+  const space = spaceOf(ctx, spaceId);
+  if (!('price' in space)) return 0;
+  const base = state.ownership[spaceId]?.mortgaged ? space.price - space.mortgage : space.price;
+  if (wouldComplete(state, ctx, playerId, spaceId)) return base * 2.5;
+  if (space.type === 'station') {
+    const owned = ctx.board.spaces.filter((s) => s.type === 'station' && state.ownership[s.id]?.owner === playerId).length;
+    return base * (1 + 0.25 * owned);
+  }
+  return base;
+}
+
+function chooseAuctionAction(state: GameState, ctx: GameContext, me: number): Action {
+  const a = state.auction!;
+  const money = state.players[me].money;
+  const completes = wouldComplete(state, ctx, me, a.spaceId);
+  const blocks = state.players.some((p) => p.id !== me && !p.bankrupt && wouldComplete(state, ctx, p.id, a.spaceId));
+  const space = spaceOf(ctx, a.spaceId);
+  const price = 'price' in space ? space.price : 0;
+  const worth = price * (completes ? 1.6 : blocks ? 1.2 : 0.9);
+  const limit = Math.min(worth, money - (completes ? 20 : RESERVE / 2));
+  const next = Math.max(MIN_BID, a.highestBid + 10);
+  return next <= limit && a.highestBidder !== me ? { type: 'bid', amount: next } : { type: 'pass' };
+}
+
+function chooseTradeResponse(state: GameState, ctx: GameContext): Action {
+  const t = state.trade!;
+  const me = t.to;
+  if (state.players[me].money < t.get.money) return { type: 'rejectTrade' };
+  const received = t.give.money + t.give.spaces.reduce((sum, id) => sum + valueFor(state, ctx, me, id), 0);
+  // cedere una casella che completa il quartiere dell'avversario costa molto di più
+  const lost =
+    t.get.money +
+    t.get.spaces.reduce((sum, id) => {
+      const space = spaceOf(ctx, id);
+      const price = 'price' in space ? space.price : 0;
+      return sum + (wouldComplete(state, ctx, t.from, id) ? price * 2.2 : price) + (wouldCompleteMine(id) ? price * 1.5 : 0);
+    }, 0);
+  return received >= lost * 1.2 && received > 0 ? { type: 'acceptTrade' } : { type: 'rejectTrade' };
+
+  // vero se la casella fa parte di un quartiere che possiedo già tutto
+  function wouldCompleteMine(id: string): boolean {
+    const space = spaceOf(ctx, id);
+    return space.type === 'property' && ownsWholeGroup(state, ctx, me, space.group);
+  }
+}
+
+// Se manca una sola via per completare un quartiere, prova a comprarla da chi la possiede.
+function tryProposeTrade(state: GameState, ctx: GameContext): Action | null {
+  if (state.tradeProposedThisTurn) return null;
+  const me = state.current;
+  const money = state.players[me].money;
+  for (const g of ctx.board.groups) {
+    const group = groupOf(ctx, g.id);
+    const missing = group.filter((s) => state.ownership[s.id]?.owner !== me);
+    if (missing.length !== 1) continue;
+    const target = missing[0];
+    const own = state.ownership[target.id];
+    if (!own || state.players[own.owner].bankrupt) continue;
+    if (group.some((s) => (state.ownership[s.id]?.houses ?? 0) > 0)) continue;
+    const offer = Math.min(Math.round(target.price * 2.4), money - RESERVE);
+    if (offer < target.price * 1.3) continue;
+    const give: TradeSide = { money: offer, spaces: [] };
+    return { type: 'proposeTrade', offer: { to: own.owner, give, get: { money: 0, spaces: [target.id] } } };
+  }
+  return null;
+}
+
 export function chooseBotAction(state: GameState, ctx: GameContext): Action {
-  const me = state.players[state.current];
+  if (state.trade) return chooseTradeResponse(state, ctx);
+  const actor = actingPlayer(state);
+  const me = state.players[actor];
   switch (state.phase) {
+    case 'auction':
+      return chooseAuctionAction(state, ctx, actor);
     case 'roll':
       if (me.inJail && me.jailCards.length) return { type: 'useJailCard' };
       // all'inizio conviene uscire subito per comprare; più avanti meglio restare dentro
@@ -106,7 +192,7 @@ export function chooseBotAction(state: GameState, ctx: GameContext): Action {
     }
     case 'endTurn':
       if (me.money < 0) return raiseMoney(state, ctx) ?? { type: 'bankrupt' };
-      return tryUnmortgage(state, ctx) ?? tryBuild(state, ctx) ?? { type: 'endTurn' };
+      return tryUnmortgage(state, ctx) ?? tryProposeTrade(state, ctx) ?? tryBuild(state, ctx) ?? { type: 'endTurn' };
     default:
       throw new Error('La partita è finita');
   }

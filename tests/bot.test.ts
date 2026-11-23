@@ -69,3 +69,34 @@ describe('giocatore computer', () => {
     }
   });
 });
+
+describe('computer: aste e scambi', () => {
+  it('in asta rilancia di poco finché la casella vale la spesa, poi passa', () => {
+    let s = applyAction(newGame(), { type: 'roll' }, ctxWith(1, 2)); // Via del Cassonetto, 60
+    s = applyAction(s, { type: 'decline' }, ctxWith());
+    expect(chooseBotAction(s, ctxWith())).toEqual({ type: 'bid', amount: 10 });
+    s.auction!.highestBid = 200;
+    s.auction!.highestBidder = 1;
+    expect(chooseBotAction(s, ctxWith())).toEqual({ type: 'pass' });
+  });
+
+  it('propone di comprare l\'ultima via che gli manca per completare un quartiere', () => {
+    const s = applyAction(newGame(), { type: 'roll' }, ctxWith(1, 3));
+    own(s, 'periferia-1', 0);
+    own(s, 'periferia-2', 1);
+    expect(chooseBotAction(s, ctxWith())).toMatchObject({ type: 'proposeTrade', offer: { to: 1, get: { spaces: ['periferia-2'] } } });
+  });
+
+  it('accetta uno scambio vantaggioso e rifiuta di regalare un quartiere', () => {
+    let s = applyAction(newGame(), { type: 'roll' }, ctxWith(1, 3));
+    own(s, 'borgo-1', 1);
+    s = applyAction(s, { type: 'proposeTrade', offer: { to: 1, give: { money: 300, spaces: [] }, get: { money: 0, spaces: ['borgo-1'] } } }, ctxWith());
+    expect(chooseBotAction(s, ctxWith())).toEqual({ type: 'acceptTrade' });
+
+    let t = applyAction(newGame(), { type: 'roll' }, ctxWith(1, 3));
+    own(t, 'periferia-1', 0);
+    own(t, 'periferia-2', 1);
+    t = applyAction(t, { type: 'proposeTrade', offer: { to: 1, give: { money: 80, spaces: [] }, get: { money: 0, spaces: ['periferia-2'] } } }, ctxWith());
+    expect(chooseBotAction(t, ctxWith())).toEqual({ type: 'rejectTrade' });
+  });
+});
