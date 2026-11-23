@@ -1,0 +1,33 @@
+{
+  "decks": {
+    "sorte": { "name": "Colpo di Sorte" },
+    "quartiere": { "name": "Voci di Quartiere" }
+  },
+  "cards": [
+    { "id": "sorte-01", "deck": "sorte", "text": "Il navigatore impazzisce: torna alla Partenza e ritira lo stipendio.", "effect": { "kind": "moveTo", "space": "partenza" } },
+    { "id": "sorte-02", "deck": "sorte", "text": "Ti viene voglia di lago. Vai a Riva dei Miliardari.", "effect": { "kind": "moveTo", "space": "lungolago-2" } },
+    { "id": "sorte-03", "deck": "sorte", "text": "Esame a sorpresa! Corri in Viale della Sessione. Se passi dalla Partenza ritira lo stipendio.", "effect": { "kind": "moveTo", "space": "universita-3" } },
+    { "id": "sorte-04", "deck": "sorte", "text": "Hai sbagliato fermata. Torna indietro di 3 caselle.", "effect": { "kind": "moveBy", "steps": -3 } },
+    { "id": "sorte-05", "deck": "sorte", "text": "Prendi il primo mezzo che passa: vai alla fermata più vicina.", "effect": { "kind": "moveToNearest", "spaceType": "station" } },
+    { "id": "sorte-06", "deck": "sorte", "text": "Vinci la gara di torte del quartiere. Incassa 150.", "effect": { "kind": "gain", "amount": 150 } },
+    { "id": "sorte-07", "deck": "sorte", "text": "Il gatto ha rovesciato il vaso del vicino. Paga 50.", "effect": { "kind": "pay", "amount": 50 } },
+    { "id": "sorte-08", "deck": "sorte", "text": "Organizzi una grigliata e offri tu. Paga 25 a ogni giocatore.", "effect": { "kind": "payEachPlayer", "amount": 25 } },
+    { "id": "sorte-09", "deck": "sorte", "text": "Ti fermano i Vigili per un monopattino senza campanello. Vai in Caserma.", "effect": { "kind": "goToJail" } },
+    { "id": "sorte-10", "deck": "sorte", "text": "Un amico avvocato ti deve un favore. Esci gratis dalla Caserma (conserva la carta).", "effect": { "kind": "getOutOfJailFree" } },
+    { "id": "sorte-11", "deck": "sorte", "text": "Tegole volate via col vento. Paga 25 per ogni casa e 100 per ogni palazzo.", "effect": { "kind": "repairs", "perHouse": 25, "perHotel": 100 } },
+    { "id": "sorte-12", "deck": "sorte", "text": "Trovi un biglietto vincente nella giacca dell'anno scorso. Incassa 50.", "effect": { "kind": "gain", "amount": 50 } },
+
+    { "id": "quartiere-01", "deck": "quartiere", "text": "La portinaia ti restituisce il resto dimenticato. Incassa 200.", "effect": { "kind": "gain", "amount": 200 } },
+    { "id": "quartiere-02", "deck": "quartiere", "text": "Visita dal dentista. Paga 100.", "effect": { "kind": "pay", "amount": 100 } },
+    { "id": "quartiere-03", "deck": "quartiere", "text": "È il tuo compleanno! Ogni giocatore ti regala 10.", "effect": { "kind": "collectFromEachPlayer", "amount": 10 } },
+    { "id": "quartiere-04", "deck": "quartiere", "text": "Rimborso della bolletta pagata due volte. Incassa 20.", "effect": { "kind": "gain", "amount": 20 } },
+    { "id": "quartiere-05", "deck": "quartiere", "text": "Iscrizione alla palestra che non userai mai. Paga 50.", "effect": { "kind": "pay", "amount": 50 } },
+    { "id": "quartiere-06", "deck": "quartiere", "text": "Vendi la bici vecchia al mercatino. Incassa 45.", "effect": { "kind": "gain", "amount": 45 } },
+    { "id": "quartiere-07", "deck": "quartiere", "text": "Si va al mare! Torna alla Partenza e ritira lo stipendio.", "effect": { "kind": "moveTo", "space": "partenza" } },
+    { "id": "quartiere-08", "deck": "quartiere", "text": "Hai parcheggiato sul marciapiede. Vai in Caserma.", "effect": { "kind": "goToJail" } },
+    { "id": "quartiere-09", "deck": "quartiere", "text": "La nonna ti lascia una busta nel cappotto. Esci gratis dalla Caserma (conserva la carta).", "effect": { "kind": "getOutOfJailFree" } },
+    { "id": "quartiere-10", "deck": "quartiere", "text": "L'assemblea di condominio vota i lavori. Paga 40 per ogni casa e 115 per ogni palazzo.", "effect": { "kind": "repairs", "perHouse": 40, "perHotel": 115 } },
+    { "id": "quartiere-11", "deck": "quartiere", "text": "Secondo premio al concorso di bellezza dei cani. Incassa 10.", "effect": { "kind": "gain", "amount": 10 } },
+    { "id": "quartiere-12", "deck": "quartiere", "text": "Gli interessi del libretto postale maturano. Incassa 100.", "effect": { "kind": "gain", "amount": 100 } }
+  ]
+}
