@@ -7,7 +7,7 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 
 ## Piano
 1. ✅ Base del progetto: Vite + TypeScript + Vitest, cartelle, pubblicazione su GitHub Pages.
-2. ⬜ Contenuti originali: tabellone, caselle, prezzi, affitti e carte in JSON (`src/data/`).
+2. 🟡 Contenuti originali (proposta in revisione): tabellone, caselle, prezzi, affitti e carte in JSON (`src/data/`).
 3. ⬜ Motore di gioco con test: turni, dadi, movimento, acquisto, affitti, carte, prigione, bancarotta, vincitore.
 4. ⬜ Interfaccia minima: tabellone HTML/CSS, 2-4 giocatori sullo stesso dispositivo.
 
@@ -15,6 +15,9 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 - Interfaccia in HTML/CSS + TypeScript semplice (niente React per ora; si può rivalutare).
 - Il motore riceve il generatore casuale come parametro (`Rng`), così i test sono deterministici.
 - Hosting: GitHub Pages (richiede repository pubblico).
+- Valuta: sdroghi (Ꞩ), 1500 a testa all'inizio, 200 di stipendio alla Partenza.
+- Mazzi di carte: "Colpo di Sorte" e "Voci di Quartiere" (12 carte ciascuno).
 
 ## Fatto finora
 - 2026-11-23: struttura iniziale, lancio dei dadi nel motore con test, pagina provvisoria.
+- 2026-11-23: proposta di tabellone (40 caselle, 8 quartieri) e 24 carte in `src/data/`, con test di coerenza dei dati.
