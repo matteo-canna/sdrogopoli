@@ -8,8 +8,8 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 ## Piano
 1. ✅ Base del progetto: Vite + TypeScript + Vitest, cartelle, pubblicazione su GitHub Pages.
 2. ✅ Contenuti originali: tabellone, caselle, prezzi, affitti e carte in JSON (`src/data/`).
-3. 🟡 Motore di gioco con test (in revisione): turni, dadi, movimento, acquisto, affitti, carte, prigione, bancarotta, vincitore.
-4. ⬜ Interfaccia minima: tabellone HTML/CSS, 2-4 giocatori sullo stesso dispositivo.
+3. ✅ Motore di gioco con test: turni, dadi, movimento, acquisto, affitti, carte, prigione, bancarotta, vincitore.
+4. 🟡 Interfaccia minima (in revisione): tabellone HTML/CSS, 2-4 giocatori sullo stesso dispositivo.
 
 ## Decisioni
 - Interfaccia in HTML/CSS + TypeScript semplice (niente React per ora; si può rivalutare).
@@ -22,6 +22,7 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 - 2026-11-23: struttura iniziale, lancio dei dadi nel motore con test, pagina provvisoria.
 - 2026-11-23: proposta di tabellone (40 caselle, 8 quartieri) e 24 carte in `src/data/`, con test di coerenza dei dati.
 - 2026-11-23: motore di gioco (`state.ts`, `rules.ts`) con 39 test: turni, doppi, Caserma, acquisto, affitti, carte, case, ipoteche, debiti e bancarotta.
+- 2026-11-23: interfaccia con tabellone HTML/CSS, schermata iniziale 2-4 giocatori, scheda delle caselle, gestione case/ipoteche, partita salvata nel browser.
 
 ## Regole semplificate nel prototipo
 - Se un giocatore non compra una casella, resta libera (niente asta).
