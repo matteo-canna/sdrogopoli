@@ -293,7 +293,10 @@ function act(action: Action): void {
   try {
     state = applyAction(state, action, ctx);
     error = '';
-    if (action.type === 'roll') audio.play('dice');
+    if (action.type === 'roll') {
+      audio.play('dice');
+      if (state.lastRoll) board3d?.showDice(state.lastRoll, prev.current);
+    }
     const sfx = soundFor(prev, state, action);
     // il suono del lancio c'è già: dopo un attimo quello del risultato
     if (sfx && sfx !== 'dice') setTimeout(() => audio.play(sfx), action.type === 'roll' ? 450 : 0);
