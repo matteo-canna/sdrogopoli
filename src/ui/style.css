@@ -156,3 +156,43 @@ button.link { background: none; border: none; color: var(--muted); text-decorati
   .game3d { grid-template-columns: 1fr; }
   .stage { height: 62vh; min-height: 320px; }
 }
+
+/* ---------- pannello informazioni ---------- */
+.turn { flex-wrap: wrap; justify-content: center; font-size: 1.05em; }
+.roll { display: inline-flex; align-items: center; gap: 6px; }
+.roll-total {
+  background: var(--panel); border-radius: 999px; padding: 1px 9px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.news {
+  width: min(100%, 340px); background: var(--panel); border-left: 4px solid var(--accent);
+  border-radius: 8px; padding: 8px 12px;
+}
+.news h4 { margin: 0 0 4px; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.news ul { margin: 0; padding-left: 18px; }
+.news li { margin: 2px 0; }
+.log-box { width: min(100%, 340px); color: var(--muted); font-size: 0.9em; }
+.log-box summary { cursor: pointer; padding: 4px 0; }
+.log-box .log { max-height: 220px; overflow: auto; }
+.badge {
+  font-size: 0.72em; background: var(--accent); color: #fff; border-radius: 999px; padding: 1px 8px;
+}
+.player-meta {
+  display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  color: var(--muted); font-size: 0.85em; margin-top: 4px;
+}
+.saved { color: var(--muted); font-size: 0.85em; margin: 0; text-align: center; }
+
+/* ---------- telefono: pulsanti grandi e layout verticale ---------- */
+.actions button, .view-buttons button, .setup button, .setup select, .setup input { min-height: 44px; }
+@media (max-width: 600px) {
+  .game { padding: 8px; gap: 10px; }
+  .stage { height: 52vh; min-height: 280px; border-radius: 8px; }
+  .actions { flex-direction: column; align-items: stretch; width: 100%; }
+  .actions button { min-height: 52px; font-size: 1.05rem; }
+  .hud { padding: 10px; }
+  .news, .details, .log-box { width: 100%; }
+  .chip { font-size: 0.8em; padding: 4px 8px; }
+  .view-buttons.overlay { top: 8px; left: 8px; right: 8px; }
+  .view-buttons.overlay button { min-height: 40px; }
+  .setup { margin: 20px auto; }
+}

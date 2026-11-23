@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { board, cards } from '../src/data';
-import { applyAction, createGame, computeRent, RuleError, JAIL_FINE, unmortgageCost } from '../src/engine';
+import { applyAction, createGame, computeRent, RuleError, JAIL_FINE, unmortgageCost, netWorth, MAX_LOG } from '../src/engine';
 import { ctxWith, newGame, indexOf, own } from './helpers';
 
 const salary = 200;
@@ -348,5 +348,23 @@ describe('pagamenti fuori turno', () => {
     const s = applyAction(s0, { type: 'roll' }, ctxWith(1, 1));
     expect(s.players[1].money).toBe(0);
     expect(s.players[0].money).toBe(1504);
+  });
+});
+
+describe('patrimonio e registro', () => {
+  it('il patrimonio somma contanti, proprietà, case e toglie le ipoteche', () => {
+    const s = newGame();
+    own(s, 'periferia-1', 0, 2); // 60 + 2 case da 50
+    own(s, 'fermata-nord', 0, 0, true); // 200 - 100 di ipoteca
+    expect(netWorth(s, ctxWith(), 0)).toBe(1500 + 60 + 100 + 100);
+  });
+
+  it('il contatore degli eventi cresce anche quando il registro viene accorciato', () => {
+    let s = newGame();
+    s.log = Array.from({ length: MAX_LOG }, (_, i) => `evento ${i}`);
+    const before = s.eventCount;
+    s = applyAction(s, { type: 'roll' }, ctxWith(1, 3));
+    expect(s.log.length).toBe(MAX_LOG);
+    expect(s.eventCount).toBeGreaterThan(before);
   });
 });

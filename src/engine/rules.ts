@@ -58,6 +58,20 @@ export function ownsWholeGroup(state: GameState, ctx: GameContext, playerId: num
 
 function log(state: GameState, msg: string): void {
   state.log.push(msg);
+  state.eventCount = (state.eventCount ?? state.log.length - 1) + 1;
+}
+
+// Patrimonio: contanti più valore di proprietà (meno ipoteche) e case al prezzo di costruzione.
+export function netWorth(state: GameState, ctx: GameContext, playerId: number): number {
+  let total = state.players[playerId].money;
+  for (const [id, own] of Object.entries(state.ownership)) {
+    if (own.owner !== playerId) continue;
+    const space = spaceById(ctx, id);
+    if (!('price' in space)) continue;
+    total += own.mortgaged ? space.price - space.mortgage : space.price;
+    if (space.type === 'property') total += own.houses * space.housePrice;
+  }
+  return total;
 }
 
 // Trasferisce denaro. "to" null = banca. Il pagatore può finire in negativo (debito).

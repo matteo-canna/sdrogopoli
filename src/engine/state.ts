@@ -52,6 +52,8 @@ export interface GameState {
   creditor: number | null;
   winner: number | null;
   log: string[];
+  // numero totale di eventi registrati (il registro tiene solo gli ultimi)
+  eventCount: number;
 }
 
 // Contesto immutabile della partita: dati del tabellone, carte e generatore casuale.
@@ -111,5 +113,6 @@ export function createGame(players: (string | PlayerSetup)[], ctx: GameContext):
     creditor: null,
     winner: null,
     log: ['Inizia la partita!'],
+    eventCount: 1,
   };
 }
