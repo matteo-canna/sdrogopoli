@@ -21,6 +21,9 @@ let board3d: Board3D | null = null;
 // true mentre la pedina si muove nel 3D: il computer aspetta che finisca
 let animating = false;
 let botTimer: ReturnType<typeof setTimeout> | null = null;
+// eventi da mostrare in evidenza: da quando ha agito l'ultima persona
+let newsFrom = state?.eventCount ?? 0;
+let lastActorBot = false;
 
 // ---------- salvataggio nel browser (facoltativo: se non funziona si gioca lo stesso) ----------
 
@@ -94,6 +97,8 @@ function renderSetup(): void {
     }
     state = createGame(players, ctx);
     selected = null;
+    newsFrom = 0;
+    lastActorBot = false;
     save();
     render();
   });
@@ -101,18 +106,25 @@ function renderSetup(): void {
 
 // ---------- partita ----------
 
-// Parte centrale: turno, azioni, scheda della casella e ultimi eventi.
+// Parte centrale: turno, azioni, cosa è appena successo, scheda della casella e registro.
 function hudHtml(s: GameState): string {
   const p = s.players[s.current];
+  const fresh = Math.min(Math.max((s.eventCount ?? 0) - newsFrom, 0), s.log.length, 8);
+  const news = fresh ? s.log.slice(-fresh) : [];
+  const total = s.lastRoll ? s.lastRoll[0] + s.lastRoll[1] : 0;
   return `
     <div class="turn">
       <span class="token big" style="background:${PLAYER_COLORS[p.id]}"></span>
-      Tocca a <strong>${escapeHtml(p.name)}</strong> ${renderDice(s)}
+      <span>Tocca a <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong></span>
+      ${s.lastRoll ? `<span class="roll">${renderDice(s)}<span class="roll-total">${total}</span></span>` : ''}
     </div>
     <div class="actions">${renderTurnActions(s)}</div>
-    ${error ? `<p class="error">${escapeHtml(error)}</p>` : ''}
+    ${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}
+    ${news.length ? `<div class="news" aria-live="polite"><h4>Cosa è successo</h4><ul>${news.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul></div>` : ''}
     ${selected ? renderSpaceDetails(s, selected) : '<p class="hint">Tocca una casella per vedere i dettagli.</p>'}
-    <ol class="log">${s.log.slice(-6).reverse().map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ol>`;
+    <details class="log-box"><summary>Registro della partita</summary>
+      <ol class="log">${s.log.slice().reverse().map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ol>
+    </details>`;
 }
 
 function viewButtons(): string {
@@ -171,6 +183,7 @@ function render2d(s: GameState): void {
       <aside class="players">
         <div class="view-buttons">${viewButtons()}</div>
         ${renderPlayers(s)}
+        <p class="saved">💾 La partita si salva da sola su questo dispositivo.</p>
         <button class="link" data-action="quit">Abbandona la partita</button>
       </aside>
     </div>`;
@@ -188,6 +201,7 @@ function render3d(s: GameState): void {
         <aside class="side">
           <div class="hud"></div>
           <div class="players-list"></div>
+          <p class="saved">💾 La partita si salva da sola su questo dispositivo.</p>
           <button class="link" data-action="quit">Abbandona la partita</button>
         </aside>
       </div>`;
@@ -220,6 +234,10 @@ function destroy3d(): void {
 
 function act(action: Action): void {
   if (!state) return;
+  const actorBot = !!state.players[state.current].isBot;
+  // le azioni di una persona azzerano le notizie; quelle del computer si accumulano
+  if (!actorBot || !lastActorBot) newsFrom = state.eventCount ?? 0;
+  lastActorBot = actorBot;
   try {
     state = applyAction(state, action, ctx);
     error = '';

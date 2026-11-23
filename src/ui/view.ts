@@ -1,6 +1,6 @@
 // Funzioni di rendering: trasformano lo stato del motore in HTML.
 import { board, cards } from '../data';
-import { computeRent, unmortgageCost, type GameState, type Space } from '../engine';
+import { computeRent, netWorth, unmortgageCost, type GameState, type Space } from '../engine';
 
 export const PLAYER_COLORS = ['#e4572e', '#2e86de', '#f4b400', '#8e44ad'];
 const SYMBOL = board.currency.symbol;
@@ -118,6 +118,7 @@ export function renderSpaceDetails(state: GameState, spaceId: string): string {
 }
 
 export function renderPlayers(state: GameState): string {
+  const ctx = { board, cards, rng: Math.random };
   return state.players
     .map((p) => {
       const owned = Object.entries(state.ownership)
@@ -128,17 +129,22 @@ export function renderPlayers(state: GameState): string {
           return `<button class="chip ${o.mortgaged ? 'mortgaged' : ''}" data-space="${id}" style="border-color:${c}">${escapeHtml(s.name)}${o.houses ? ` ${o.houses === 5 ? '🏢' : '🏠×' + o.houses}` : ''}</button>`;
         })
         .join('');
-      const status = p.bankrupt ? 'in bancarotta' : p.inJail ? 'in Caserma' : '';
+      const active = p.id === state.current && state.phase !== 'gameOver';
+      const where = p.bankrupt ? 'In bancarotta' : p.inJail ? '🚓 In Caserma' : `📍 ${escapeHtml(board.spaces[p.position].name)}`;
       return `
-        <div class="player ${p.id === state.current && state.phase !== 'gameOver' ? 'active' : ''} ${p.bankrupt ? 'out' : ''}">
+        <div class="player ${active ? 'active' : ''} ${p.bankrupt ? 'out' : ''}">
           <div class="player-head">
             <span class="token big" style="background:${PLAYER_COLORS[p.id]}"></span>
             <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>
-            <span class="money ${p.money < 0 ? 'negative' : ''}">${money(p.money)}</span>
+            ${active ? '<span class="badge">di turno</span>' : ''}
+            <span class="money ${p.money < 0 ? 'negative' : ''}" title="Contanti">${money(p.money)}</span>
           </div>
-          ${status ? `<div class="status">${status}</div>` : ''}
+          <div class="player-meta">
+            <span>${where}</span>
+            ${p.bankrupt ? '' : `<span title="Contanti + proprietà + case">Patrimonio ${money(netWorth(state, ctx, p.id))}</span>`}
+          </div>
           ${p.jailCards.length ? `<div class="status">🎟️ ${p.jailCards.length} carta esci gratis</div>` : ''}
-          <div class="chips">${owned}</div>
+          ${owned ? `<div class="chips">${owned}</div>` : ''}
         </div>`;
     })
     .join('');
