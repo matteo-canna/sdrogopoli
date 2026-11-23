@@ -1,13 +1,16 @@
 // Controller dell'interfaccia: collega i clic alle azioni del motore e ridisegna la pagina.
 import './style.css';
 import { board, cards } from '../data';
-import { actingPlayer, applyAction, chooseBotAction, createGame, RuleError, type Action, type GameContext, type GameState } from '../engine';
-import { PLAYER_COLORS, escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
+import { actingPlayer, applyAction, chooseBotAction, createGame, RuleError, type Action, type Appearance, type GameContext, type GameState } from '../engine';
+import { escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
+import { CharacterPreview } from './three/characters3d';
+import { CHARACTERS, COLOR_CHOICES, COLOR_NAMES, characterDef, defaultAppearance, playerColor } from './characters';
 import { audio, type Sfx } from './audio';
 
 const SAVE_KEY = 'sdrogopoli-partita';
 const VIEW_KEY = 'sdrogopoli-vista';
+const LOOKS_KEY = 'sdrogopoli-aspetto';
 const ctx: GameContext = { board, cards, rng: Math.random };
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
@@ -27,6 +30,11 @@ let newsFrom = state?.eventCount ?? 0;
 let lastActorBot = false;
 // scambio che la persona di turno sta preparando
 let tradeDraft: TradeDraft | null = null;
+// aspetto scelto per ciascuno dei 4 posti nella schermata iniziale (ricordato per la prossima partita)
+let setupLooks: Appearance[] = loadLooks();
+// posto di cui si sta modificando l'aspetto (null = editor chiuso)
+let editingSeat: number | null = null;
+let preview: CharacterPreview | null = null;
 
 // ---------- salvataggio nel browser (facoltativo: se non funziona si gioca lo stesso) ----------
 
@@ -64,10 +72,105 @@ function writePref(key: string, value: string): void {
   }
 }
 
+function loadLooks(): Appearance[] {
+  let saved: Partial<Appearance>[] = [];
+  try {
+    saved = JSON.parse(readPref(LOOKS_KEY) ?? '[]');
+  } catch {
+    /* preferenza rovinata: si riparte da quelle predefinite */
+  }
+  return [0, 1, 2, 3].map((i) => {
+    const look = { ...defaultAppearance(i), ...(Array.isArray(saved) ? saved[i] : {}) };
+    // un personaggio sconosciuto torna a quello predefinito
+    if (!CHARACTERS.some((c) => c.id === look.character)) return defaultAppearance(i);
+    if (look.item && !(look.item in characterDef(look.character).items)) look.item = '';
+    return look;
+  });
+}
+
 // ---------- schermata iniziale ----------
+
+function lookButton(i: number): string {
+  const look = setupLooks[i];
+  const def = characterDef(look.character);
+  return `<button type="button" class="look-btn" data-look="${i}" style="--c:${look.color}" aria-expanded="${editingSeat === i}"
+    title="Scegli il personaggio" aria-label="Personaggio del giocatore ${i + 1}: ${def.label}">${def.emoji}</button>`;
+}
+
+// Editor dell'aspetto: personaggio, colore, copricapo, mantello e oggetto in mano.
+function lookEditorHtml(i: number): string {
+  const look = setupLooks[i];
+  const def = characterDef(look.character);
+  return `
+    <div class="look-editor" style="--c:${look.color}">
+      <div class="look-preview" id="look-preview">${webglAvailable() ? '' : `<span class="look-emoji">${def.emoji}</span>`}</div>
+      <div class="look-controls">
+        <div class="look-group" role="radiogroup" aria-label="Personaggio">
+          ${CHARACTERS.map((c) => `<button type="button" class="chip-btn" role="radio" aria-checked="${c.id === look.character}" data-character="${c.id}">${c.emoji} ${c.label}</button>`).join('')}
+        </div>
+        <div class="look-group swatches" role="radiogroup" aria-label="Colore">
+          ${COLOR_CHOICES.map((col) => `<button type="button" class="swatch" role="radio" aria-checked="${col === look.color}" data-color="${col}" style="background:${col}" title="${COLOR_NAMES[col]}" aria-label="${COLOR_NAMES[col]}"></button>`).join('')}
+        </div>
+        ${def.hat ? `<label class="check"><input type="checkbox" data-hat ${look.hat ? 'checked' : ''}> Copricapo</label>` : ''}
+        <label class="check"><input type="checkbox" data-cape ${look.cape ? 'checked' : ''}> Mantello del mio colore</label>
+        <label class="hold">In mano
+          <select data-item>
+            <option value="">Niente</option>
+            ${Object.entries(def.items).map(([id, label]) => `<option value="${id}" ${id === look.item ? 'selected' : ''}>${label}</option>`).join('')}
+          </select>
+        </label>
+        <button type="button" class="primary" data-look-done>Fatto</button>
+      </div>
+    </div>`;
+}
+
+function destroyPreview(): void {
+  preview?.dispose();
+  preview = null;
+}
+
+// Ridisegna solo i pulsanti dei personaggi e l'editor, senza toccare i nomi già scritti.
+function refreshLooks(): void {
+  writePref(LOOKS_KEY, JSON.stringify(setupLooks));
+  document.querySelectorAll<HTMLElement>('.setup-row').forEach((row, i) => {
+    row.querySelector('.look-btn')!.outerHTML = lookButton(i);
+  });
+  const slot = document.querySelector<HTMLElement>('#look-slot');
+  if (!slot) return;
+  if (editingSeat === null) {
+    destroyPreview();
+    slot.innerHTML = '';
+    return;
+  }
+  slot.innerHTML = lookEditorHtml(editingSeat);
+  const box = slot.querySelector<HTMLElement>('#look-preview')!;
+  if (webglAvailable()) {
+    // l'anteprima 3D resta la stessa: si sposta nel nuovo editor
+    if (preview) preview.moveTo(box);
+    else preview = new CharacterPreview(box);
+    void preview.show(setupLooks[editingSeat]);
+  }
+}
+
+function setLook(change: Partial<Appearance>): void {
+  if (editingSeat === null) return;
+  const look = { ...setupLooks[editingSeat], ...change };
+  if (change.character) {
+    look.item = characterDef(change.character).defaultItem;
+  }
+  // colore già usato da un altro: i due giocatori se lo scambiano
+  if (change.color) {
+    const other = setupLooks.findIndex((l, j) => j !== editingSeat && l.color === change.color);
+    if (other >= 0) setupLooks[other] = { ...setupLooks[other], color: setupLooks[editingSeat].color };
+  }
+  setupLooks[editingSeat] = look;
+  refreshLooks();
+}
 
 function renderSetup(): void {
   destroy3d();
+  destroyPreview();
+  editingSeat = null;
   app.innerHTML = `
     <main class="setup">
       <h1>Sdrogopoli</h1>
@@ -75,7 +178,7 @@ function renderSetup(): void {
       <form id="setup-form">
         ${[0, 1, 2, 3]
           .map(
-            (i) => `<div class="setup-row"><span class="token big" style="background:${PLAYER_COLORS[i]}"></span>
+            (i) => `<div class="setup-row">${lookButton(i)}
               <input name="p${i}" maxlength="16" aria-label="Nome giocatore ${i + 1}" placeholder="Giocatore ${i + 1}${i >= 2 ? ' (facoltativo)' : ''}" ${i < 2 ? `value="${i === 0 ? 'Giocatore 1' : 'Computer'}"` : ''}>
               <select name="t${i}" aria-label="Chi controlla il giocatore ${i + 1}">
                 <option value="human" ${i === 0 ? 'selected' : ''}>👤 Persona</option>
@@ -83,6 +186,7 @@ function renderSetup(): void {
               </select></div>`,
           )
           .join('')}
+        <div id="look-slot"></div>
         <details class="house-rules">
           <summary>⚙️ Regole della casa</summary>
           <label>Soldi iniziali
@@ -100,12 +204,34 @@ function renderSetup(): void {
         </details>
         <button class="primary" type="submit">Inizia la partita</button>
       </form>
+      <p class="credits">Personaggi 3D: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit di Kay Lousberg</a> (CC0)</p>
     </main>`;
+  const form = document.querySelector<HTMLFormElement>('#setup-form')!;
+  form.addEventListener('click', (e) => {
+    const t = (e.target as HTMLElement).closest<HTMLElement>('button');
+    if (!t) return;
+    if (t.dataset.look !== undefined) {
+      const seat = Number(t.dataset.look);
+      editingSeat = editingSeat === seat ? null : seat;
+      refreshLooks();
+    } else if (t.dataset.character) setLook({ character: t.dataset.character });
+    else if (t.dataset.color) setLook({ color: t.dataset.color });
+    else if (t.hasAttribute('data-look-done')) {
+      editingSeat = null;
+      refreshLooks();
+    }
+  });
+  form.addEventListener('change', (e) => {
+    const t = e.target as HTMLInputElement | HTMLSelectElement;
+    if (t.hasAttribute('data-hat')) setLook({ hat: (t as HTMLInputElement).checked });
+    else if (t.hasAttribute('data-cape')) setLook({ cape: (t as HTMLInputElement).checked });
+    else if (t.hasAttribute('data-item')) setLook({ item: t.value });
+  });
   document.querySelector<HTMLFormElement>('#setup-form')!.addEventListener('submit', (e) => {
     e.preventDefault();
     const data = new FormData(e.target as HTMLFormElement);
     const players = [0, 1, 2, 3]
-      .map((i) => ({ name: String(data.get(`p${i}`) ?? '').trim(), isBot: data.get(`t${i}`) === 'bot' }))
+      .map((i) => ({ name: String(data.get(`p${i}`) ?? '').trim(), isBot: data.get(`t${i}`) === 'bot', appearance: setupLooks[i] }))
       .filter((p) => p.name);
     if (players.length < 2) {
       const form = e.target as HTMLFormElement;
@@ -119,6 +245,8 @@ function renderSetup(): void {
       maxRounds: rounds,
       parkPot: data.get('pot') === 'on',
     });
+    destroyPreview();
+    editingSeat = null;
     selected = null;
     newsFrom = 0;
     lastActorBot = false;
@@ -137,7 +265,7 @@ function hudHtml(s: GameState): string {
   const total = s.lastRoll ? s.lastRoll[0] + s.lastRoll[1] : 0;
   return `
     <div class="turn">
-      <span class="token big" style="background:${PLAYER_COLORS[p.id]}"></span>
+      <span class="token big" style="background:${playerColor(p)}"></span>
       <span>Tocca a <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong></span>
       ${s.rules?.maxRounds ? `<span class="pill">Giro ${s.round} di ${s.rules.maxRounds}</span>` : ''}
       ${s.rules?.parkPot ? `<span class="pill" title="Montepremi della Panchina del Parco">🪑 ${board.currency.symbol} ${s.pot}</span>` : ''}
