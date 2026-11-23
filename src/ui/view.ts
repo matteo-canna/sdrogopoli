@@ -133,7 +133,7 @@ export function renderPlayers(state: GameState): string {
         <div class="player ${p.id === state.current && state.phase !== 'gameOver' ? 'active' : ''} ${p.bankrupt ? 'out' : ''}">
           <div class="player-head">
             <span class="token big" style="background:${PLAYER_COLORS[p.id]}"></span>
-            <strong>${escapeHtml(p.name)}</strong>
+            <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>
             <span class="money ${p.money < 0 ? 'negative' : ''}">${money(p.money)}</span>
           </div>
           ${status ? `<div class="status">${status}</div>` : ''}
@@ -151,6 +151,7 @@ export function renderTurnActions(state: GameState): string {
       <button data-action="newGame">Nuova partita</button>`;
   }
   const p = state.players[state.current];
+  if (p.isBot) return `<p class="hint">🤖 ${escapeHtml(p.name)} sta pensando…</p>`;
   const b: string[] = [];
   if (state.phase === 'roll') {
     if (p.inJail) {

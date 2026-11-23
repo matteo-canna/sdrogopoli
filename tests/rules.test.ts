@@ -339,3 +339,14 @@ describe('case, ipoteche e bancarotta', () => {
     expect(s.current).toBe(1);
   });
 });
+
+describe('pagamenti fuori turno', () => {
+  it('"compleanno": chi non ha soldi paga solo quello che ha', () => {
+    const s0 = newGame();
+    s0.decks.quartiere = ['quartiere-03', ...s0.decks.quartiere.filter((id) => id !== 'quartiere-03')];
+    s0.players[1].money = 4;
+    const s = applyAction(s0, { type: 'roll' }, ctxWith(1, 1));
+    expect(s.players[1].money).toBe(0);
+    expect(s.players[0].money).toBe(1504);
+  });
+});

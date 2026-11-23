@@ -21,6 +21,7 @@ export class RuleError extends Error {}
 
 const BOARD_SIZE_FALLBACK = 40;
 export const HOTEL = 5;
+export const MAX_LOG = 50;
 
 // ---------- funzioni di supporto ----------
 
@@ -199,9 +200,11 @@ function applyCardEffect(state: GameState, ctx: GameContext, effect: CardEffect)
       if (p.money < 0) state.creditor = null;
       break;
     case 'collectFromEachPlayer':
+      // chi non è di turno paga solo quello che ha: non può gestire un debito fuori dal proprio turno
       for (const o of others) {
-        o.money -= effect.amount;
-        p.money += effect.amount;
+        const paid = Math.min(effect.amount, Math.max(o.money, 0));
+        o.money -= paid;
+        p.money += paid;
       }
       break;
     case 'repairs': {
@@ -471,5 +474,7 @@ export function applyAction(state: GameState, action: Action, ctx: GameContext):
     case 'endTurn': doEndTurn(next); break;
     case 'bankrupt': doBankrupt(next, ctx); break;
   }
+  // si tengono solo gli ultimi eventi: lo stato resta piccolo da copiare e salvare
+  if (next.log.length > MAX_LOG) next.log.splice(0, next.log.length - MAX_LOG);
   return next;
 }

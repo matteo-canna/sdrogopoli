@@ -13,6 +13,14 @@ export interface Player {
   // carte "esci gratis" possedute (id delle carte)
   jailCards: string[];
   bankrupt: boolean;
+  // true se il giocatore è controllato dal computer
+  isBot: boolean;
+}
+
+// Configurazione di un giocatore alla creazione della partita.
+export interface PlayerSetup {
+  name: string;
+  isBot?: boolean;
 }
 
 export interface Ownership {
@@ -68,8 +76,9 @@ export function shuffle<T>(items: T[], rng: Rng): T[] {
   return a;
 }
 
-export function createGame(playerNames: string[], ctx: GameContext): GameState {
-  if (playerNames.length < MIN_PLAYERS || playerNames.length > MAX_PLAYERS) {
+export function createGame(players: (string | PlayerSetup)[], ctx: GameContext): GameState {
+  const setups = players.map((p) => (typeof p === 'string' ? { name: p } : p));
+  if (setups.length < MIN_PLAYERS || setups.length > MAX_PLAYERS) {
     throw new Error(`Servono da ${MIN_PLAYERS} a ${MAX_PLAYERS} giocatori`);
   }
   const deckIds = Object.keys(ctx.cards.decks) as DeckId[];
@@ -81,9 +90,10 @@ export function createGame(playerNames: string[], ctx: GameContext): GameState {
     );
   }
   return {
-    players: playerNames.map((name, id) => ({
+    players: setups.map((setup, id) => ({
       id,
-      name,
+      name: setup.name,
+      isBot: setup.isBot ?? false,
       money: ctx.board.startingMoney,
       position: 0,
       inJail: false,
