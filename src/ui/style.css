@@ -231,3 +231,4 @@ button.link { background: none; border: none; color: var(--muted); text-decorati
 .setup-row input { flex: 1 1 0; }
 .setup form { min-width: 0; }
 .setup form { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 600px) { .view-buttons .lbl { display: none; } .view-buttons.overlay button { min-width: 44px; font-size: 1.1rem; } }

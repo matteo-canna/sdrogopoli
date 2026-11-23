@@ -61,6 +61,8 @@ export class Board3D {
   private busy = false;
   private reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   cameraMode: CameraMode = 'follow';
+  // chiamata a ogni salto completato (per il suono)
+  onHop: (() => void) | null = null;
 
   constructor(
     private container: HTMLElement,
@@ -313,6 +315,7 @@ export class Board3D {
       if (u >= 1) {
         t.queue.shift();
         t.hopTime = 0;
+        this.onHop?.();
       }
     }
     if (moving !== this.busy) {

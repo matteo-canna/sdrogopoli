@@ -31,6 +31,7 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 - 2026-11-23: aste (quando chi arriva non compra) e scambi tra giocatori, anche con il computer.
 - 2026-11-23: regole della casa (soldi iniziali, durata in giri con vittoria a patrimonio, montepremi della Panchina).
 - 2026-11-23: simulazione di bilanciamento (`npm run simula`), rapporto in `docs/bilanciamento.md`; ritoccati affitti di Centro Storico, Colline e Lungolago e gli scambi del computer.
+- 2026-11-23: suoni e musica originali generati con la Web Audio API (`src/ui/audio.ts`), nessun file audio; pulsanti Effetti e Musica.
 
 ## Regole semplificate nel prototipo
 - Con un debito il giocatore vende case o ipoteca; se non basta dichiara bancarotta.
