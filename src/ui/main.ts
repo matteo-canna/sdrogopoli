@@ -4,6 +4,7 @@ import { board, cards } from '../data';
 import { actingPlayer, applyAction, chooseBotAction, createGame, RuleError, type Action, type GameContext, type GameState } from '../engine';
 import { PLAYER_COLORS, escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
+import { audio, type Sfx } from './audio';
 
 const SAVE_KEY = 'sdrogopoli-partita';
 const VIEW_KEY = 'sdrogopoli-vista';
@@ -151,14 +152,39 @@ function hudHtml(s: GameState): string {
     </details>`;
 }
 
+function soundButtons(): string {
+  return `<button data-action="toggleSfx" aria-pressed="${audio.sfxOn}" aria-label="Effetti sonori" title="Effetti sonori">${audio.sfxOn ? '🔊' : '🔇'}<span class="lbl"> Effetti</span></button>
+    <button data-action="toggleMusic" aria-pressed="${audio.musicOn}" aria-label="Musica" title="Musica">${audio.musicOn ? '🎵' : '🚫'}<span class="lbl"> Musica</span></button>`;
+}
+
+// Sceglie il suono adatto confrontando lo stato prima e dopo un'azione.
+function soundFor(prev: GameState, next: GameState, action: Action): Sfx | null {
+  const fresh = next.log.slice(-Math.max((next.eventCount ?? 0) - (prev.eventCount ?? 0), 0)).join(' ');
+  const actor = prev.players[actingPlayer(prev)];
+  const after = next.players[actor.id];
+  if (next.phase === 'gameOver') return 'win';
+  if (!actor.inJail && after.inJail) return 'jail';
+  if (fresh.includes('pesca')) return 'card';
+  if (action.type === 'bid' || fresh.includes("vince l'asta")) return 'gavel';
+  if (action.type === 'buy' || action.type === 'build' || action.type === 'acceptTrade') return 'buy';
+  if (action.type === 'roll') {
+    if (after.money < actor.money) return 'pay';
+    if (after.money > actor.money) return 'coin';
+    return 'dice';
+  }
+  if (after.money > actor.money) return 'coin';
+  if (after.money < actor.money) return 'pay';
+  return null;
+}
+
 function viewButtons(): string {
   const cam = viewMode === '3d'
-    ? `<button data-action="camera">${cameraMode === 'follow' ? '🗺️ Vista d\'insieme' : '🎥 Segui la pedina'}</button>`
+    ? `<button data-action="camera" aria-label="${cameraMode === 'follow' ? 'Vista d\'insieme' : 'Segui la pedina'}">${cameraMode === 'follow' ? '🗺️<span class="lbl"> Vista d\'insieme</span>' : '🎥<span class="lbl"> Segui la pedina</span>'}</button>`
     : '';
   const toggle = webglAvailable()
-    ? `<button data-action="toggleView">${viewMode === '3d' ? 'Vista 2D' : 'Vista 3D'}</button>`
+    ? `<button data-action="toggleView" aria-label="${viewMode === '3d' ? 'Vista 2D' : 'Vista 3D'}">${viewMode === '3d' ? '🔲<span class="lbl"> Vista 2D</span>' : '🧊<span class="lbl"> Vista 3D</span>'}</button>`
     : '';
-  return cam + toggle;
+  return cam + toggle + soundButtons();
 }
 
 function render(): void {
@@ -243,6 +269,7 @@ function render3d(s: GameState): void {
       },
     );
     board3d.cameraMode = cameraMode;
+    board3d.onHop = () => audio.play('hop');
   }
   app.querySelector('.hud')!.innerHTML = hudHtml(s);
   app.querySelector('.players-list')!.innerHTML = renderPlayers(s);
@@ -262,9 +289,14 @@ function act(action: Action): void {
   // le azioni di una persona azzerano le notizie; quelle del computer si accumulano
   if (!actorBot || !lastActorBot) newsFrom = state.eventCount ?? 0;
   lastActorBot = actorBot;
+  const prev = state;
   try {
     state = applyAction(state, action, ctx);
     error = '';
+    if (action.type === 'roll') audio.play('dice');
+    const sfx = soundFor(prev, state, action);
+    // il suono del lancio c'è già: dopo un attimo quello del risultato
+    if (sfx && sfx !== 'dice') setTimeout(() => audio.play(sfx), action.type === 'roll' ? 450 : 0);
     // dopo il lancio mostra la casella di arrivo
     if (action.type === 'roll') selected = board.spaces[state.players[state.current].position]?.id ?? null;
     if (action.type === 'endTurn' || action.type === 'bankrupt') {
@@ -272,8 +304,10 @@ function act(action: Action): void {
       tradeDraft = null;
     }
   } catch (e) {
-    if (e instanceof RuleError) error = e.message;
-    else throw e;
+    if (e instanceof RuleError) {
+      error = e.message;
+      audio.play('error');
+    } else throw e;
   }
   save();
   render();
@@ -281,6 +315,8 @@ function act(action: Action): void {
 
 // Un solo gestore di clic per tutta la pagina.
 app.addEventListener('click', (e) => {
+  // l'audio si può attivare solo dopo un gesto dell'utente
+  audio.unlock();
   const target = (e.target as HTMLElement).closest<HTMLElement>('[data-action], [data-space]');
   if (!target || !state) return;
   // mentre la pedina si muove le azioni del turno aspettano
@@ -295,6 +331,12 @@ app.addEventListener('click', (e) => {
     return render();
   }
   switch (action) {
+    case 'toggleSfx':
+      audio.setSfx(!audio.sfxOn);
+      return render();
+    case 'toggleMusic':
+      audio.setMusic(!audio.musicOn);
+      return render();
     case 'openTrade': {
       const to = state.players.find((o) => o.id !== state!.current && !o.bankrupt)!.id;
       tradeDraft = { to, give: { money: 0, spaces: [] }, get: { money: 0, spaces: [] } };
