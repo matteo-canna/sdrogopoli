@@ -1,7 +1,7 @@
 // Controller dell'interfaccia: collega i clic alle azioni del motore e ridisegna la pagina.
 import './style.css';
 import { board, cards } from '../data';
-import { applyAction, createGame, RuleError, type Action, type GameContext, type GameState } from '../engine';
+import { applyAction, chooseBotAction, createGame, RuleError, type Action, type GameContext, type GameState } from '../engine';
 import { PLAYER_COLORS, escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTurnActions } from './view';
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
 
@@ -18,6 +18,9 @@ let error = '';
 let viewMode: ViewMode = webglAvailable() && readPref(VIEW_KEY) !== '2d' ? '3d' : '2d';
 let cameraMode: CameraMode = 'follow';
 let board3d: Board3D | null = null;
+// true mentre la pedina si muove nel 3D: il computer aspetta che finisca
+let animating = false;
+let botTimer: ReturnType<typeof setTimeout> | null = null;
 
 // ---------- salvataggio nel browser (facoltativo: se non funziona si gioca lo stesso) ----------
 
@@ -66,8 +69,12 @@ function renderSetup(): void {
       <form id="setup-form">
         ${[0, 1, 2, 3]
           .map(
-            (i) => `<label><span class="token big" style="background:${PLAYER_COLORS[i]}"></span>
-              <input name="p${i}" maxlength="16" placeholder="Giocatore ${i + 1}${i >= 2 ? ' (facoltativo)' : ''}" ${i < 2 ? `value="Giocatore ${i + 1}"` : ''}></label>`,
+            (i) => `<div class="setup-row"><span class="token big" style="background:${PLAYER_COLORS[i]}"></span>
+              <input name="p${i}" maxlength="16" aria-label="Nome giocatore ${i + 1}" placeholder="Giocatore ${i + 1}${i >= 2 ? ' (facoltativo)' : ''}" ${i < 2 ? `value="${i === 0 ? 'Giocatore 1' : 'Computer'}"` : ''}>
+              <select name="t${i}" aria-label="Chi controlla il giocatore ${i + 1}">
+                <option value="human" ${i === 0 ? 'selected' : ''}>👤 Persona</option>
+                <option value="bot" ${i > 0 ? 'selected' : ''}>🤖 Computer</option>
+              </select></div>`,
           )
           .join('')}
         <button class="primary" type="submit">Inizia la partita</button>
@@ -76,14 +83,16 @@ function renderSetup(): void {
   document.querySelector<HTMLFormElement>('#setup-form')!.addEventListener('submit', (e) => {
     e.preventDefault();
     const data = new FormData(e.target as HTMLFormElement);
-    const names = [0, 1, 2, 3].map((i) => String(data.get(`p${i}`) ?? '').trim()).filter(Boolean);
-    if (names.length < 2) {
+    const players = [0, 1, 2, 3]
+      .map((i) => ({ name: String(data.get(`p${i}`) ?? '').trim(), isBot: data.get(`t${i}`) === 'bot' }))
+      .filter((p) => p.name);
+    if (players.length < 2) {
       const form = e.target as HTMLFormElement;
       form.querySelector('.error')?.remove();
       form.insertAdjacentHTML('beforeend', `<p class="error">Servono almeno 2 giocatori.</p>`);
       return;
     }
-    state = createGame(names, ctx);
+    state = createGame(players, ctx);
     selected = null;
     save();
     render();
@@ -119,7 +128,33 @@ function viewButtons(): string {
 function render(): void {
   if (!state) return renderSetup();
   if (viewMode === '3d') render3d(state);
-  else render2d(state);
+  else {
+    animating = false;
+    render2d(state);
+  }
+  scheduleBot();
+}
+
+// ---------- giocatori controllati dal computer ----------
+
+function botToPlay(): boolean {
+  return !!state && state.phase !== 'gameOver' && !!state.players[state.current].isBot;
+}
+
+// Fa giocare il computer con una piccola pausa, così si capisce cosa succede.
+function scheduleBot(): void {
+  if (botTimer || animating || !botToPlay()) return;
+  const delay = state!.phase === 'roll' ? 900 : 650;
+  botTimer = setTimeout(() => {
+    botTimer = null;
+    if (animating || !botToPlay()) return;
+    act(chooseBotAction(state!, ctx));
+  }, delay);
+}
+
+function cancelBot(): void {
+  if (botTimer) clearTimeout(botTimer);
+  botTimer = null;
 }
 
 function render2d(s: GameState): void {
@@ -163,7 +198,11 @@ function render3d(s: GameState): void {
         error = '';
         render();
       },
-      (busy) => app.querySelector('.hud')?.classList.toggle('busy', busy),
+      (busy) => {
+        animating = busy;
+        app.querySelector('.hud')?.classList.toggle('busy', busy);
+        if (!busy) scheduleBot();
+      },
     );
     board3d.cameraMode = cameraMode;
   }
@@ -174,6 +213,7 @@ function render3d(s: GameState): void {
 }
 
 function destroy3d(): void {
+  animating = false;
   board3d?.dispose();
   board3d = null;
 }
@@ -200,6 +240,8 @@ app.addEventListener('click', (e) => {
   if (!target || !state) return;
   // mentre la pedina si muove le azioni del turno aspettano
   if (target.closest('.hud.busy .actions')) return;
+  // durante il turno del computer i pulsanti del turno non rispondono
+  if (botToPlay() && target.closest('.actions')) return;
   const action = target.dataset.action;
   const spaceId = target.dataset.space;
   if (!action && spaceId) {
@@ -219,6 +261,7 @@ app.addEventListener('click', (e) => {
     case 'newGame':
     case 'quit':
       if (action === 'quit' && !confirmQuit(target)) return;
+      cancelBot();
       state = null;
       selected = null;
       error = '';
