@@ -3,14 +3,21 @@ import './style.css';
 import { board, cards } from '../data';
 import { applyAction, createGame, RuleError, type Action, type GameContext, type GameState } from '../engine';
 import { PLAYER_COLORS, escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTurnActions } from './view';
+import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
 
 const SAVE_KEY = 'sdrogopoli-partita';
+const VIEW_KEY = 'sdrogopoli-vista';
 const ctx: GameContext = { board, cards, rng: Math.random };
 const app = document.querySelector<HTMLDivElement>('#app')!;
+
+type ViewMode = '3d' | '2d';
 
 let state: GameState | null = load();
 let selected: string | null = null;
 let error = '';
+let viewMode: ViewMode = webglAvailable() && readPref(VIEW_KEY) !== '2d' ? '3d' : '2d';
+let cameraMode: CameraMode = 'follow';
+let board3d: Board3D | null = null;
 
 // ---------- salvataggio nel browser (facoltativo: se non funziona si gioca lo stesso) ----------
 
@@ -32,9 +39,26 @@ function load(): GameState | null {
   }
 }
 
+function readPref(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writePref(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* ignora */
+  }
+}
+
 // ---------- schermata iniziale ----------
 
 function renderSetup(): void {
+  destroy3d();
   app.innerHTML = `
     <main class="setup">
       <h1>Sdrogopoli</h1>
@@ -54,7 +78,9 @@ function renderSetup(): void {
     const data = new FormData(e.target as HTMLFormElement);
     const names = [0, 1, 2, 3].map((i) => String(data.get(`p${i}`) ?? '').trim()).filter(Boolean);
     if (names.length < 2) {
-      alertInline('Servono almeno 2 giocatori.');
+      const form = e.target as HTMLFormElement;
+      form.querySelector('.error')?.remove();
+      form.insertAdjacentHTML('beforeend', `<p class="error">Servono almeno 2 giocatori.</p>`);
       return;
     }
     state = createGame(names, ctx);
@@ -64,38 +90,92 @@ function renderSetup(): void {
   });
 }
 
-function alertInline(msg: string): void {
-  const form = document.querySelector('#setup-form')!;
-  form.querySelector('.error')?.remove();
-  form.insertAdjacentHTML('beforeend', `<p class="error">${escapeHtml(msg)}</p>`);
+// ---------- partita ----------
+
+// Parte centrale: turno, azioni, scheda della casella e ultimi eventi.
+function hudHtml(s: GameState): string {
+  const p = s.players[s.current];
+  return `
+    <div class="turn">
+      <span class="token big" style="background:${PLAYER_COLORS[p.id]}"></span>
+      Tocca a <strong>${escapeHtml(p.name)}</strong> ${renderDice(s)}
+    </div>
+    <div class="actions">${renderTurnActions(s)}</div>
+    ${error ? `<p class="error">${escapeHtml(error)}</p>` : ''}
+    ${selected ? renderSpaceDetails(s, selected) : '<p class="hint">Tocca una casella per vedere i dettagli.</p>'}
+    <ol class="log">${s.log.slice(-6).reverse().map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ol>`;
 }
 
-// ---------- partita ----------
+function viewButtons(): string {
+  const cam = viewMode === '3d'
+    ? `<button data-action="camera">${cameraMode === 'follow' ? '🗺️ Vista d\'insieme' : '🎥 Segui la pedina'}</button>`
+    : '';
+  const toggle = webglAvailable()
+    ? `<button data-action="toggleView">${viewMode === '3d' ? 'Vista 2D' : 'Vista 3D'}</button>`
+    : '';
+  return cam + toggle;
+}
 
 function render(): void {
   if (!state) return renderSetup();
-  const p = state.players[state.current];
+  if (viewMode === '3d') render3d(state);
+  else render2d(state);
+}
+
+function render2d(s: GameState): void {
+  destroy3d();
   app.innerHTML = `
     <div class="game">
       <div class="board">
-        ${renderBoard(state, selected)}
+        ${renderBoard(s, selected)}
         <div class="center">
           <h1 class="title">Sdrogopoli</h1>
-          <div class="turn">
-            <span class="token big" style="background:${PLAYER_COLORS[p.id]}"></span>
-            Tocca a <strong>${escapeHtml(p.name)}</strong> ${renderDice(state)}
-          </div>
-          <div class="actions">${renderTurnActions(state)}</div>
-          ${error ? `<p class="error">${escapeHtml(error)}</p>` : ''}
-          ${selected ? renderSpaceDetails(state, selected) : '<p class="hint">Tocca una casella per vedere i dettagli.</p>'}
-          <ol class="log">${state.log.slice(-6).reverse().map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ol>
+          ${hudHtml(s)}
         </div>
       </div>
       <aside class="players">
-        ${renderPlayers(state)}
+        <div class="view-buttons">${viewButtons()}</div>
+        ${renderPlayers(s)}
         <button class="link" data-action="quit">Abbandona la partita</button>
       </aside>
     </div>`;
+}
+
+function render3d(s: GameState): void {
+  // la scena 3D si crea una sola volta: ridisegniamo solo i pannelli HTML
+  if (!board3d) {
+    app.innerHTML = `
+      <div class="game game3d">
+        <div class="stage">
+          <div class="board3d"></div>
+          <div class="view-buttons overlay"></div>
+        </div>
+        <aside class="side">
+          <div class="hud"></div>
+          <div class="players-list"></div>
+          <button class="link" data-action="quit">Abbandona la partita</button>
+        </aside>
+      </div>`;
+    board3d = new Board3D(
+      app.querySelector<HTMLDivElement>('.board3d')!,
+      (spaceId) => {
+        selected = selected === spaceId ? null : spaceId;
+        error = '';
+        render();
+      },
+      (busy) => app.querySelector('.hud')?.classList.toggle('busy', busy),
+    );
+    board3d.cameraMode = cameraMode;
+  }
+  app.querySelector('.hud')!.innerHTML = hudHtml(s);
+  app.querySelector('.players-list')!.innerHTML = renderPlayers(s);
+  app.querySelector('.view-buttons')!.innerHTML = viewButtons();
+  board3d.update(s, selected);
+}
+
+function destroy3d(): void {
+  board3d?.dispose();
+  board3d = null;
 }
 
 function act(action: Action): void {
@@ -118,6 +198,8 @@ function act(action: Action): void {
 app.addEventListener('click', (e) => {
   const target = (e.target as HTMLElement).closest<HTMLElement>('[data-action], [data-space]');
   if (!target || !state) return;
+  // mentre la pedina si muove le azioni del turno aspettano
+  if (target.closest('.hud.busy .actions')) return;
   const action = target.dataset.action;
   const spaceId = target.dataset.space;
   if (!action && spaceId) {
@@ -126,6 +208,14 @@ app.addEventListener('click', (e) => {
     return render();
   }
   switch (action) {
+    case 'toggleView':
+      viewMode = viewMode === '3d' ? '2d' : '3d';
+      writePref(VIEW_KEY, viewMode);
+      return render();
+    case 'camera':
+      cameraMode = cameraMode === 'follow' ? 'overview' : 'follow';
+      if (board3d) board3d.cameraMode = cameraMode;
+      return render();
     case 'newGame':
     case 'quit':
       if (action === 'quit' && !confirmQuit(target)) return;
