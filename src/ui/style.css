@@ -218,3 +218,16 @@ button.link { background: none; border: none; color: var(--muted); text-decorati
 @media (max-width: 600px) { .trade-cols { grid-template-columns: 1fr; } }
 .trade-cols .row { flex-direction: column; align-items: stretch; gap: 2px; font-size: 0.85em; }
 .trade-cols input[type=number] { width: 100%; }
+
+/* ---------- regole della casa ---------- */
+.house-rules { text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+.house-rules summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
+.house-rules label { display: grid; gap: 4px; margin: 8px 0; font-size: 0.95em; }
+.house-rules label.check { display: flex; gap: 8px; align-items: flex-start; }
+.house-rules input[type=checkbox] { flex: 0 0 20px; width: 20px; height: 20px; min-height: 0; padding: 0; margin-top: 2px; }
+.house-rules select { width: 100%; }
+.pill { background: var(--panel); border-radius: 999px; padding: 1px 9px; font-size: 0.85em; }
+.setup-row select { flex: 0 1 auto; max-width: 45%; }
+.setup-row input { flex: 1 1 0; }
+.setup form { min-width: 0; }
+.setup form { grid-template-columns: minmax(0, 1fr); }

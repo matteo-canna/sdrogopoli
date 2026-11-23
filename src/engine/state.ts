@@ -17,6 +17,20 @@ export interface Player {
   isBot: boolean;
 }
 
+// Regole della casa scelte all'inizio della partita.
+export interface GameRules {
+  // soldi di ogni giocatore all'inizio
+  startingMoney: number;
+  // numero massimo di giri (null = senza limite): alla fine vince il patrimonio più alto
+  maxRounds: number | null;
+  // tasse e multe finiscono sulla Panchina del Parco: chi ci si ferma le incassa
+  parkPot: boolean;
+}
+
+export function defaultRules(board: BoardData): GameRules {
+  return { startingMoney: board.startingMoney, maxRounds: null, parkPot: false };
+}
+
 // Configurazione di un giocatore alla creazione della partita.
 export interface PlayerSetup {
   name: string;
@@ -80,6 +94,11 @@ export interface GameState {
   trade: TradeOffer | null;
   // il computer propone al massimo uno scambio per turno
   tradeProposedThisTurn: boolean;
+  rules: GameRules;
+  // giro attuale: aumenta ogni volta che il turno torna al primo giocatore
+  round: number;
+  // soldi accumulati sulla Panchina del Parco (regola della casa)
+  pot: number;
   winner: number | null;
   log: string[];
   // numero totale di eventi registrati (il registro tiene solo gli ultimi)
@@ -108,7 +127,8 @@ export function shuffle<T>(items: T[], rng: Rng): T[] {
   return a;
 }
 
-export function createGame(players: (string | PlayerSetup)[], ctx: GameContext): GameState {
+export function createGame(players: (string | PlayerSetup)[], ctx: GameContext, rules: Partial<GameRules> = {}): GameState {
+  const fullRules = { ...defaultRules(ctx.board), ...rules };
   const setups = players.map((p) => (typeof p === 'string' ? { name: p } : p));
   if (setups.length < MIN_PLAYERS || setups.length > MAX_PLAYERS) {
     throw new Error(`Servono da ${MIN_PLAYERS} a ${MAX_PLAYERS} giocatori`);
@@ -126,7 +146,7 @@ export function createGame(players: (string | PlayerSetup)[], ctx: GameContext):
       id,
       name: setup.name,
       isBot: setup.isBot ?? false,
-      money: ctx.board.startingMoney,
+      money: fullRules.startingMoney,
       position: 0,
       inJail: false,
       jailAttempts: 0,
@@ -144,6 +164,9 @@ export function createGame(players: (string | PlayerSetup)[], ctx: GameContext):
     auction: null,
     trade: null,
     tradeProposedThisTurn: false,
+    rules: fullRules,
+    round: 1,
+    pot: 0,
     winner: null,
     log: ['Inizia la partita!'],
     eventCount: 1,

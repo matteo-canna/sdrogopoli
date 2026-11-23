@@ -463,3 +463,50 @@ describe('scambi', () => {
     expect(() => applyAction(s, { type: 'proposeTrade', offer: { to: 1, give: { money: 99999, spaces: [] }, get: { money: 0, spaces: ['periferia-2'] } } }, ctxWith())).toThrow(RuleError);
   });
 });
+
+describe('regole della casa', () => {
+  const ctx0 = { board, cards, rng: () => 0.999 };
+
+  it('i soldi iniziali si possono scegliere', () => {
+    const s = createGame(['A', 'B'], ctx0, { startingMoney: 2000 });
+    expect(s.players.map((p) => p.money)).toEqual([2000, 2000]);
+    expect(s.rules.maxRounds).toBeNull();
+  });
+
+  it('i giri aumentano quando il turno torna al primo giocatore', () => {
+    let s = createGame(['A', 'B'], ctx0);
+    s = applyAction(s, { type: 'roll' }, ctxWith(1, 3));
+    s = applyAction(s, { type: 'endTurn' }, ctxWith());
+    expect(s.round).toBe(1);
+    s = applyAction(s, { type: 'roll' }, ctxWith(1, 3));
+    s = applyAction(s, { type: 'endTurn' }, ctxWith());
+    expect(s.round).toBe(2);
+  });
+
+  it('a fine giri vince il patrimonio più alto', () => {
+    let s = createGame(['A', 'B'], ctx0, { maxRounds: 1 });
+    own(s, 'lungolago-2', 1);
+    s = applyAction(s, { type: 'roll' }, ctxWith(1, 3)); // A paga 200 di tasse
+    s = applyAction(s, { type: 'endTurn' }, ctxWith());
+    s = applyAction(s, { type: 'roll' }, ctxWith(1, 3));
+    s = applyAction(s, { type: 'endTurn' }, ctxWith());
+    expect(s.phase).toBe('gameOver');
+    expect(s.winner).toBe(1);
+  });
+
+  it('montepremi: tasse e multe vanno sulla Panchina e chi ci arriva le incassa', () => {
+    let s = createGame(['A', 'B'], ctx0, { parkPot: true });
+    s = applyAction(s, { type: 'roll' }, ctxWith(1, 3)); // tassa 200
+    expect(s.pot).toBe(200);
+    s = applyAction(s, { type: 'endTurn' }, ctxWith());
+    s.players[1].position = 15;
+    s = applyAction(s, { type: 'roll' }, ctxWith(2, 3)); // 15 + 5 = 20 Panchina
+    expect(s.players[1].money).toBe(1700);
+    expect(s.pot).toBe(0);
+  });
+
+  it('senza la regola del montepremi le tasse vanno alla banca', () => {
+    const s = applyAction(createGame(['A', 'B'], ctx0), { type: 'roll' }, ctxWith(1, 3));
+    expect(s.pot).toBe(0);
+  });
+});

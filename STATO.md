@@ -29,6 +29,7 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 - 2026-11-23: avversari controllati dal computer (`src/engine/bot.ts`), scelta Persona/Computer nella schermata iniziale.
 - 2026-11-23: pannello più chiaro ("Cosa è successo", patrimonio, posizione, registro completo), layout per telefono con pulsanti grandi, avviso di salvataggio automatico.
 - 2026-11-23: aste (quando chi arriva non compra) e scambi tra giocatori, anche con il computer.
+- 2026-11-23: regole della casa (soldi iniziali, durata in giri con vittoria a patrimonio, montepremi della Panchina).
 
 ## Regole semplificate nel prototipo
 - Con un debito il giocatore vende case o ipoteca; se non basta dichiara bancarotta.
