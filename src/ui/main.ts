@@ -82,6 +82,21 @@ function renderSetup(): void {
               </select></div>`,
           )
           .join('')}
+        <details class="house-rules">
+          <summary>⚙️ Regole della casa</summary>
+          <label>Soldi iniziali
+            <select name="money">${[1000, 1500, 2000, 2500].map((m) => `<option value="${m}" ${m === board.startingMoney ? 'selected' : ''}>${board.currency.symbol} ${m}</option>`).join('')}</select>
+          </label>
+          <label>Durata
+            <select name="rounds">
+              <option value="">Fino all'ultimo rimasto</option>
+              <option value="15">15 giri (partita breve)</option>
+              <option value="25">25 giri</option>
+              <option value="40">40 giri</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" name="pot"> Montepremi: tasse e multe vanno sulla Panchina del Parco e chi ci arriva le incassa</label>
+        </details>
         <button class="primary" type="submit">Inizia la partita</button>
       </form>
     </main>`;
@@ -97,7 +112,12 @@ function renderSetup(): void {
       form.insertAdjacentHTML('beforeend', `<p class="error">Servono almeno 2 giocatori.</p>`);
       return;
     }
-    state = createGame(players, ctx);
+    const rounds = Number(data.get('rounds')) || null;
+    state = createGame(players, ctx, {
+      startingMoney: Number(data.get('money')) || board.startingMoney,
+      maxRounds: rounds,
+      parkPot: data.get('pot') === 'on',
+    });
     selected = null;
     newsFrom = 0;
     lastActorBot = false;
@@ -118,6 +138,8 @@ function hudHtml(s: GameState): string {
     <div class="turn">
       <span class="token big" style="background:${PLAYER_COLORS[p.id]}"></span>
       <span>Tocca a <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong></span>
+      ${s.rules?.maxRounds ? `<span class="pill">Giro ${s.round} di ${s.rules.maxRounds}</span>` : ''}
+      ${s.rules?.parkPot ? `<span class="pill" title="Montepremi della Panchina del Parco">🪑 ${board.currency.symbol} ${s.pot}</span>` : ''}
       ${s.lastRoll ? `<span class="roll">${renderDice(s)}<span class="roll-total">${total}</span></span>` : ''}
     </div>
     ${tradeDraft ? renderTradeEditor(s, tradeDraft) : `<div class="actions">${renderTurnActions(s)}</div>`}

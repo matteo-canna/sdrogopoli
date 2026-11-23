@@ -1,6 +1,6 @@
 // Regole di gioco: ogni azione produce un nuovo stato senza modificare quello precedente.
 import { rollDice } from './dice';
-import { JAIL_FINE, MAX_JAIL_ATTEMPTS, type GameContext, type GameState, type Player, type TradeOffer, type TradeSide } from './state';
+import { defaultRules, JAIL_FINE, MAX_JAIL_ATTEMPTS, type GameContext, type GameState, type Player, type TradeOffer, type TradeSide } from './state';
 import type { Card, CardEffect, DeckId, PropertySpace, Space } from './types';
 
 export type Action =
@@ -94,6 +94,7 @@ function pay(state: GameState, fromId: number, amount: number, toId: number | nu
   const from = state.players[fromId];
   from.money -= amount;
   if (toId !== null) state.players[toId].money += amount;
+  else if (state.rules?.parkPot) state.pot = (state.pot ?? 0) + amount;
   if (from.money < 0) state.creditor = toId;
 }
 
@@ -188,6 +189,10 @@ function resolveLanding(state: GameState, ctx: GameContext): void {
     if (state.phase === 'buy') return;
   } else if (space.type === 'goToJail') {
     sendToJail(state, ctx);
+  } else if (space.type === 'free' && state.rules?.parkPot && state.pot > 0) {
+    log(state, `${p.name} incassa il montepremi della ${space.name}: ${state.pot}!`);
+    p.money += state.pot;
+    state.pot = 0;
   }
   finishMove(state);
 }
@@ -470,7 +475,7 @@ function doPayJailFine(state: GameState): void {
   const p = current(state);
   if (!p.inJail) throw new RuleError('Non sei in Caserma.');
   if (p.money < JAIL_FINE) throw new RuleError('Non hai abbastanza soldi.');
-  p.money -= JAIL_FINE;
+  pay(state, p.id, JAIL_FINE, null);
   p.inJail = false;
   p.jailAttempts = 0;
   log(state, `${p.name} paga ${JAIL_FINE} ed esce dalla Caserma.`);
@@ -547,11 +552,20 @@ function doUnmortgage(state: GameState, ctx: GameContext, spaceId: string): void
   log(state, `${p.name} toglie l'ipoteca da ${space.name}.`);
 }
 
-function nextPlayer(state: GameState): void {
+function nextPlayer(state: GameState, ctx: GameContext): void {
   const n = state.players.length;
   let i = state.current;
   do i = (i + 1) % n;
   while (state.players[i].bankrupt);
+  // il turno è tornato indietro nell'ordine: inizia un nuovo giro
+  if (i <= state.current) {
+    state.round = (state.round ?? 1) + 1;
+    const max = state.rules?.maxRounds;
+    if (max && state.round > max) {
+      endByNetWorth(state, ctx);
+      return;
+    }
+  }
   state.current = i;
   state.phase = 'roll';
   state.doublesInRow = 0;
@@ -561,10 +575,19 @@ function nextPlayer(state: GameState): void {
   log(state, `Tocca a ${state.players[i].name}.`);
 }
 
-function doEndTurn(state: GameState): void {
+function doEndTurn(state: GameState, ctx: GameContext): void {
   requirePhase(state, 'endTurn');
   if (current(state).money < 0) throw new RuleError('Devi saldare il debito prima di passare il turno.');
-  nextPlayer(state);
+  nextPlayer(state, ctx);
+}
+
+// Fine della partita a tempo: vince chi ha il patrimonio più alto.
+function endByNetWorth(state: GameState, ctx: GameContext): void {
+  const alive = state.players.filter((p) => !p.bankrupt);
+  const best = alive.reduce((a, b) => (netWorth(state, ctx, b.id) > netWorth(state, ctx, a.id) ? b : a));
+  state.winner = best.id;
+  state.phase = 'gameOver';
+  log(state, `Fine dei ${state.rules.maxRounds} giri! ${best.name} vince con un patrimonio di ${netWorth(state, ctx, best.id)}.`);
 }
 
 function doBankrupt(state: GameState, ctx: GameContext): void {
@@ -598,7 +621,7 @@ function doBankrupt(state: GameState, ctx: GameContext): void {
     log(state, `${alive[0].name} vince la partita!`);
     return;
   }
-  nextPlayer(state);
+  nextPlayer(state, ctx);
 }
 
 // Applica un'azione e restituisce il nuovo stato. Lancia RuleError se l'azione non è valida.
@@ -612,6 +635,9 @@ export function applyAction(state: GameState, action: Action, ctx: GameContext):
   // compatibilità con partite salvate prima di aste e scambi
   next.auction ??= null;
   next.trade ??= null;
+  next.rules ??= defaultRules(ctx.board);
+  next.round ??= 1;
+  next.pot ??= 0;
   switch (action.type) {
     case 'roll': doRoll(next, ctx); break;
     case 'buy': doBuy(next, ctx); break;
@@ -622,7 +648,7 @@ export function applyAction(state: GameState, action: Action, ctx: GameContext):
     case 'sell': doSell(next, ctx, action.spaceId); break;
     case 'mortgage': doMortgage(next, ctx, action.spaceId); break;
     case 'unmortgage': doUnmortgage(next, ctx, action.spaceId); break;
-    case 'endTurn': doEndTurn(next); break;
+    case 'endTurn': doEndTurn(next, ctx); break;
     case 'bankrupt': doBankrupt(next, ctx); break;
     case 'bid': doBid(next, ctx, action.amount); break;
     case 'pass': doPass(next, ctx); break;
