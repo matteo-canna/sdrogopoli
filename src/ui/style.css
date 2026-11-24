@@ -248,6 +248,7 @@ button.link:hover { color: var(--danger); }
 .hud .actions button.primary { min-height: 52px; font-size: 1.1rem; }
 @media (min-width: 601px) { .hud .actions button.primary { flex: 1 1 100%; } }
 .hud.busy .actions button { opacity: 0.5; pointer-events: none; }
+.hud.busy .actions::after { content: 'Tocca il tabellone per saltare l\2019animazione'; width: 100%; text-align: center; font-size: 0.85rem; color: var(--muted, inherit); }
 .players-list { display: flex; flex-direction: column; gap: 10px; }
 @media (max-width: 900px) {
   .game3d { grid-template-columns: 1fr; }

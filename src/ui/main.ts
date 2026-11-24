@@ -20,6 +20,15 @@ const LOOKS_KEY = 'sdrogopoli-aspetto';
 const TUTORIAL_KEY = 'sdrogopoli-tutorial';
 const LEADERBOARD_KEY = 'sdrogopoli-classifica';
 const SKY_KEY = 'sdrogopoli-cielo';
+const SPEED_KEY = 'sdrogopoli-velocita';
+// velocità di gioco: moltiplica animazioni e pause del computer
+const SPEEDS = [
+  { id: 'lenta', icon: '🐢', label: 'Lenta', factor: 0.6 },
+  { id: 'normale', icon: '▶️', label: 'Normale', factor: 1 },
+  { id: 'veloce', icon: '⏩', label: 'Veloce', factor: 2 },
+  { id: 'istantanea', icon: '⚡', label: 'Istantanea', factor: Infinity },
+] as const;
+type Speed = (typeof SPEEDS)[number];
 const SKY_LABELS: Record<SkyMode, [string, string]> = {
   cycle: ['🌗', 'Giorno e notte'],
   day: ['☀️', 'Sempre giorno'],
@@ -48,6 +57,7 @@ let viewMode: ViewMode = webglAvailable() && readPref(VIEW_KEY) !== '2d' ? '3d' 
 let cameraMode: CameraMode = 'follow';
 let skyMode: SkyMode = (['cycle', 'day', 'night'] as const).find((m) => m === readPref(SKY_KEY)) ?? 'cycle';
 let board3d: Board3D | null = null;
+let speed: Speed = SPEEDS.find((v) => v.id === readPref(SPEED_KEY)) ?? SPEEDS[1];
 // true mentre la pedina si muove nel 3D: il computer aspetta che finisca
 let animating = false;
 let botTimer: ReturnType<typeof setTimeout> | null = null;
@@ -455,7 +465,8 @@ function viewButtons(): string {
   const sky = viewMode === '3d'
     ? `<button data-action="sky" aria-label="Cielo: ${label}" title="Cielo: ${label}">${icon}<span class="lbl"> ${label}</span></button>`
     : '';
-  return cam + sky + toggle + soundButtons();
+  const speedBtn = `<button data-action="speed" aria-label="Velocità: ${speed.label}" title="Velocità di gioco: ${speed.label}">${speed.icon}<span class="lbl"> ${speed.label}</span></button>`;
+  return cam + sky + toggle + speedBtn + soundButtons();
 }
 
 function render(): void {
@@ -482,7 +493,8 @@ function botToPlay(): boolean {
 // Fa giocare il computer con una piccola pausa, così si capisce cosa succede.
 function scheduleBot(): void {
   if (botTimer || animating || !botToPlay()) return;
-  const delay = state!.phase === 'roll' ? 900 : 650;
+  // con la velocità istantanea il computer gioca senza pause
+  const delay = (state!.phase === 'roll' ? 900 : 650) / speed.factor;
   botTimer = setTimeout(() => {
     botTimer = null;
     if (animating || !botToPlay()) return;
@@ -553,6 +565,7 @@ function render3d(s: GameState): void {
     );
     board3d.cameraMode = cameraMode;
     board3d.skyMode = skyMode;
+    board3d.speed = speed.factor;
     board3d.onHop = () => audio.play('hop');
   }
   app.querySelector('.hud')!.innerHTML = hudHtml(s);
@@ -591,7 +604,7 @@ function act(action: Action): void {
     }
     const sfx = soundFor(prev, state, action);
     // il suono del lancio c'è già: dopo un attimo quello del risultato
-    if (sfx && sfx !== 'dice') setTimeout(() => audio.play(sfx), action.type === 'roll' ? 450 : 0);
+    if (sfx && sfx !== 'dice') setTimeout(() => audio.play(sfx), action.type === 'roll' ? 450 / speed.factor : 0);
     // dopo il lancio mostra la casella di arrivo
     if (action.type === 'roll') selected = board.spaces[state.players[state.current].position]?.id ?? null;
     if (action.type === 'endTurn' || action.type === 'bankrupt') {
@@ -663,6 +676,11 @@ app.addEventListener('click', (e) => {
       skyMode = skyMode === 'cycle' ? 'day' : skyMode === 'day' ? 'night' : 'cycle';
       writePref(SKY_KEY, skyMode);
       if (board3d) board3d.skyMode = skyMode;
+      return render();
+    case 'speed':
+      speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+      writePref(SPEED_KEY, speed.id);
+      if (board3d) board3d.speed = speed.factor;
       return render();
     case 'camera':
       cameraMode = cameraMode === 'follow' ? 'overview' : 'follow';
