@@ -1,6 +1,6 @@
 // Regole di gioco: ogni azione produce un nuovo stato senza modificare quello precedente.
 import { rollDice } from './dice';
-import { defaultRules, emptyStats, JAIL_FINE, MAX_JAIL_ATTEMPTS, type GameContext, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
+import { defaultRules, emptyStats, withRng, JAIL_FINE, MAX_JAIL_ATTEMPTS, type GameContext, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
 import type { Card, CardEffect, DeckId, PropertySpace, Space } from './types';
 
 export type Action =
@@ -312,7 +312,7 @@ function requireOwnedProperty(state: GameState, ctx: GameContext, spaceId: strin
 function doRoll(state: GameState, ctx: GameContext): void {
   requirePhase(state, 'roll');
   const p = current(state);
-  const roll = rollDice(ctx.rng);
+  const roll = rollDice(ctx.rng!); // applyAction garantisce sempre un generatore
   state.lastRoll = roll.dice;
   log(state, `${p.name} lancia ${roll.dice[0]} e ${roll.dice[1]}.`);
   if (roll.isDouble) stat(state, p.id).doubles++;
@@ -766,7 +766,7 @@ function doBankrupt(state: GameState, ctx: GameContext): void {
 }
 
 // Applica un'azione e restituisce il nuovo stato. Lancia RuleError se l'azione non è valida.
-export function applyAction(state: GameState, action: Action, ctx: GameContext): GameState {
+export function applyAction(state: GameState, action: Action, gameCtx: GameContext): GameState {
   if (state.phase === 'gameOver') throw new RuleError('La partita è finita.');
   // con uno scambio in sospeso si può solo accettare o rifiutare
   if (state.trade && action.type !== 'acceptTrade' && action.type !== 'rejectTrade') {
@@ -776,9 +776,10 @@ export function applyAction(state: GameState, action: Action, ctx: GameContext):
   // compatibilità con partite salvate prima di aste e scambi
   next.auction ??= null;
   next.trade ??= null;
-  next.rules ??= defaultRules(ctx.board);
+  next.rules ??= defaultRules(gameCtx.board);
   next.round ??= 1;
   next.pot ??= 0;
+  const ctx = withRng(gameCtx, next);
   switch (action.type) {
     case 'roll': doRoll(next, ctx); break;
     case 'buy': doBuy(next, ctx); break;

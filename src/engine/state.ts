@@ -1,6 +1,6 @@
 // Stato della partita e creazione di una nuova partita.
 import type { BoardData, CardsData, DeckId } from './types';
-import type { Rng } from './dice';
+import { rngStep, type Rng } from './dice';
 
 export interface Player {
   id: number;
@@ -132,6 +132,9 @@ export interface GameState {
   // il computer propone al massimo uno scambio per turno
   tradeProposedThisTurn: boolean;
   rules: GameRules;
+  // seme della partita e stato attuale del generatore casuale (assenti nei salvataggi più vecchi)
+  seed?: number;
+  rngState?: number;
   // giro attuale: aumenta ogni volta che il turno torna al primo giocatore
   round: number;
   // soldi accumulati sulla Panchina del Parco (regola della casa)
@@ -168,10 +171,26 @@ export function emptyStats(): PlayerStats {
 }
 
 // Contesto immutabile della partita: dati del tabellone, carte e generatore casuale.
+// Senza "rng" il motore usa il generatore della partita (seme in state.seed, stato in state.rngState):
+// stesso seme e stesse azioni danno sempre la stessa partita. I test passano un rng per decidere i dadi.
 export interface GameContext {
   board: BoardData;
   cards: CardsData;
-  rng: Rng;
+  rng?: Rng;
+}
+
+// Generatore legato allo stato: ogni numero estratto aggiorna state.rngState.
+export function stateRng(state: GameState): Rng {
+  return () => {
+    const [value, next] = rngStep(state.rngState ?? state.seed ?? 0);
+    state.rngState = next;
+    return value;
+  };
+}
+
+// Contesto con il generatore sempre presente: quello passato dai test o quello della partita.
+export function withRng(ctx: GameContext, state: GameState): GameContext & { rng: Rng } {
+  return { ...ctx, rng: ctx.rng ?? stateRng(state) };
 }
 
 export const JAIL_FINE = 50;
@@ -207,7 +226,10 @@ export function shuffle<T>(items: T[], rng: Rng): T[] {
   return a;
 }
 
-export function createGame(players: (string | PlayerSetup)[], ctx: GameContext, rules: Partial<GameRules> = {}): GameState {
+// "seed" rende la partita ripetibile: con lo stesso seme mazzi, proprietà iniziali e dadi sono uguali.
+export function createGame(players: (string | PlayerSetup)[], gameCtx: GameContext, rules: Partial<GameRules> = {}, seed = 0): GameState {
+  const holder = { seed: seed >>> 0, rngState: seed >>> 0 } as GameState;
+  const ctx = withRng(gameCtx, holder);
   const fullRules = { ...defaultRules(ctx.board), ...rules };
   const setups = players.map((p) => (typeof p === 'string' ? { name: p } : p));
   const max = maxPlayers(fullRules);
@@ -254,8 +276,11 @@ export function createGame(players: (string | PlayerSetup)[], ctx: GameContext, 
     eventCount: 1,
     stats: setups.map(() => emptyStats()),
     history: [],
+    seed: holder.seed,
+    rngState: holder.rngState,
   };
   if (fullRules.quickStart) dealProperties(state, ctx);
+  state.rngState = holder.rngState;
   state.history.push(state.players.map((p) => p.money + startingAssets(state, ctx, p.id)));
   return state;
 }
@@ -266,7 +291,7 @@ function startingAssets(state: GameState, ctx: GameContext, playerId: number): n
 }
 
 // Partita rapida: distribuisce a turno proprietà scelte a caso, senza costi.
-function dealProperties(state: GameState, ctx: GameContext): void {
+function dealProperties(state: GameState, ctx: GameContext & { rng: Rng }): void {
   const ids = shuffle(
     ctx.board.spaces.filter((sp) => sp.type === 'property').map((sp) => sp.id),
     ctx.rng,

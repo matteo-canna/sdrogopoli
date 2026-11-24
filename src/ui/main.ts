@@ -1,7 +1,7 @@
 // Controller dell'interfaccia: collega i clic alle azioni del motore e ridisegna la pagina.
 import './style.css';
 import { board, cards } from '../data';
-import { DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, SEAT_BONUS, demoRules, actingPlayer, applyAction, chooseBotAction, createGame, raiseMoney, RuleError, type Action, type Appearance, type GameContext, type GameState } from '../engine';
+import { DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, SEAT_BONUS, demoRules, actingPlayer, applyAction, chooseBotAction, createGame, isUndoable, newSave, raiseMoney, readSave, RuleError, SAVE_VERSION, type Action, type Appearance, type GameContext, type GameState } from '../engine';
 import { escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
 import type { SkyMode } from './three/city';
@@ -25,7 +25,8 @@ const SKY_LABELS: Record<SkyMode, [string, string]> = {
   day: ['☀️', 'Sempre giorno'],
   night: ['🌙', 'Sempre notte'],
 };
-const ctx: GameContext = { board, cards, rng: Math.random };
+// senza "rng": i dadi vengono dal generatore della partita, che parte da un seme casuale
+const ctx: GameContext = { board, cards };
 // posti nella schermata iniziale: i primi 4 si vedono subito, gli altri con "Aggiungi giocatore"
 // (oltre l'8° solo nella modalità demo)
 const SEATS = Array.from({ length: DEMO_MAX_PLAYERS }, (_, i) => i);
@@ -34,7 +35,13 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 
 type ViewMode = '3d' | '2d';
 
-let state: GameState | null = load();
+const loaded = load();
+let state: GameState | null = loaded?.state ?? null;
+// stato iniziale e registro delle azioni: rigiocandoli si ottiene lo stato attuale
+let initial: GameState | null = loaded?.initial ?? null;
+let actions: Action[] = loaded?.actions ?? [];
+// stati da ripristinare con "Annulla" (solo azioni della persona di turno dopo l'ultimo lancio)
+let undoStack: { state: GameState; actions: number }[] = [];
 let selected: string | null = null;
 let error = '';
 let viewMode: ViewMode = webglAvailable() && readPref(VIEW_KEY) !== '2d' ? '3d' : '2d';
@@ -61,20 +68,25 @@ let tutorial = loadTutorial();
 
 function save(): void {
   try {
-    if (state) localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    if (state && initial) localStorage.setItem(SAVE_KEY, JSON.stringify({ version: SAVE_VERSION, initial, actions, state }));
     else localStorage.removeItem(SAVE_KEY);
   } catch {
     /* archiviazione non disponibile */
   }
 }
 
-function load(): GameState | null {
+function load() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    return raw ? (JSON.parse(raw) as GameState) : null;
+    // le partite salvate senza seme ricevono un generatore nuovo
+    return raw ? readSave(JSON.parse(raw), ctx, randomSeed()) : null;
   } catch {
     return null;
   }
+}
+
+function randomSeed(): number {
+  return Math.floor(Math.random() * 2 ** 32);
 }
 
 function readPref(key: string): string | null {
@@ -361,7 +373,9 @@ function renderSetup(): void {
       parkPot: data.get('pot') === 'on',
       quickStart: data.get('quick') === 'on',
       seatBonus: data.get('bonus') === 'on' ? (demo ? DEMO_SEAT_BONUS : SEAT_BONUS) : 0,
-    });
+    }, randomSeed());
+    ({ initial, actions } = newSave(state));
+    undoStack = [];
     const tipsOn = data.get('tips') === 'on';
     // riattivando i consigli si ricomincia da capo
     if (tipsOn && !tutorial.on) tutorial.seen.clear();
@@ -394,7 +408,7 @@ function hudHtml(s: GameState): string {
       ${s.rules?.parkPot ? `<span class="pill" title="Montepremi della Panchina del Parco">🪑 ${board.currency.symbol} ${s.pot}</span>` : ''}
       ${s.lastRoll ? `<span class="roll">${renderDice(s)}<span class="roll-total">${total}</span></span>` : ''}
     </div>
-    ${tradeDraft ? renderTradeEditor(s, tradeDraft) : `<div class="actions">${renderTurnActions(s)}</div>`}
+    ${tradeDraft ? renderTradeEditor(s, tradeDraft) : `<div class="actions">${renderTurnActions(s)}${undoButton(s)}</div>`}
     ${tipHtml(s)}
     ${s.phase === 'gameOver' ? renderSummary(s, ctx) : ''}
     ${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}
@@ -452,6 +466,11 @@ function render(): void {
     render2d(state);
   }
   scheduleBot();
+}
+
+function undoButton(s: GameState): string {
+  if (!undoStack.length || s.players[actingPlayer(s)].isBot || s.phase === 'gameOver') return '';
+  return `<button class="undo" data-action="undo" title="Annulla l'ultima mossa (non i dadi)">↩ Annulla</button>`;
 }
 
 // ---------- giocatori controllati dal computer ----------
@@ -558,6 +577,10 @@ function act(action: Action): void {
   try {
     state = applyAction(state, action, ctx);
     error = '';
+    actions.push(action);
+    // si può annullare solo quello che fa una persona dopo l'ultimo lancio dei dadi
+    if (!actorBot && isUndoable(action)) undoStack.push({ state: prev, actions: actions.length - 1 });
+    else undoStack = [];
     if (action.type === 'roll') {
       audio.play('dice');
       if (state.lastRoll) board3d?.showDice(state.lastRoll, prev.current);
@@ -650,12 +673,17 @@ app.addEventListener('click', (e) => {
       if (action === 'quit' && !confirmTwice(target)) return;
       cancelBot();
       state = null;
+      initial = null;
+      actions = [];
+      undoStack = [];
       selected = null;
       error = '';
       save();
       return render();
     case 'coverDebt':
       return coverDebt();
+    case 'undo':
+      return undo();
     case 'build':
     case 'sell':
     case 'mortgage':
@@ -715,15 +743,29 @@ function coverDebt(): void {
   if (!state) return;
   newsFrom = state.eventCount ?? 0;
   lastActorBot = false;
+  undoStack.push({ state, actions: actions.length });
   let s = state;
   for (let i = 0; i < 200 && s.players[s.current].money < 0; i++) {
     const step = raiseMoney(s, ctx);
     if (!step) break;
     s = applyAction(s, step, ctx);
+    actions.push(step);
   }
   state = s;
   error = '';
   audio.play('coin');
+  save();
+  render();
+}
+
+// Torna allo stato prima dell'ultima azione annullabile.
+function undo(): void {
+  const last = undoStack.pop();
+  if (!last || !state) return;
+  state = last.state;
+  actions.length = last.actions;
+  error = '';
+  selected = null;
   save();
   render();
 }
