@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { board, cards } from '../src/data';
-import { applyAction, createGame, computeRent, RuleError, JAIL_FINE, unmortgageCost, netWorth, MAX_LOG, actingPlayer, seededRng, QUICK_START_PROPERTIES, MAX_PLAYERS, quickStartProperties, demoRules, DEMO_ROUNDS, DEMO_SEAT_BONUS, DEMO_MAX_PLAYERS, maxPlayers } from '../src/engine';
+import { applyAction, createGame, computeRent, RuleError, JAIL_FINE, unmortgageCost, netWorth, MAX_LOG, actingPlayer, seededRng, QUICK_START_PROPERTIES, MAX_PLAYERS, quickStartProperties, demoRules, DEMO_ROUNDS, DEMO_SEAT_BONUS, DEMO_MAX_PLAYERS, maxPlayers, liquidationValue, debtOptions } from '../src/engine';
 import { ctxWith, newGame, indexOf, own } from './helpers';
 
 const salary = 200;
@@ -362,8 +362,8 @@ describe('case, ipoteche e bancarotta', () => {
     s = applyAction(s, { type: 'bankrupt' }, ctxWith());
     expect(s.players[0].bankrupt).toBe(true);
     expect(s.ownership['periferia-1'].owner).toBe(1);
-    // il creditore riceve solo quello che il fallito aveva
-    expect(s.players[1].money).toBe(1500 + 2);
+    // il creditore riceve solo quello che il fallito aveva, meno il 10% d'interessi sull'ipoteca (30)
+    expect(s.players[1].money).toBe(1500 + 2 - 3);
     expect(s.winner).toBe(1);
     expect(s.phase).toBe('gameOver');
   });
@@ -373,10 +373,74 @@ describe('case, ipoteche e bancarotta', () => {
     s0.players[0].money = 100;
     own(s0, 'periferia-1', 0);
     let s = applyAction(s0, { type: 'roll' }, ctxWith(1, 3));
+    s.players[0].money = -100; // l'ipoteca (30) non basta
     s = applyAction(s, { type: 'bankrupt' }, ctxWith());
     expect(s.ownership['periferia-1']).toBeUndefined();
+    // la proprietà liberata va all'asta, poi il turno riprende dal giocatore successivo
+    expect(s.phase).toBe('auction');
+    expect(s.auction!.spaceId).toBe('periferia-1');
+    expect(s.current).toBe(1);
+    s = applyAction(s, { type: 'bid', amount: 20 }, ctxWith());
+    s = applyAction(s, { type: 'pass' }, ctxWith());
+    expect(s.ownership['periferia-1'].owner).toBe(1);
     expect(s.phase).toBe('roll');
     expect(s.current).toBe(1);
+  });
+
+  it('non si dichiara bancarotta finché vendere o ipotecare basta', () => {
+    const s0 = newGame();
+    s0.players[0].money = 100;
+    own(s0, 'borgo-1', 0);
+    const s = applyAction(s0, { type: 'roll' }, ctxWith(1, 3)); // tassa 200: debito di 100
+    expect(liquidationValue(s, ctxWith(), 0)).toBeGreaterThanOrEqual(50);
+    s.players[0].money = -10;
+    expect(() => applyAction(s, { type: 'bankrupt' }, ctxWith())).toThrow(/coprire/);
+  });
+
+  it('in bancarotta le case si vendono a metà prezzo e il ricavato va al creditore', () => {
+    const s0 = newGame(['A', 'B', 'C']);
+    own(s0, 'periferia-1', 0, 1);
+    own(s0, 'periferia-2', 0, 1, false);
+    own(s0, 'borgo-1', 1, 0);
+    let s = applyAction(s0, { type: 'roll' }, ctxWith(1, 2));
+    // debito impossibile da coprire verso B
+    s.players[0].money = -1000;
+    s.creditor = 1;
+    const before = s.players[1].money;
+    s = applyAction(s, { type: 'bankrupt' }, ctxWith());
+    // 2 case da 50 → 50 di ricavato, che riduce quanto B deve restituire
+    expect(s.players[1].money).toBe(before - 1000 + 50);
+    expect(s.ownership['periferia-1']).toEqual({ owner: 1, houses: 0, mortgaged: false });
+  });
+
+  it('chi riceve una casella ipotecata in uno scambio paga il 10% d\'interessi', () => {
+    const s0 = newGame();
+    own(s0, 'periferia-1', 1, 0, true);
+    let s = applyAction(s0, { type: 'proposeTrade', offer: { to: 1, give: { money: 100, spaces: [] }, get: { money: 0, spaces: ['periferia-1'] } } }, ctxWith());
+    s = applyAction(s, { type: 'acceptTrade' }, ctxWith());
+    expect(s.ownership['periferia-1'].owner).toBe(0);
+    expect(s.players[0].money).toBe(1500 - 100 - 3);
+    expect(s.players[1].money).toBe(1600);
+  });
+
+  it('lo scambio è rifiutato se chi riceve l\'ipoteca non può pagare gli interessi', () => {
+    const s0 = newGame();
+    own(s0, 'periferia-1', 1, 0, true);
+    s0.players[0].money = 100;
+    const offer = { to: 1, give: { money: 100, spaces: [] }, get: { money: 0, spaces: ['periferia-1'] } };
+    expect(() => applyAction(s0, { type: 'proposeTrade', offer }, ctxWith())).toThrow(/interessi/);
+  });
+
+  it('debtOptions elenca prima le case più alte e le ipoteche possibili', () => {
+    const s = newGame();
+    own(s, 'periferia-1', 0, 2);
+    own(s, 'periferia-2', 0, 1);
+    own(s, 'borgo-1', 0);
+    const opts = debtOptions(s, ctxWith(), 0).map((o) => `${o.action.type}:${'spaceId' in o.action ? o.action.spaceId : ''}`);
+    expect(opts).toContain('sell:periferia-1');
+    expect(opts).not.toContain('sell:periferia-2');
+    expect(opts).not.toContain('mortgage:periferia-1');
+    expect(opts).toContain('mortgage:borgo-1');
   });
 });
 
