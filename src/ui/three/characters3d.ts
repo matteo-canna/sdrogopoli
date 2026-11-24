@@ -249,6 +249,7 @@ export class CharacterPreview {
     this.character?.dispose();
     this.resizeObserver.disconnect();
     this.renderer.dispose();
+    this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
   }
 }
