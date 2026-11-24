@@ -6,6 +6,7 @@ import { gridPosition } from '../view';
 import { appearanceOf, playerColor } from '../characters';
 import { createCharacter, type CharacterModel, type Reaction } from './characters3d';
 import { centerTexture, spaceTexture } from './textures';
+import { City, makeHotel, makeHouse, skyAt, SKY_STEPS, type SkyMode } from './city';
 
 const SIZE = board.spaces.length;
 const HOP_SECONDS = 0.22;
@@ -135,6 +136,15 @@ export class Board3D {
   private marker!: THREE.Mesh;
   private currentPlayer = 0;
   private winner: number | null = null;
+  // cielo: fase attuale (0 giorno, 1 tramonto, 2 notte, 3 alba) e fase verso cui si va
+  private skyColor = new THREE.Color(0xcfe5f2);
+  private hemi = new THREE.HemisphereLight(0xffffff, 0x8a9a8a, 1.6);
+  private sun = new THREE.DirectionalLight(0xffffff, 2.2);
+  private city = new City();
+  private skyPhase = -1;
+  private skyTarget = 0;
+  skyMode: SkyMode = 'cycle';
+  private round = 1;
   private tokensKey = '';
   private lastState: GameState | null = null;
   private reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -174,11 +184,10 @@ export class Board3D {
   // ---------- costruzione della scena ----------
 
   private buildScene(): void {
-    const dark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-    this.scene.background = new THREE.Color(dark ? 0x161a18 : 0xf3efe3);
+    this.scene.background = this.skyColor;
 
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9a8a, 1.6));
-    const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+    this.scene.add(this.hemi);
+    const sun = this.sun;
     sun.position.set(6, 12, 8);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -186,6 +195,7 @@ export class Board3D {
     sc.left = sc.bottom = -8;
     sc.right = sc.top = 8;
     this.scene.add(sun);
+    this.scene.add(this.city.group);
 
     // base del tabellone
     const base = new THREE.Mesh(
@@ -423,6 +433,9 @@ export class Board3D {
     if (!this.tokens.some((t) => t.queue.length)) this.focusPlayer = state.current;
     this.currentPlayer = state.phase === 'gameOver' && state.winner !== null ? state.winner : state.current;
     this.winner = state.phase === 'gameOver' ? state.winner : null;
+    this.round = state.round ?? 1;
+    // alla prima partita mostrata il cielo parte già dall'ora giusta
+    if (this.skyPhase < 0) this.skyPhase = this.skyMode === 'cycle' ? (this.round - 1) % SKY_STEPS : this.skyMode === 'day' ? 0 : 2;
 
     this.updateBuildings(state);
     this.setSelected(selected);
@@ -499,20 +512,12 @@ export class Board3D {
       ring.position.set(0.36, 0.03, 0.36);
       group.add(ring);
       if (own.houses === 5) {
-        const hotel = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.3, 0.22), new THREE.MeshStandardMaterial({ color: 0xc0392b }));
-        hotel.position.set(0, 0.15, 0);
-        hotel.castShadow = true;
+        const hotel = makeHotel();
         this.placeOnBand(hotel, i);
         group.add(hotel);
       } else {
         for (let h = 0; h < own.houses; h++) {
-          const house = new THREE.Group();
-          const walls = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.14), new THREE.MeshStandardMaterial({ color: 0x2e9e5b }));
-          walls.position.y = 0.06;
-          const roof = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.1, 4), new THREE.MeshStandardMaterial({ color: 0x1e6b3d }));
-          roof.position.y = 0.17;
-          roof.rotation.y = Math.PI / 4;
-          for (const m of [walls, roof]) { m.castShadow = true; house.add(m); }
+          const house = makeHouse();
           house.position.set(-0.27 + h * 0.18, 0, 0);
           this.placeOnBand(house, i);
           group.add(house);
@@ -538,6 +543,30 @@ export class Board3D {
       top.emissive.setHex(tile.userData.spaceId === spaceId ? 0x2f6f4f : 0x000000);
       top.emissiveIntensity = 0.35;
     }
+  }
+
+  // ---------- cielo ----------
+
+  // Ogni giro la giornata avanza di una tappa (giorno, tramonto, notte, alba); oppure resta fissa.
+  private updateSky(dt: number): void {
+    this.skyTarget = this.skyMode === 'day' ? 0 : this.skyMode === 'night' ? 2 : (this.round - 1) % SKY_STEPS;
+    // prima di conoscere la partita si aspetta (update() fissa l'ora giusta)
+    if (this.skyPhase < 0) return;
+    if (this.reduceMotion) this.skyPhase = this.skyTarget;
+    else {
+      // si va sempre avanti, come il tempo
+      const ahead = (this.skyTarget - this.skyPhase + SKY_STEPS) % SKY_STEPS;
+      if (ahead > 1e-3) this.skyPhase = (this.skyPhase + Math.min(ahead, dt * 0.35)) % SKY_STEPS;
+    }
+    const k = skyAt(this.skyPhase);
+    this.skyColor.setHex(k.bg);
+    this.hemi.color.setHex(k.hemiSky);
+    this.hemi.groundColor.setHex(k.hemiGround);
+    this.hemi.intensity = k.hemi;
+    this.sun.color.setHex(k.sunColor);
+    this.sun.intensity = k.sun;
+    this.sun.position.set(Math.cos(k.sunAngle + 0.9) * 10, 12, Math.sin(k.sunAngle + 0.9) * 10);
+    this.city.setNight(k.night);
   }
 
   // ---------- camera ----------
@@ -627,6 +656,8 @@ export class Board3D {
       this.busy = moving;
       this.onBusyChange(moving);
     }
+    this.updateSky(dt);
+    this.city.update(dt, this.reduceMotion);
     this.updateCamera(dt);
     this.renderer.render(this.scene, this.camera);
   };

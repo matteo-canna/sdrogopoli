@@ -4,6 +4,7 @@ import { board, cards } from '../data';
 import { QUICK_START_PROPERTIES, SEAT_BONUS, actingPlayer, applyAction, chooseBotAction, createGame, RuleError, type Action, type Appearance, type GameContext, type GameState } from '../engine';
 import { escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
+import type { SkyMode } from './three/city';
 import { CharacterPreview } from './three/characters3d';
 import { tutorialTip } from './tutorial';
 import { addResult, renderLeaderboard, renderSummary, sortLeaderboard, type LeaderEntry } from './summary';
@@ -15,6 +16,12 @@ const VIEW_KEY = 'sdrogopoli-vista';
 const LOOKS_KEY = 'sdrogopoli-aspetto';
 const TUTORIAL_KEY = 'sdrogopoli-tutorial';
 const LEADERBOARD_KEY = 'sdrogopoli-classifica';
+const SKY_KEY = 'sdrogopoli-cielo';
+const SKY_LABELS: Record<SkyMode, [string, string]> = {
+  cycle: ['🌗', 'Giorno e notte'],
+  day: ['☀️', 'Sempre giorno'],
+  night: ['🌙', 'Sempre notte'],
+};
 const ctx: GameContext = { board, cards, rng: Math.random };
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
@@ -25,6 +32,7 @@ let selected: string | null = null;
 let error = '';
 let viewMode: ViewMode = webglAvailable() && readPref(VIEW_KEY) !== '2d' ? '3d' : '2d';
 let cameraMode: CameraMode = 'follow';
+let skyMode: SkyMode = (['cycle', 'day', 'night'] as const).find((m) => m === readPref(SKY_KEY)) ?? 'cycle';
 let board3d: Board3D | null = null;
 // true mentre la pedina si muove nel 3D: il computer aspetta che finisca
 let animating = false;
@@ -372,7 +380,11 @@ function viewButtons(): string {
   const toggle = webglAvailable()
     ? `<button data-action="toggleView" aria-label="${viewMode === '3d' ? 'Vista 2D' : 'Vista 3D'}">${viewMode === '3d' ? '🔲<span class="lbl"> Vista 2D</span>' : '🧊<span class="lbl"> Vista 3D</span>'}</button>`
     : '';
-  return cam + toggle + soundButtons();
+  const [icon, label] = SKY_LABELS[skyMode];
+  const sky = viewMode === '3d'
+    ? `<button data-action="sky" aria-label="Cielo: ${label}" title="Cielo: ${label}">${icon}<span class="lbl"> ${label}</span></button>`
+    : '';
+  return cam + sky + toggle + soundButtons();
 }
 
 function render(): void {
@@ -464,6 +476,7 @@ function render3d(s: GameState): void {
       },
     );
     board3d.cameraMode = cameraMode;
+    board3d.skyMode = skyMode;
     board3d.onHop = () => audio.play('hop');
   }
   app.querySelector('.hud')!.innerHTML = hudHtml(s);
@@ -565,6 +578,11 @@ app.addEventListener('click', (e) => {
     case 'toggleView':
       viewMode = viewMode === '3d' ? '2d' : '3d';
       writePref(VIEW_KEY, viewMode);
+      return render();
+    case 'sky':
+      skyMode = skyMode === 'cycle' ? 'day' : skyMode === 'day' ? 'night' : 'cycle';
+      writePref(SKY_KEY, skyMode);
+      if (board3d) board3d.skyMode = skyMode;
       return render();
     case 'camera':
       cameraMode = cameraMode === 'follow' ? 'overview' : 'follow';
