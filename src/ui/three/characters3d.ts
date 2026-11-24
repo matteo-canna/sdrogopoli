@@ -8,14 +8,25 @@ import { characterDef } from '../characters';
 // altezza del modello originale (circa 2,4 unità) ridotta a quella di una pedina
 const MODEL_HEIGHT = 2.4;
 
-export type Pose = 'idle' | 'walk' | 'jump' | 'cheer' | 'defeat';
+export type Pose = 'idle' | 'walk' | 'jump' | 'cheer' | 'defeat' | 'sit' | 'hit' | 'collect' | 'build';
 const CLIPS: Record<Pose, string> = {
   idle: 'Idle',
   walk: 'Walking_A',
   jump: 'Jump_Full_Short',
   cheer: 'Cheer',
   defeat: 'Death_A',
+  // seduto per terra in Caserma
+  sit: 'Sit_Floor_Idle',
+  // colpito: quando paga
+  hit: 'Hit_A',
+  // gesto con la mano: quando incassa
+  collect: 'Interact',
+  // usa un attrezzo: quando costruisce
+  build: 'Use_Item',
 };
+// Reazioni brevi agli eventi: finite, si torna alla posa di base.
+export type Reaction = 'cheer' | 'hit' | 'collect' | 'build';
+const ONCE: Pose[] = ['jump', 'defeat', 'hit', 'collect', 'build'];
 
 const loader = new GLTFLoader();
 const cache = new Map<string, Promise<GLTF>>();
@@ -39,6 +50,10 @@ export class CharacterModel {
   private mixer: THREE.AnimationMixer;
   private actions = new Map<Pose, THREE.AnimationAction>();
   private pose: Pose | null = null;
+  // posa a cui tornare dopo una reazione
+  private basePose: Pose = 'idle';
+  private reactionUntil = 0;
+  private time = 0;
   private base: THREE.Mesh;
 
   constructor(gltf: GLTF, look: Appearance, height: number) {
@@ -80,7 +95,7 @@ export class CharacterModel {
       const clip = gltf.animations.find((a) => a.name === CLIPS[pose]);
       if (!clip) continue;
       const action = this.mixer.clipAction(clip);
-      if (pose === 'jump' || pose === 'defeat') {
+      if (ONCE.includes(pose)) {
         action.setLoop(THREE.LoopOnce, 1);
         action.clampWhenFinished = true;
       }
@@ -105,7 +120,34 @@ export class CharacterModel {
     return this.pose;
   }
 
+  // Posa continua (fermo, cammina, seduto…): una reazione in corso la rimanda alla fine.
+  // Con interrupt la reazione si interrompe subito (per esempio quando deve camminare).
+  setBase(pose: Pose, fade = 0.2, interrupt = false): void {
+    this.basePose = pose;
+    if (interrupt) this.reactionUntil = 0;
+    if (this.time >= this.reactionUntil) this.play(pose, fade);
+  }
+
+  // Reazione breve a un evento (comprare, pagare, incassare, costruire).
+  react(reaction: Reaction): void {
+    const action = this.actions.get(reaction);
+    if (!action) return;
+    this.play(reaction, 0.15);
+    // l'esultanza gira in tondo: ne basta un giro e mezzo
+    const seconds = reaction === 'cheer' ? Math.min(action.getClip().duration * 1.5, 2.5) : action.getClip().duration;
+    this.reactionUntil = this.time + seconds;
+  }
+
+  get reacting(): boolean {
+    return this.time < this.reactionUntil;
+  }
+
   update(dt: number): void {
+    this.time += dt;
+    if (this.reactionUntil && this.time >= this.reactionUntil) {
+      this.reactionUntil = 0;
+      this.play(this.basePose, 0.25);
+    }
     this.mixer.update(dt);
   }
 
