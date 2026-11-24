@@ -87,14 +87,15 @@ function chartSvg(state: GameState): string {
 }
 
 export function renderSummary(state: GameState, ctx: GameContext): string {
-  const medals = ['🥇', '🥈', '🥉', '4°'];
+  // medaglie per i primi tre, poi la posizione (fino all'8°)
+  const medals = ['🥇', '🥈', '🥉'];
   const order = standings(state, ctx);
   const rows = order
     .map((id, rank) => {
       const p = state.players[id];
       const st = statsOf(state, id);
       const what = p.bankrupt ? `bancarotta al giro ${st.bankruptRound ?? '?'}` : `patrimonio ${SYMBOL} ${netWorth(state, ctx, id)}`;
-      return `<li><span class="medal">${medals[rank]}</span><span class="token" style="background:${playerColor(p)}"></span>
+      return `<li><span class="medal">${medals[rank] ?? `${rank + 1}°`}</span><span class="token" style="background:${playerColor(p)}"></span>
         <strong>${p.isBot ? '🤖 ' : ''}${esc(p.name)}</strong><span class="what">${what}</span></li>`;
     })
     .join('');

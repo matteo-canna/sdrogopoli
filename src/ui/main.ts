@@ -1,7 +1,7 @@
 // Controller dell'interfaccia: collega i clic alle azioni del motore e ridisegna la pagina.
 import './style.css';
 import { board, cards } from '../data';
-import { QUICK_START_PROPERTIES, SEAT_BONUS, actingPlayer, applyAction, chooseBotAction, createGame, RuleError, type Action, type Appearance, type GameContext, type GameState } from '../engine';
+import { DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, SEAT_BONUS, demoRules, actingPlayer, applyAction, chooseBotAction, createGame, RuleError, type Action, type Appearance, type GameContext, type GameState } from '../engine';
 import { escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
 import type { SkyMode } from './three/city';
@@ -26,6 +26,10 @@ const SKY_LABELS: Record<SkyMode, [string, string]> = {
   night: ['🌙', 'Sempre notte'],
 };
 const ctx: GameContext = { board, cards, rng: Math.random };
+// posti nella schermata iniziale: i primi 4 si vedono subito, gli altri con "Aggiungi giocatore"
+// (oltre l'8° solo nella modalità demo)
+const SEATS = Array.from({ length: DEMO_MAX_PLAYERS }, (_, i) => i);
+const SEATS_SHOWN = 4;
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
 type ViewMode = '3d' | '2d';
@@ -45,7 +49,7 @@ let newsFrom = state?.eventCount ?? 0;
 let lastActorBot = false;
 // scambio che la persona di turno sta preparando
 let tradeDraft: TradeDraft | null = null;
-// aspetto scelto per ciascuno dei 4 posti nella schermata iniziale (ricordato per la prossima partita)
+// aspetto scelto per ciascuno dei posti nella schermata iniziale (ricordato per la prossima partita)
 let setupLooks: Appearance[] = loadLooks();
 // posto di cui si sta modificando l'aspetto (null = editor chiuso)
 let editingSeat: number | null = null;
@@ -132,7 +136,7 @@ function loadLooks(): Appearance[] {
   } catch {
     /* preferenza rovinata: si riparte da quelle predefinite */
   }
-  return [0, 1, 2, 3].map((i) => {
+  return SEATS.map((i) => {
     const look = { ...defaultAppearance(i), ...(Array.isArray(saved) ? saved[i] : {}) };
     // un personaggio sconosciuto torna a quello predefinito
     if (!CHARACTERS.some((c) => c.id === look.character)) return defaultAppearance(i);
@@ -229,7 +233,7 @@ function renderSetup(): void {
       <header class="brand">
         <div class="brand-strip" aria-hidden="true">${board.groups.map((g) => `<span style="background:${g.color}"></span>`).join('')}</div>
         <h1>Sdrogopoli</h1>
-        <p>Compra le vie della città, costruisci case e manda in rovina gli amici. Da 2 a 4 giocatori sullo stesso dispositivo.</p>
+        <p>Compra le vie della città, costruisci case e manda in rovina gli amici. Da ${MIN_PLAYERS} a ${MAX_PLAYERS} giocatori sullo stesso dispositivo (fino a ${DEMO_MAX_PLAYERS} nella modalità demo).</p>
       </header>
       <div class="setup-grid">
       <div class="setup-main">
@@ -238,9 +242,9 @@ function renderSetup(): void {
           <h2>Chi gioca?</h2>
           <p>Tocca il cerchio colorato per scegliere personaggio e colore. Lascia vuoto un nome per giocare in meno.</p>
         </div>
-        ${[0, 1, 2, 3]
+        ${SEATS
           .map(
-            (i) => `<div class="setup-row">${lookButton(i)}
+            (i) => `<div class="setup-row" ${i >= SEATS_SHOWN ? 'hidden' : ''}>${lookButton(i)}
               <input name="p${i}" maxlength="16" aria-label="Nome giocatore ${i + 1}" placeholder="Giocatore ${i + 1}${i >= 2 ? ' (facoltativo)' : ''}" ${i < 2 ? `value="${i === 0 ? 'Giocatore 1' : 'Computer'}"` : ''}>
               <select name="t${i}" aria-label="Chi controlla il giocatore ${i + 1}">
                 <option value="human" ${i === 0 ? 'selected' : ''}>👤 Persona</option>
@@ -248,6 +252,10 @@ function renderSetup(): void {
               </select></div>`,
           )
           .join('')}
+        <button type="button" class="add-seat" data-add-seat>➕ Aggiungi giocatore <small>(fino a <span data-seat-max>${MAX_PLAYERS}</span>)</small></button>
+        <label class="check demo-toggle"><input type="checkbox" name="demo">
+          <span><strong>🧪 Modalità demo</strong> <span class="badge-demo">sperimentale</span><br>
+          <small>Fino a ${DEMO_MAX_PLAYERS} giocatori. Per non aspettare troppo il proprio turno la partita dura ${DEMO_ROUNDS} giri (vince il patrimonio più alto) e il bonus del posto scende a ${board.currency.symbol} ${DEMO_SEAT_BONUS}.</small></span></label>
         <div id="look-slot"></div>
         <details class="house-rules">
           <summary>⚙️ Regole della casa</summary>
@@ -258,13 +266,14 @@ function renderSetup(): void {
             <select name="rounds">
               <option value="">Fino all'ultimo rimasto</option>
               <option value="15">15 giri (partita breve)</option>
+              <option value="${DEMO_ROUNDS}">${DEMO_ROUNDS} giri</option>
               <option value="25">25 giri</option>
               <option value="40">40 giri</option>
             </select>
           </label>
           <label class="check"><input type="checkbox" name="tips" ${tutorial.on ? 'checked' : ''}> Consigli durante la partita (utile la prima volta)</label>
-          <label class="check"><input type="checkbox" name="quick"> Partita rapida: ognuno parte con ${QUICK_START_PROPERTIES} proprietà a caso</label>
-          <label class="check"><input type="checkbox" name="bonus" checked> Chi gioca dopo parte con ${board.currency.symbol} ${SEAT_BONUS} in più per ogni posto (compensa il vantaggio di chi inizia)</label>
+          <label class="check"><input type="checkbox" name="quick"> Partita rapida: ognuno parte con ${QUICK_START_PROPERTIES} proprietà a caso (meno se si è in tanti: le proprietà sono ${board.spaces.filter((sp) => sp.type === 'property').length})</label>
+          <label class="check"><input type="checkbox" name="bonus" checked> Chi gioca dopo parte con ${board.currency.symbol} <span data-bonus-amount>${SEAT_BONUS}</span> in più per ogni posto (compensa il vantaggio di chi inizia)</label>
           <label class="check"><input type="checkbox" name="pot"> Montepremi: tasse e multe vanno sulla Panchina del Parco e chi ci arriva le incassa</label>
         </details>
         <button class="primary" type="submit">Inizia la partita</button>
@@ -284,10 +293,30 @@ function renderSetup(): void {
     document.querySelector('#leaderboard-slot')!.innerHTML = '';
   });
   const form = document.querySelector<HTMLFormElement>('#setup-form')!;
+  const isDemo = () => form.querySelector<HTMLInputElement>('input[name=demo]')!.checked;
+  // posti visibili e pulsante "Aggiungi giocatore" in base al limite (8, o 12 in demo)
+  const syncSeats = () => {
+    const max = isDemo() ? DEMO_MAX_PLAYERS : MAX_PLAYERS;
+    const rows = [...form.querySelectorAll<HTMLElement>('.setup-row')];
+    rows.forEach((row, i) => {
+      if (i >= max) row.hidden = true;
+    });
+    form.querySelector<HTMLElement>('[data-add-seat]')!.hidden = !rows.some((row, i) => i < max && row.hidden);
+    form.querySelector('[data-seat-max]')!.textContent = String(max);
+    form.querySelector('[data-bonus-amount]')!.textContent = String(isDemo() ? DEMO_SEAT_BONUS : SEAT_BONUS);
+  };
   form.addEventListener('click', (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>('button');
     if (!t) return;
-    if (t.dataset.look !== undefined) {
+    if (t.hasAttribute('data-add-seat')) {
+      // mostra il prossimo posto nascosto e porta lì il cursore
+      const row = form.querySelector<HTMLElement>('.setup-row[hidden]');
+      if (row) {
+        row.hidden = false;
+        row.querySelector('input')?.focus();
+      }
+      syncSeats();
+    } else if (t.dataset.look !== undefined) {
       const seat = Number(t.dataset.look);
       editingSeat = editingSeat === seat ? null : seat;
       refreshLooks();
@@ -303,26 +332,35 @@ function renderSetup(): void {
     if (t.hasAttribute('data-hat')) setLook({ hat: (t as HTMLInputElement).checked });
     else if (t.hasAttribute('data-cape')) setLook({ cape: (t as HTMLInputElement).checked });
     else if (t.hasAttribute('data-item')) setLook({ item: t.value });
+    else if (t.name === 'demo') {
+      // la modalità demo propone la sua durata; togliendola si torna a "fino all'ultimo"
+      const rounds = form.querySelector<HTMLSelectElement>('select[name=rounds]')!;
+      if ((t as HTMLInputElement).checked) rounds.value = String(DEMO_ROUNDS);
+      else if (rounds.value === String(DEMO_ROUNDS)) rounds.value = '';
+      syncSeats();
+    }
   });
   document.querySelector<HTMLFormElement>('#setup-form')!.addEventListener('submit', (e) => {
     e.preventDefault();
     const data = new FormData(e.target as HTMLFormElement);
-    const players = [0, 1, 2, 3]
+    const demo = data.get('demo') === 'on';
+    const players = SEATS.filter((i) => i < (demo ? DEMO_MAX_PLAYERS : MAX_PLAYERS))
       .map((i) => ({ name: String(data.get(`p${i}`) ?? '').trim(), isBot: data.get(`t${i}`) === 'bot', appearance: setupLooks[i] }))
       .filter((p) => p.name);
-    if (players.length < 2) {
+    if (players.length < MIN_PLAYERS) {
       const form = e.target as HTMLFormElement;
       form.querySelector('.error')?.remove();
-      form.insertAdjacentHTML('beforeend', `<p class="error">Servono almeno 2 giocatori.</p>`);
+      form.insertAdjacentHTML('beforeend', `<p class="error">Servono almeno ${MIN_PLAYERS} giocatori.</p>`);
       return;
     }
     const rounds = Number(data.get('rounds')) || null;
     state = createGame(players, ctx, {
+      ...(demo ? demoRules() : {}),
       startingMoney: Number(data.get('money')) || board.startingMoney,
       maxRounds: rounds,
       parkPot: data.get('pot') === 'on',
       quickStart: data.get('quick') === 'on',
-      seatBonus: data.get('bonus') === 'on' ? SEAT_BONUS : 0,
+      seatBonus: data.get('bonus') === 'on' ? (demo ? DEMO_SEAT_BONUS : SEAT_BONUS) : 0,
     });
     const tipsOn = data.get('tips') === 'on';
     // riattivando i consigli si ricomincia da capo
@@ -351,6 +389,7 @@ function hudHtml(s: GameState): string {
     <div class="turn" style="--c:${playerColor(p)}">
       <span class="token big" style="background:${playerColor(p)}"></span>
       <span>${s.phase === 'gameOver' ? '<strong>Partita finita</strong>' : `Tocca a <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>`}</span>
+      ${s.rules?.demo ? `<span class="pill demo" title="Modalità demo sperimentale">🧪 Demo</span>` : ''}
       ${s.rules?.maxRounds ? `<span class="pill">Giro ${s.round} di ${s.rules.maxRounds}</span>` : ''}
       ${s.rules?.parkPot ? `<span class="pill" title="Montepremi della Panchina del Parco">🪑 ${board.currency.symbol} ${s.pot}</span>` : ''}
       ${s.lastRoll ? `<span class="roll">${renderDice(s)}<span class="roll-total">${total}</span></span>` : ''}
@@ -677,7 +716,7 @@ function confirmQuit(button: HTMLElement): boolean {
 // in anticipo i personaggi 3D che serviranno (quelli della partita salvata o della schermata iniziale).
 render();
 const neededCharacters = webglAvailable()
-  ? [...new Set((state ? state.players.map((p) => p.appearance?.character) : setupLooks.map((l) => l.character)).filter((c): c is string => !!c))]
+  ? [...new Set((state ? state.players.map((p) => p.appearance?.character) : setupLooks.slice(0, SEATS_SHOWN).map((l) => l.character)).filter((c): c is string => !!c))]
   : [];
 void runLoading(
   neededCharacters.map((id) => ({

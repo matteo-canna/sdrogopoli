@@ -67,7 +67,7 @@ export function renderBoard(state: GameState, selected: string | null): string {
         ${icon}
         <span class="name">${escapeHtml(space.name)}</span>
         ${price}${houses}
-        <span class="tokens">${tokens}</span>
+        <span class="tokens ${state.players.length > 8 ? 'many' : ''}">${tokens}</span>
       </button>`;
   });
   return cells.join('');
