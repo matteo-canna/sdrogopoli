@@ -5,12 +5,14 @@ import { QUICK_START_PROPERTIES, SEAT_BONUS, actingPlayer, applyAction, chooseBo
 import { escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
 import { CharacterPreview } from './three/characters3d';
+import { tutorialTip } from './tutorial';
 import { CHARACTERS, COLOR_CHOICES, COLOR_NAMES, characterDef, defaultAppearance, playerColor } from './characters';
 import { audio, type Sfx } from './audio';
 
 const SAVE_KEY = 'sdrogopoli-partita';
 const VIEW_KEY = 'sdrogopoli-vista';
 const LOOKS_KEY = 'sdrogopoli-aspetto';
+const TUTORIAL_KEY = 'sdrogopoli-tutorial';
 const ctx: GameContext = { board, cards, rng: Math.random };
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
@@ -35,6 +37,8 @@ let setupLooks: Appearance[] = loadLooks();
 // posto di cui si sta modificando l'aspetto (null = editor chiuso)
 let editingSeat: number | null = null;
 let preview: CharacterPreview | null = null;
+// tutorial: consigli già letti e interruttore generale
+let tutorial = loadTutorial();
 
 // ---------- salvataggio nel browser (facoltativo: se non funziona si gioca lo stesso) ----------
 
@@ -70,6 +74,33 @@ function writePref(key: string, value: string): void {
   } catch {
     /* ignora */
   }
+}
+
+function loadTutorial(): { on: boolean; seen: Set<string> } {
+  try {
+    const raw = JSON.parse(readPref(TUTORIAL_KEY) ?? '{}');
+    return { on: raw.on !== false, seen: new Set(Array.isArray(raw.seen) ? raw.seen : []) };
+  } catch {
+    return { on: true, seen: new Set() };
+  }
+}
+
+function saveTutorial(): void {
+  writePref(TUTORIAL_KEY, JSON.stringify({ on: tutorial.on, seen: [...tutorial.seen] }));
+}
+
+function tipHtml(s: GameState): string {
+  if (!tutorial.on || tradeDraft) return '';
+  const tip = tutorialTip(s, ctx, tutorial.seen);
+  if (!tip) return '';
+  return `<div class="tip" role="note">
+      <h4>💡 ${escapeHtml(tip.title)}</h4>
+      <p>${escapeHtml(tip.text)}</p>
+      <div class="tip-buttons">
+        <button data-action="tipOk" data-tip="${tip.id}">Ho capito</button>
+        <button class="link" data-action="tipOff">Basta consigli</button>
+      </div>
+    </div>`;
 }
 
 function loadLooks(): Appearance[] {
@@ -200,6 +231,7 @@ function renderSetup(): void {
               <option value="40">40 giri</option>
             </select>
           </label>
+          <label class="check"><input type="checkbox" name="tips" ${tutorial.on ? 'checked' : ''}> Consigli durante la partita (utile la prima volta)</label>
           <label class="check"><input type="checkbox" name="quick"> Partita rapida: ognuno parte con ${QUICK_START_PROPERTIES} proprietà a caso</label>
           <label class="check"><input type="checkbox" name="bonus" checked> Chi gioca dopo parte con ${board.currency.symbol} ${SEAT_BONUS} in più per ogni posto (compensa il vantaggio di chi inizia)</label>
           <label class="check"><input type="checkbox" name="pot"> Montepremi: tasse e multe vanno sulla Panchina del Parco e chi ci arriva le incassa</label>
@@ -249,6 +281,11 @@ function renderSetup(): void {
       quickStart: data.get('quick') === 'on',
       seatBonus: data.get('bonus') === 'on' ? SEAT_BONUS : 0,
     });
+    const tipsOn = data.get('tips') === 'on';
+    // riattivando i consigli si ricomincia da capo
+    if (tipsOn && !tutorial.on) tutorial.seen.clear();
+    tutorial.on = tipsOn;
+    saveTutorial();
     destroyPreview();
     editingSeat = null;
     selected = null;
@@ -276,6 +313,7 @@ function hudHtml(s: GameState): string {
       ${s.lastRoll ? `<span class="roll">${renderDice(s)}<span class="roll-total">${total}</span></span>` : ''}
     </div>
     ${tradeDraft ? renderTradeEditor(s, tradeDraft) : `<div class="actions">${renderTurnActions(s)}</div>`}
+    ${tipHtml(s)}
     ${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}
     ${news.length ? `<div class="news" aria-live="polite"><h4>Cosa è successo</h4><ul>${news.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul></div>` : ''}
     ${selected ? renderSpaceDetails(s, selected) : '<p class="hint">Tocca una casella per vedere i dettagli.</p>'}
@@ -466,6 +504,14 @@ app.addEventListener('click', (e) => {
     return render();
   }
   switch (action) {
+    case 'tipOk':
+      tutorial.seen.add(target.dataset.tip ?? '');
+      saveTutorial();
+      return render();
+    case 'tipOff':
+      tutorial.on = false;
+      saveTutorial();
+      return render();
     case 'toggleSfx':
       audio.setSfx(!audio.sfxOn);
       return render();
