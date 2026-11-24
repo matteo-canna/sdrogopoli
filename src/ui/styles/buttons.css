@@ -1,0 +1,31 @@
+/* Pulsanti. */
+/* ---------- pulsanti ---------- */
+.actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.actions button, .setup button {
+  padding: 10px 16px; border-radius: var(--radius); border: 1px solid var(--line-strong); background: var(--panel);
+  font-weight: 600; box-shadow: var(--shadow-s);
+  transition: background-color 0.15s, border-color 0.15s, transform 0.08s, box-shadow 0.15s;
+}
+.actions button:not(:disabled):hover, .setup button:not(:disabled):hover, .view-buttons button:hover {
+  background: color-mix(in srgb, var(--panel) 90%, var(--ink));
+}
+.actions button:not(:disabled):active, .setup button:not(:disabled):active, .view-buttons button:active { transform: translateY(1px); }
+button.primary {
+  background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700;
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--accent) 60%, #000), var(--shadow-s);
+}
+.actions button.primary:not(:disabled):hover, .setup button.primary:not(:disabled):hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.actions button.primary:not(:disabled):active, .setup button.primary:not(:disabled):active {
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 60%, #000); transform: translateY(2px);
+}
+button.danger { background: var(--danger); border-color: var(--danger); color: var(--on-danger); font-weight: 700; }
+.actions button.danger:not(:disabled):hover { background: color-mix(in srgb, var(--danger) 88%, #000); }
+button.link { background: none; border: none; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; padding: 8px 0; font-size: 0.9em; }
+button.link:hover { color: var(--danger); }
+.error { color: var(--danger); font-weight: 600; }
+.warning { color: var(--danger); margin: 0; width: 100%; text-align: center; }
+.debt-panel { width: 100%; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.debt-panel p { margin: 0; text-align: center; }
+.debt-options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+.actions .debt-options button { width: 100%; min-height: 44px; padding: 6px 12px; font-size: 0.9rem; display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; }
+.actions .debt-options strong { white-space: nowrap; }

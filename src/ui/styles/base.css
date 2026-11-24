@@ -1,0 +1,73 @@
+/* Token di stile, tema scuro, focus e movimento ridotto. */
+/* ---------- token di stile: colori, forme, ombre e caratteri usati in tutta l'interfaccia ---------- */
+:root {
+  --bg: #f3efe3;
+  --bg-deep: #e8e1cc;
+  --board: #dfe9d8;
+  --space: #fffdf6;
+  --ink: #1f2421;
+  --muted: #5d6660;
+  --line: #9aa59c;
+  /* bordi dei campi: almeno 3:1 sullo sfondo (WCAG 1.4.11) */
+  --line-strong: #6f7a72;
+  --accent: #2f6f4f;
+  --accent-hover: #255a40;
+  --on-accent: #ffffff;
+  --accent-soft: #d5e8dc;
+  --danger: #b3261e;
+  --on-danger: #ffffff;
+  --info: #1f6fbf;
+  --on-info: #ffffff;
+  --gold: #c98a00;
+  --panel: #ffffff;
+  --radius-s: 6px;
+  --radius: 10px;
+  --radius-l: 16px;
+  --shadow-s: 0 1px 2px rgba(31, 36, 33, 0.08), 0 1px 3px rgba(31, 36, 33, 0.06);
+  --shadow: 0 2px 6px rgba(31, 36, 33, 0.08), 0 8px 24px rgba(31, 36, 33, 0.06);
+  --focus: 0 0 0 3px var(--bg), 0 0 0 5px var(--info);
+  --font: 'Nunito', ui-rounded, 'SF Pro Rounded', 'Segoe UI Variable Display', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-title: ui-rounded, 'SF Pro Rounded', 'Arial Rounded MT Bold', 'Nunito', system-ui, sans-serif;
+  font-family: var(--font);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141816;
+    --bg-deep: #0e1110;
+    --board: #22302a;
+    --space: #2a2f2c;
+    --ink: #eef1ec;
+    --muted: #a7b0aa;
+    --line: #4b554f;
+    --line-strong: #7d8981;
+    --accent: #5fbf8f;
+    --accent-hover: #74cf9f;
+    /* testo scuro sul verde chiaro: il bianco aveva contrasto 2.3:1 */
+    --on-accent: #0f2a1d;
+    --accent-soft: #24402f;
+    --danger: #ff6b5e;
+    --on-danger: #2b0805;
+    --info: #6cb4ff;
+    --on-info: #06223f;
+    --gold: #f4c542;
+    --panel: #1f2421;
+    --shadow-s: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25);
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh; background: var(--bg);
+  background-image: radial-gradient(ellipse at 50% -20%, var(--panel) 0%, transparent 60%), linear-gradient(180deg, transparent 60%, var(--bg-deep));
+  background-attachment: fixed;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+/* anello di focus ben visibile per chi usa la tastiera */
+:where(button, input, select, summary, a, [tabindex]):focus-visible { outline: none; box-shadow: var(--focus); border-radius: var(--radius-s); }
+.space:focus-visible { box-shadow: inset 0 0 0 3px var(--info); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
