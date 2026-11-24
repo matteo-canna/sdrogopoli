@@ -1,7 +1,7 @@
 // Controller dell'interfaccia: collega i clic alle azioni del motore e ridisegna la pagina.
 import './style.css';
 import { board, cards } from '../data';
-import { DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, SEAT_BONUS, demoRules, actingPlayer, applyAction, chooseBotAction, createGame, isUndoable, newSave, raiseMoney, readSave, RuleError, SAVE_VERSION, type Action, type Appearance, type GameContext, type GameState } from '../engine';
+import { DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, actingPlayer, applyAction, chooseBotAction, createGame, isUndoable, newSave, raiseMoney, readSave, RuleError, SAVE_VERSION, type Action, type Appearance, type GameContext, type GameState } from '../engine';
 import { escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
 import type { SkyMode } from './three/city';
@@ -294,10 +294,11 @@ function renderSetup(): void {
             </select>
           </label>
           <label class="check"><input type="checkbox" name="tips" ${tutorial.on ? 'checked' : ''}> Consigli durante la partita (utile la prima volta)</label>
-          <label class="check"><input type="checkbox" name="quick"> Partita rapida: ognuno parte con ${QUICK_START_PROPERTIES} proprietà a caso (meno se si è in tanti: le proprietà sono ${board.spaces.filter((sp) => sp.type === 'property').length})</label>
+          <label class="check"><input type="checkbox" name="quick"> Partita rapida: ognuno parte con ${QUICK_START_PROPERTIES} proprietà a caso (${QUICK_START_TWO_PLAYERS} se si è in due, meno se si è in tanti: le proprietà sono ${board.spaces.filter((sp) => sp.type === 'property').length})</label>
           <label class="check"><input type="checkbox" name="bonus" checked> Chi gioca dopo parte con ${board.currency.symbol} <span data-bonus-amount>${SEAT_BONUS}</span> in più per ogni posto (compensa il vantaggio di chi inizia)</label>
           <label class="check"><input type="checkbox" name="pot"> Montepremi: tasse e multe vanno sulla Panchina del Parco e chi ci arriva le incassa</label>
         </details>
+        <p class="hint" data-quick-note hidden>⚡ In due è attiva la partita rapida (${QUICK_START_TWO_PLAYERS} proprietà a testa): dura circa la metà. Si cambia nelle regole della casa.</p>
         <button class="primary" type="submit">Inizia la partita</button>
       </form>
       <div id="leaderboard-slot">${renderLeaderboard(loadLeaderboard())}</div>
@@ -326,7 +327,22 @@ function renderSetup(): void {
     form.querySelector<HTMLElement>('[data-add-seat]')!.hidden = !rows.some((row, i) => i < max && row.hidden);
     form.querySelector('[data-seat-max]')!.textContent = String(max);
     form.querySelector('[data-bonus-amount]')!.textContent = String(isDemo() ? DEMO_SEAT_BONUS : SEAT_BONUS);
+    syncQuick();
   };
+  // In due si propone la partita rapida (finché la persona non sceglie da sé)
+  const quick = form.querySelector<HTMLInputElement>('input[name=quick]')!;
+  let quickTouched = false;
+  quick.addEventListener('change', () => (quickTouched = true));
+  const syncQuick = () => {
+    if (quickTouched) return;
+    const named = [...form.querySelectorAll<HTMLInputElement>('.setup-row:not([hidden]) input[name^=p]')].filter((i) => i.value.trim()).length;
+    quick.checked = named === 2;
+    form.querySelector<HTMLElement>('[data-quick-note]')!.hidden = named !== 2;
+  };
+  form.addEventListener('input', (e) => {
+    if ((e.target as HTMLElement).matches('input[name^=p]')) syncQuick();
+  });
+  syncQuick();
   form.addEventListener('click', (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>('button');
     if (!t) return;

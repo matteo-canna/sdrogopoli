@@ -53,12 +53,16 @@ export interface GameRules {
 export const SEAT_BONUS = 30;
 // Proprietà regalate a ciascuno nella partita rapida.
 export const QUICK_START_PROPERTIES = 3;
+// In due la partita normale dura molto (mediana 68 giri su 1.000 simulazioni): la preparazione
+// propone la partita rapida, con 4 proprietà a testa. Mediana 36 giri, vittorie 48% e 52%.
+export const QUICK_START_TWO_PLAYERS = 4;
 
 // Proprietà regalate a testa nella partita rapida: in tanti non bastano per tutti (22 proprietà, 8×3 = 24),
 // quindi se serve se ne danno meno, sempre lo stesso numero a ognuno.
 export function quickStartProperties(board: BoardData, playerCount: number): number {
+  const wanted = playerCount === 2 ? QUICK_START_TWO_PLAYERS : QUICK_START_PROPERTIES;
   const total = board.spaces.filter((sp) => sp.type === 'property').length;
-  return Math.min(QUICK_START_PROPERTIES, Math.floor(total / Math.max(1, playerCount)));
+  return Math.min(wanted, Math.floor(total / Math.max(1, playerCount)));
 }
 
 export function defaultRules(board: BoardData): GameRules {
