@@ -15,6 +15,22 @@ export interface Player {
   bankrupt: boolean;
   // true se il giocatore è controllato dal computer
   isBot: boolean;
+  // aspetto della pedina scelto all'inizio (solo grafica: il motore lo conserva e basta)
+  appearance?: Appearance;
+}
+
+// Aspetto del personaggio-pedina. Il motore non lo usa nelle regole.
+export interface Appearance {
+  // personaggio (es. 'knight', 'mage')
+  character: string;
+  // colore del giocatore, in formato '#rrggbb'
+  color: string;
+  // copricapo (elmo, cappello…) visibile
+  hat: boolean;
+  // mantello visibile
+  cape: boolean;
+  // oggetto in mano ('' = niente)
+  item: string;
 }
 
 // Regole della casa scelte all'inizio della partita.
@@ -35,6 +51,7 @@ export function defaultRules(board: BoardData): GameRules {
 export interface PlayerSetup {
   name: string;
   isBot?: boolean;
+  appearance?: Appearance;
 }
 
 export interface Ownership {
@@ -146,6 +163,7 @@ export function createGame(players: (string | PlayerSetup)[], ctx: GameContext, 
       id,
       name: setup.name,
       isBot: setup.isBot ?? false,
+      ...(setup.appearance ? { appearance: { ...setup.appearance } } : {}),
       money: fullRules.startingMoney,
       position: 0,
       inJail: false,

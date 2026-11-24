@@ -1,8 +1,8 @@
 // Funzioni di rendering: trasformano lo stato del motore in HTML.
 import { board, cards } from '../data';
 import { actingPlayer, computeRent, MIN_BID, netWorth, unmortgageCost, type GameState, type Space, type TradeSide } from '../engine';
+import { playerColor } from './characters';
 
-export const PLAYER_COLORS = ['#e4572e', '#2e86de', '#f4b400', '#8e44ad'];
 const SYMBOL = board.currency.symbol;
 
 export function money(n: number): string {
@@ -53,10 +53,10 @@ export function renderBoard(state: GameState, selected: string | null): string {
     const color = groupColor(space);
     const tokens = state.players
       .filter((p) => !p.bankrupt && p.position === i)
-      .map((p) => `<span class="token" style="background:${PLAYER_COLORS[p.id]}" title="${escapeHtml(p.name)}"></span>`)
+      .map((p) => `<span class="token" style="background:${playerColor(p)}" title="${escapeHtml(p.name)}"></span>`)
       .join('');
     const houses = own && own.houses > 0 ? `<span class="houses">${own.houses === 5 ? '🏢' : '🏠'.repeat(own.houses)}</span>` : '';
-    const owner = own ? `<span class="owner" style="background:${PLAYER_COLORS[own.owner]}"></span>` : '';
+    const owner = own ? `<span class="owner" style="background:${playerColor(state.players[own.owner])}"></span>` : '';
     const price = 'price' in space ? `<span class="price">${space.price}</span>` : '';
     const icon = ICONS[space.type] ? `<span class="icon">${ICONS[space.type]}</span>` : '';
     return `
@@ -134,7 +134,7 @@ export function renderPlayers(state: GameState): string {
       return `
         <div class="player ${active ? 'active' : ''} ${p.bankrupt ? 'out' : ''}">
           <div class="player-head">
-            <span class="token big" style="background:${PLAYER_COLORS[p.id]}"></span>
+            <span class="token big" style="background:${playerColor(p)}"></span>
             <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>
             ${active ? '<span class="badge">di turno</span>' : ''}
             <span class="money ${p.money < 0 ? 'negative' : ''}" title="Contanti">${money(p.money)}</span>

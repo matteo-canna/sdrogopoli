@@ -19,6 +19,15 @@ describe('inizio partita', () => {
     expect(() => createGame(['A', 'B', 'C', 'D', 'E'], ctx)).toThrow();
   });
 
+  it("l'aspetto della pedina scelto all'inizio resta nella partita", () => {
+    const ctx = { board, cards, rng: Math.random };
+    const look = { character: 'mage', color: '#123456', hat: false, cape: true, item: 'Spellbook' };
+    const s = createGame([{ name: 'A', appearance: look }, 'B'], ctx);
+    expect(s.players[0].appearance).toEqual(look);
+    expect(s.players[0].appearance).not.toBe(look);
+    expect(s.players[1].appearance).toBeUndefined();
+  });
+
   it('i mazzi contengono tutte le carte', () => {
     const s = newGame();
     expect(s.decks.sorte.length + s.decks.quartiere.length).toBe(cards.cards.length);

@@ -2,7 +2,9 @@
 import * as THREE from 'three';
 import { board } from '../../data';
 import type { GameState } from '../../engine';
-import { gridPosition, PLAYER_COLORS } from '../view';
+import { gridPosition } from '../view';
+import { appearanceOf, playerColor } from '../characters';
+import { createCharacter, type CharacterModel } from './characters3d';
 import { centerTexture, spaceTexture } from './textures';
 
 const SIZE = board.spaces.length;
@@ -58,6 +60,28 @@ interface TokenView {
   shownPosition: number;
   queue: Hop[];
   hopTime: number;
+  // personaggio animato (null finché non è caricato: intanto si vede la pedina semplice)
+  character: CharacterModel | null;
+  // momento in cui nascondere la pedina dopo la bancarotta
+  hideAt: number;
+  wasBankrupt: boolean;
+}
+
+// Grandezza dei personaggi-pedina (la testa grande li rende un po' più alti di così).
+const CHARACTER_HEIGHT = 0.5;
+
+// Verso cui guarda un personaggio fermo: fuori dal tabellone, cioè verso chi guarda.
+function restYaw(pos: THREE.Vector3): number {
+  if (Math.abs(pos.x) > Math.abs(pos.z)) return pos.x > 0 ? Math.PI / 2 : -Math.PI / 2;
+  return pos.z > 0 ? 0 : Math.PI;
+}
+
+// Rotazione più breve da un angolo all'altro.
+function turnTowards(from: number, to: number, k: number): number {
+  let d = (to - from) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return from + d * k;
 }
 
 export type CameraMode = 'follow' | 'overview';
@@ -86,6 +110,8 @@ export class Board3D {
   private tokensWaitUntil = 0;
   private marker!: THREE.Mesh;
   private currentPlayer = 0;
+  private winner: number | null = null;
+  private tokensKey = '';
   private reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   cameraMode: CameraMode = 'follow';
   // chiamata a ogni salto completato (per il suono)
@@ -334,19 +360,26 @@ export class Board3D {
 
   update(state: GameState, selected: string | null): void {
     // crea le pedine alla prima chiamata (o se cambia la partita)
-    if (this.tokens.length !== state.players.length) {
-      for (const t of this.tokens) this.scene.remove(t.mesh);
-      this.tokens = state.players.map((p) => {
-        const mesh = this.makeToken(PLAYER_COLORS[p.id], p.id);
-        mesh.position.copy(this.tokenRest(p.id, p.position));
-        this.scene.add(mesh);
-        return { mesh, shownPosition: p.position, queue: [], hopTime: 0 };
-      });
+    const key = JSON.stringify(state.players.map((p) => appearanceOf(p)));
+    if (key !== this.tokensKey) {
+      this.tokensKey = key;
+      for (const t of this.tokens) {
+        this.scene.remove(t.mesh);
+        t.character?.dispose();
+      }
+      this.tokens = state.players.map((p) => this.createTokenView(state, p.id));
     }
 
     state.players.forEach((p, i) => {
       const view = this.tokens[i];
-      view.mesh.visible = !p.bankrupt;
+      if (p.bankrupt && !view.wasBankrupt) {
+        // il personaggio cade a terra e poi sparisce
+        view.wasBankrupt = true;
+        if (view.character && !this.reduceMotion) {
+          view.character.play('defeat');
+          view.hideAt = this.clock.elapsedTime + 2;
+        } else view.mesh.visible = false;
+      }
       if (p.position !== view.shownPosition) {
         this.enqueueMove(view, p.id, view.shownPosition, p.position, p.inJail);
         view.shownPosition = p.position;
@@ -355,9 +388,39 @@ export class Board3D {
     });
     if (!this.tokens.some((t) => t.queue.length)) this.focusPlayer = state.current;
     this.currentPlayer = state.phase === 'gameOver' && state.winner !== null ? state.winner : state.current;
+    this.winner = state.phase === 'gameOver' ? state.winner : null;
 
     this.updateBuildings(state);
     this.setSelected(selected);
+  }
+
+  // Crea la pedina: subito quella semplice, poi il personaggio 3D appena il modello è caricato.
+  private createTokenView(state: GameState, playerId: number): TokenView {
+    const p = state.players[playerId];
+    const mesh = new THREE.Group();
+    const fallback = this.makeToken(playerColor(p), p.id);
+    mesh.add(fallback);
+    mesh.position.copy(this.tokenRest(p.id, p.position));
+    mesh.rotation.y = restYaw(mesh.position);
+    mesh.visible = !p.bankrupt;
+    this.scene.add(mesh);
+    const view: TokenView = { mesh, shownPosition: p.position, queue: [], hopTime: 0, character: null, hideAt: 0, wasBankrupt: p.bankrupt };
+    const key = this.tokensKey;
+    createCharacter(appearanceOf(p), CHARACTER_HEIGHT)
+      .then((character) => {
+        // la partita (o l'aspetto) potrebbe essere cambiata nel frattempo
+        if (key !== this.tokensKey || this.disposed) {
+          character.dispose();
+          return;
+        }
+        mesh.remove(fallback);
+        mesh.add(character.root);
+        view.character = character;
+      })
+      .catch(() => {
+        /* modello non disponibile: resta la pedina semplice */
+      });
+    return view;
   }
 
   // Prepara i salti casella per casella. Indietro di poche caselle (carte) si cammina all'indietro;
@@ -373,7 +436,7 @@ export class Board3D {
     let prev = view.queue.length ? view.queue[view.queue.length - 1].to : view.mesh.position.clone();
     for (const idx of path) {
       const next = this.tokenRest(playerId, idx);
-      view.queue.push({ from: prev, to: next, height: path.length === 1 && jailed ? 2 : 0.45 });
+      view.queue.push({ from: prev, to: next, height: path.length === 1 && jailed ? 2 : view.character ? 0.08 : 0.45 });
       prev = next;
     }
     if (this.reduceMotion) {
@@ -396,7 +459,7 @@ export class Board3D {
       // bordino del colore del proprietario
       const ring = new THREE.Mesh(
         new THREE.TorusGeometry(0.06, 0.025, 8, 16),
-        new THREE.MeshStandardMaterial({ color: PLAYER_COLORS[own.owner], transparent: own.mortgaged, opacity: own.mortgaged ? 0.35 : 1 }),
+        new THREE.MeshStandardMaterial({ color: playerColor(state.players[own.owner]), transparent: own.mortgaged, opacity: own.mortgaged ? 0.35 : 1 }),
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.set(0.36, 0.03, 0.36);
@@ -474,17 +537,36 @@ export class Board3D {
     let moving = false;
     this.animateDice(dt);
     const diceRolling = this.clock.elapsedTime < this.tokensWaitUntil;
+    const turnK = 1 - Math.exp(-dt * 10);
     for (const t of this.tokens) {
+      t.character?.update(dt);
+      if (t.hideAt && this.clock.elapsedTime > t.hideAt) {
+        t.mesh.visible = false;
+        t.hideAt = 0;
+      }
       const hop = t.queue[0];
-      if (!hop) continue;
+      if (!hop || diceRolling) {
+        if (hop) moving = true;
+        // fermo: guarda verso l'esterno; il vincitore esulta
+        if (!t.wasBankrupt) {
+          t.character?.play(this.winner === this.tokens.indexOf(t) ? 'cheer' : 'idle');
+          t.mesh.rotation.y = turnTowards(t.mesh.rotation.y, restYaw(t.mesh.position), turnK);
+        }
+        continue;
+      }
       moving = true;
       // la pedina parte quando i dadi si sono fermati
-      if (diceRolling) continue;
       t.hopTime += dt;
-      const dur = hop.height > 1 ? HOP_SECONDS * 3 : HOP_SECONDS;
+      const big = hop.height > 1;
+      const dur = big ? HOP_SECONDS * 3 : HOP_SECONDS;
       const u = Math.min(t.hopTime / dur, 1);
       t.mesh.position.lerpVectors(hop.from, hop.to, u);
       t.mesh.position.y = Math.sin(Math.PI * u) * hop.height;
+      // cammina guardando dove va (il salto verso la Caserma è un salto vero)
+      t.character?.play(big ? 'jump' : 'walk', 0.12);
+      const dx = hop.to.x - hop.from.x;
+      const dz = hop.to.z - hop.from.z;
+      if (dx * dx + dz * dz > 1e-4) t.mesh.rotation.y = turnTowards(t.mesh.rotation.y, Math.atan2(dx, dz), turnK);
       if (u >= 1) {
         t.queue.shift();
         t.hopTime = 0;
@@ -495,7 +577,8 @@ export class Board3D {
     const active = this.tokens[this.currentPlayer]?.mesh;
     this.marker.visible = !!active && active.visible;
     if (active) {
-      this.marker.position.set(active.position.x, active.position.y + 0.75 + Math.sin(this.clock.elapsedTime * 3) * 0.06, active.position.z);
+      const top = this.tokens[this.currentPlayer]?.character ? CHARACTER_HEIGHT * 1.45 + 0.15 : 0.75;
+      this.marker.position.set(active.position.x, active.position.y + top + Math.sin(this.clock.elapsedTime * 3) * 0.06, active.position.z);
       this.marker.rotation.y += dt * 1.5;
     }
     if (diceRolling) moving = true;
@@ -532,7 +615,11 @@ export class Board3D {
     if (hit) this.onSpaceClick(hit.object.userData.spaceId);
   };
 
+  private disposed = false;
+
   dispose(): void {
+    this.disposed = true;
+    for (const t of this.tokens) t.character?.dispose();
     cancelAnimationFrame(this.frame);
     this.resizeObserver.disconnect();
     this.renderer.dispose();

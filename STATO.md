@@ -18,6 +18,7 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 - Il motore riceve il generatore casuale come parametro (`Rng`), così i test sono deterministici.
 - Hosting: GitHub Pages (richiede repository pubblico).
 - Valuta: sdroghi (Ꞩ), 1500 a testa all'inizio, 200 di stipendio alla Partenza.
+- Personaggi-pedina 3D: KayKit Adventurers di Kay Lousberg (licenza CC0, gratuiti anche per uso commerciale), in `public/characters/`. I modelli originali sono ridotti con gltf-transform (solo 6 animazioni, dati compressi): circa 430 KB l'uno.
 - Mazzi di carte: "Colpo di Sorte" e "Voci di Quartiere" (12 carte ciascuno).
 
 ## Fatto finora
@@ -33,6 +34,7 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 - 2026-11-23: simulazione di bilanciamento (`npm run simula`), rapporto in `docs/bilanciamento.md`; ritoccati affitti di Centro Storico, Colline e Lungolago e gli scambi del computer.
 - 2026-11-23: suoni e musica originali generati con la Web Audio API (`src/ui/audio.ts`), nessun file audio; pulsanti Effetti e Musica.
 - 2026-11-23: ritocchi 3D: camera più vicina, pedine di forma diversa (pedone, torre, gemma, anello), freccia sulla pedina di turno, dadi 3D che cadono e si fermano sul risultato.
+- 2026-11-23: pedine-personaggio 3D animate (cavaliere, barbaro, mago, furfante, incappucciato) che camminano, saltano in Caserma, esultano alla vittoria e cadono in bancarotta. Nella schermata iniziale ognuno sceglie personaggio, colore, copricapo, mantello e oggetto in mano, con anteprima 3D; l'aspetto viene ricordato. Se il modello non si carica resta la pedina semplice.
 
 ## Prossimi passi possibili
 - Multiplayer online (rimandato da Matteo).
