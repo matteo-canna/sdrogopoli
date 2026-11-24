@@ -75,6 +75,36 @@ export function centerTexture(): THREE.CanvasTexture {
   const ctx = c.getContext('2d')!;
   ctx.fillStyle = '#dfe9d8';
   ctx.fillRect(0, 0, 1024, 1024);
+  // da coordinate del tabellone (-4,5…4,5) a pixel
+  const px = (v: number) => ((v + 4.5) / 9) * 1024;
+  const u = 1024 / 9;
+  // viale tutto intorno, con i lampioni
+  ctx.strokeStyle = '#c9c4b6';
+  ctx.lineWidth = 0.22 * u;
+  ctx.strokeRect(px(-4.05), px(-4.05), 8.1 * u, 8.1 * u);
+  // parco con vialetti intorno alla fontana
+  ctx.fillStyle = '#cfe3c0';
+  ctx.beginPath();
+  ctx.arc(px(-2.35), px(-2.35), 1.85 * u, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#e6dcc4';
+  ctx.lineWidth = 0.12 * u;
+  ctx.beginPath();
+  ctx.arc(px(-2.35), px(-2.35), 0.55 * u, 0, Math.PI * 2);
+  ctx.moveTo(px(-2.35), px(-4.05));
+  ctx.lineTo(px(-2.35), px(-0.6));
+  ctx.moveTo(px(-4.05), px(-2.35));
+  ctx.lineTo(px(-0.6), px(-2.35));
+  ctx.stroke();
+  // spiaggia intorno al lago
+  ctx.fillStyle = '#eadfbe';
+  ctx.beginPath();
+  ctx.arc(px(2.3), px(2.3), 1.42 * u, 0, Math.PI * 2);
+  ctx.fill();
+  // piazze lastricate dei due quartieri
+  ctx.fillStyle = '#d6d2c6';
+  ctx.fillRect(px(3.15 - 0.8), px(-3.15 - 0.8), 1.6 * u, 1.6 * u);
+  ctx.fillRect(px(-3.15 - 0.8), px(3.15 - 0.8), 1.6 * u, 1.6 * u);
   ctx.translate(512, 512);
   ctx.rotate(-Math.PI / 4);
   ctx.fillStyle = '#2f6f4f';

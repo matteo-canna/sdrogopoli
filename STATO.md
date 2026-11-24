@@ -40,6 +40,7 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 - 2026-11-24: tutorial con consigli brevi (`src/ui/tutorial.ts`): compaiono la prima volta che una persona incontra una situazione (inizio, acquisto, asta, doppio, quartiere completo, Caserma, debito, scambi). "Ho capito" li segna come letti, "Basta consigli" li spegne; si riattivano dalle regole della casa.
 - 2026-11-24: statistiche di fine partita: il motore conta affitti, tasse, acquisti, case, scambi, doppi, Caserma e giro della bancarotta (`state.stats`) e fotografa i patrimoni a ogni giro (`state.history`). A fine partita: classifica, grafico del patrimonio e premi (`src/ui/summary.ts`). Classifica tra amici salvata nel browser, visibile nella schermata iniziale.
 - 2026-11-24: risolta la schermata bianca dopo molti clic: a ogni ridisegno si apriva un contesto WebGL di prova e il browser, superato il limite, spegneva quello del tabellone. Ora la prova si fa una volta, i contesti si liberano subito e se la grafica si perde comunque la scena 3D si ricrea da sola.
+- 2026-11-24: tabellone più vivo (`src/ui/three/city.ts`): al centro una città in miniatura con parco e fontana, lago con barchette, due quartieri di palazzine, alberi e lampioni lungo il viale; case con finestre, porta e comignolo, palazzi a gradoni. Ciclo giorno/tramonto/notte/alba che avanza di una tappa a ogni giro (di notte si accendono finestre e lampioni); pulsante per scegliere ciclo, sempre giorno o sempre notte.
 
 ## Prossimi passi possibili
 - Multiplayer online (rimandato da Matteo).
