@@ -266,3 +266,15 @@ button.link { background: none; border: none; color: var(--muted); text-decorati
   .look-editor { grid-template-columns: minmax(0, 1fr); }
   .look-preview { min-height: 200px; }
 }
+
+/* ---------- tutorial ---------- */
+.tip {
+  width: 100%; background: var(--panel); border-radius: 8px; padding: 8px 12px; text-align: left;
+  border-left: 4px solid #2e86de; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.tip h4 { margin: 0 0 4px; }
+.tip p { margin: 0 0 6px; line-height: 1.4; }
+.tip-buttons { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.tip-buttons button:not(.link) {
+  padding: 6px 14px; border-radius: 8px; border: 1px solid #2e86de; background: #2e86de; color: #fff; font-weight: 600; min-height: 40px;
+}
