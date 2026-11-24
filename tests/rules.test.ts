@@ -541,3 +541,57 @@ describe('regole della casa', () => {
     expect(s.pot).toBe(0);
   });
 });
+
+describe('statistiche di fine partita', () => {
+  it('contano affitti pagati e incassati, acquisti e doppi', () => {
+    let s = newGame();
+    s = applyAction(s, { type: 'roll' }, ctxWith(1, 2)); // casella 3, libera
+    s = applyAction(s, { type: 'buy' }, ctxWith());
+    expect(s.stats[0].bought).toBe(1);
+    s = applyAction(s, { type: 'endTurn' }, ctxWith());
+    s = applyAction(s, { type: 'roll' }, ctxWith(1, 2)); // Bruno arriva sulla via di Anna
+    const rent = s.stats[1].rentPaid;
+    expect(rent).toBeGreaterThan(0);
+    expect(s.stats[0].rentReceived).toBe(rent);
+    s = applyAction(s, { type: 'endTurn' }, ctxWith());
+    s = applyAction(s, { type: 'roll' }, ctxWith(3, 3));
+    expect(s.stats[0].doubles).toBe(1);
+  });
+
+  it('a ogni giro si fotografano i patrimoni, anche alla fine', () => {
+    let s = createGame(['A', 'B'], { board, cards, rng: () => 0.999 }, { maxRounds: 1, seatBonus: 0 });
+    expect(s.history).toEqual([[1500, 1500]]);
+    s = applyAction(s, { type: 'roll' }, ctxWith(1, 3)); // A paga 200 di tasse
+    expect(s.stats[0].taxesPaid).toBe(200);
+    s = applyAction(s, { type: 'endTurn' }, ctxWith());
+    s = applyAction(s, { type: 'roll' }, ctxWith(1, 3));
+    s = applyAction(s, { type: 'endTurn' }, ctxWith());
+    expect(s.phase).toBe('gameOver');
+    expect(s.history.at(-1)).toEqual([1300, 1300]);
+    // una fotografia all'inizio e una alla fine dell'unico giro; il giro mostrato resta 1
+    expect(s.history).toHaveLength(2);
+    expect(s.round).toBe(1);
+  });
+
+  it('ricordano il giro della bancarotta e le visite in Caserma', () => {
+    const s0 = newGame();
+    s0.players[0].money = 2;
+    own(s0, 'periferia-2', 1, 3);
+    s0.players[0].position = 0;
+    let s = applyAction(s0, { type: 'roll' }, ctxWith(1, 2));
+    s = applyAction(s, { type: 'bankrupt' }, ctxWith());
+    expect(s.stats[0].bankruptRound).toBe(1);
+    const j = newGame();
+    j.players[0].position = 25;
+    const after = applyAction(j, { type: 'roll' }, ctxWith(2, 3)); // 30: vai in Caserma
+    expect(after.stats[0].jailVisits).toBe(1);
+  });
+
+  it('le partite salvate senza statistiche continuano a funzionare', () => {
+    const s = newGame() as Partial<ReturnType<typeof newGame>>;
+    delete s.stats;
+    delete s.history;
+    const next = applyAction(s as ReturnType<typeof newGame>, { type: 'roll' }, ctxWith(3, 3));
+    expect(next.stats[0].doubles).toBe(1);
+  });
+});

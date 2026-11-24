@@ -38,6 +38,7 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 - 2026-11-24: partite più corte (affitti con case +30%, computer che costruisce prima: mediana da 59 a 45 giri), regola "partita rapida" con 3 proprietà a testa (mediana 28 giri), bonus di 30 per ogni posto dopo il primo (il primo vince il 25% invece del 31%).
 - 2026-11-24: i personaggi reagiscono agli eventi: esultano quando comprano, lavorano quando costruiscono, si piegano quando pagano, fanno un gesto quando incassano, stanno seduti in Caserma. Le reazioni partono quando tutti si sono fermati. Modelli ora con 9 animazioni (circa 520 KB l'uno).
 - 2026-11-24: tutorial con consigli brevi (`src/ui/tutorial.ts`): compaiono la prima volta che una persona incontra una situazione (inizio, acquisto, asta, doppio, quartiere completo, Caserma, debito, scambi). "Ho capito" li segna come letti, "Basta consigli" li spegne; si riattivano dalle regole della casa.
+- 2026-11-24: statistiche di fine partita: il motore conta affitti, tasse, acquisti, case, scambi, doppi, Caserma e giro della bancarotta (`state.stats`) e fotografa i patrimoni a ogni giro (`state.history`). A fine partita: classifica, grafico del patrimonio e premi (`src/ui/summary.ts`). Classifica tra amici salvata nel browser, visibile nella schermata iniziale.
 
 ## Prossimi passi possibili
 - Multiplayer online (rimandato da Matteo).

@@ -6,6 +6,7 @@ import { escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails,
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
 import { CharacterPreview } from './three/characters3d';
 import { tutorialTip } from './tutorial';
+import { addResult, renderLeaderboard, renderSummary, sortLeaderboard, type LeaderEntry } from './summary';
 import { CHARACTERS, COLOR_CHOICES, COLOR_NAMES, characterDef, defaultAppearance, playerColor } from './characters';
 import { audio, type Sfx } from './audio';
 
@@ -13,6 +14,7 @@ const SAVE_KEY = 'sdrogopoli-partita';
 const VIEW_KEY = 'sdrogopoli-vista';
 const LOOKS_KEY = 'sdrogopoli-aspetto';
 const TUTORIAL_KEY = 'sdrogopoli-tutorial';
+const LEADERBOARD_KEY = 'sdrogopoli-classifica';
 const ctx: GameContext = { board, cards, rng: Math.random };
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
@@ -73,6 +75,15 @@ function writePref(key: string, value: string): void {
     localStorage.setItem(key, value);
   } catch {
     /* ignora */
+  }
+}
+
+function loadLeaderboard(): LeaderEntry[] {
+  try {
+    const raw = JSON.parse(readPref(LEADERBOARD_KEY) ?? '[]');
+    return Array.isArray(raw) ? sortLeaderboard(raw.filter((e) => e && typeof e.name === 'string')) : [];
+  } catch {
+    return [];
   }
 }
 
@@ -238,8 +249,14 @@ function renderSetup(): void {
         </details>
         <button class="primary" type="submit">Inizia la partita</button>
       </form>
+      <div id="leaderboard-slot">${renderLeaderboard(loadLeaderboard())}</div>
       <p class="credits">Personaggi 3D: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit di Kay Lousberg</a> (CC0)</p>
     </main>`;
+  document.querySelector('#leaderboard-slot')!.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest('[data-reset-leaderboard]')) return;
+    writePref(LEADERBOARD_KEY, '[]');
+    document.querySelector('#leaderboard-slot')!.innerHTML = '';
+  });
   const form = document.querySelector<HTMLFormElement>('#setup-form')!;
   form.addEventListener('click', (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>('button');
@@ -300,20 +317,21 @@ function renderSetup(): void {
 
 // Parte centrale: turno, azioni, cosa è appena successo, scheda della casella e registro.
 function hudHtml(s: GameState): string {
-  const p = s.players[actingPlayer(s)];
+  const p = s.players[s.phase === 'gameOver' && s.winner !== null ? s.winner : actingPlayer(s)];
   const fresh = Math.min(Math.max((s.eventCount ?? 0) - newsFrom, 0), s.log.length, 8);
   const news = fresh ? s.log.slice(-fresh) : [];
   const total = s.lastRoll ? s.lastRoll[0] + s.lastRoll[1] : 0;
   return `
     <div class="turn">
       <span class="token big" style="background:${playerColor(p)}"></span>
-      <span>Tocca a <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong></span>
+      <span>${s.phase === 'gameOver' ? '<strong>Partita finita</strong>' : `Tocca a <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>`}</span>
       ${s.rules?.maxRounds ? `<span class="pill">Giro ${s.round} di ${s.rules.maxRounds}</span>` : ''}
       ${s.rules?.parkPot ? `<span class="pill" title="Montepremi della Panchina del Parco">🪑 ${board.currency.symbol} ${s.pot}</span>` : ''}
       ${s.lastRoll ? `<span class="roll">${renderDice(s)}<span class="roll-total">${total}</span></span>` : ''}
     </div>
     ${tradeDraft ? renderTradeEditor(s, tradeDraft) : `<div class="actions">${renderTurnActions(s)}</div>`}
     ${tipHtml(s)}
+    ${s.phase === 'gameOver' ? renderSummary(s, ctx) : ''}
     ${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}
     ${news.length ? `<div class="news" aria-live="polite"><h4>Cosa è successo</h4><ul>${news.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul></div>` : ''}
     ${selected ? renderSpaceDetails(s, selected) : '<p class="hint">Tocca una casella per vedere i dettagli.</p>'}
@@ -466,6 +484,10 @@ function act(action: Action): void {
     if (action.type === 'roll') {
       audio.play('dice');
       if (state.lastRoll) board3d?.showDice(state.lastRoll, prev.current);
+    }
+    // partita appena finita: il risultato entra nella classifica tra amici
+    if (prev.phase !== 'gameOver' && state.phase === 'gameOver') {
+      writePref(LEADERBOARD_KEY, JSON.stringify(addResult(loadLeaderboard(), state, ctx)));
     }
     const sfx = soundFor(prev, state, action);
     // il suono del lancio c'è già: dopo un attimo quello del risultato

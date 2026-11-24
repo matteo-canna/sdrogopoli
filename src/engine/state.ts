@@ -129,6 +129,31 @@ export interface GameState {
   log: string[];
   // numero totale di eventi registrati (il registro tiene solo gli ultimi)
   eventCount: number;
+  // statistiche per giocatore, per il riepilogo di fine partita
+  stats: PlayerStats[];
+  // patrimonio di ogni giocatore all'inizio di ogni giro (history[giro][giocatore])
+  history: number[][];
+}
+
+// Numeri raccolti durante la partita per il riepilogo finale.
+export interface PlayerStats {
+  rentPaid: number;
+  rentReceived: number;
+  taxesPaid: number;
+  // proprietà comprate (anche all'asta)
+  bought: number;
+  // case e palazzi costruiti
+  built: number;
+  jailVisits: number;
+  doubles: number;
+  // scambi conclusi
+  trades: number;
+  // giro della bancarotta (null se non è fallito)
+  bankruptRound: number | null;
+}
+
+export function emptyStats(): PlayerStats {
+  return { rentPaid: 0, rentReceived: 0, taxesPaid: 0, bought: 0, built: 0, jailVisits: 0, doubles: 0, trades: 0, bankruptRound: null };
 }
 
 // Contesto immutabile della partita: dati del tabellone, carte e generatore casuale.
@@ -197,9 +222,17 @@ export function createGame(players: (string | PlayerSetup)[], ctx: GameContext, 
     winner: null,
     log: ['Inizia la partita!'],
     eventCount: 1,
+    stats: setups.map(() => emptyStats()),
+    history: [],
   };
   if (fullRules.quickStart) dealProperties(state, ctx);
+  state.history.push(state.players.map((p) => p.money + startingAssets(state, ctx, p.id)));
   return state;
+}
+
+// Valore delle proprietà regalate nella partita rapida (0 nelle partite normali).
+function startingAssets(state: GameState, ctx: GameContext, playerId: number): number {
+  return ctx.board.spaces.reduce((sum, sp) => (state.ownership[sp.id]?.owner === playerId && 'price' in sp ? sum + sp.price : sum), 0);
 }
 
 // Partita rapida: distribuisce a turno proprietà scelte a caso, senza costi.
