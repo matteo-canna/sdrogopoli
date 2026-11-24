@@ -2,114 +2,16 @@
 import * as THREE from 'three';
 import { board } from '../../data';
 import type { GameState } from '../../engine';
-import { gridPosition } from '../view';
 import { tokenScale, tokenSlot } from '../tokenLayout';
 import { appearanceOf, playerColor } from '../characters';
-import { createCharacter, type CharacterModel, type Reaction } from './characters3d';
-import { centerTexture, spaceTexture } from './textures';
+import { createCharacter } from './characters3d';
+import { CHARACTER_HEIGHT, HOP_SECONDS, SIZE, restYaw, spaceCenter, textRotation, turnTowards } from './layout';
+import { DICE_SECONDS, Dice3D } from './dice3d';
+import { CameraRig, type CameraMode } from './camera';
+export type { CameraMode } from './camera';
+import { buildBoard } from './tiles';
+import { makeMarker, makeToken, reactionFor, type TokenView } from './pieces';
 import { City, makeHotel, makeHouse, skyAt, SKY_STEPS, type SkyMode } from './city';
-
-const SIZE = board.spaces.length;
-const HOP_SECONDS = 0.22;
-const TILE = 0.96;
-
-// Posizione nel mondo 3D del centro di una casella (tabellone di 11×11 unità centrato nell'origine).
-function spaceCenter(index: number): THREE.Vector3 {
-  const { row, col } = gridPosition(index);
-  return new THREE.Vector3(col - 6, 0, row - 6);
-}
-
-// Rotazione del testo: si legge guardando la casella dall'esterno del tabellone.
-function textRotation(index: number): number {
-  if (index < 10) return 0;
-  if (index < 20) return -Math.PI / 2;
-  if (index < 30) return Math.PI;
-  return Math.PI / 2;
-}
-
-const DICE_SECONDS = 0.9;
-// valore su ciascuna faccia del dado, nell'ordine delle facce di BoxGeometry
-const DIE_FACES = [3, 4, 1, 6, 2, 5];
-// rotazione che porta in alto la faccia con il valore indicato
-const FACE_UP: Record<number, THREE.Euler> = {
-  1: new THREE.Euler(0, 0, 0),
-  6: new THREE.Euler(Math.PI, 0, 0),
-  2: new THREE.Euler(-Math.PI / 2, 0, 0),
-  5: new THREE.Euler(Math.PI / 2, 0, 0),
-  3: new THREE.Euler(0, 0, Math.PI / 2),
-  4: new THREE.Euler(0, 0, -Math.PI / 2),
-};
-
-interface DiceAnim {
-  start: THREE.Vector3;
-  end: THREE.Vector3;
-  final: THREE.Euler;
-  spin: THREE.Vector3;
-  t: number;
-}
-
-// Piccolo spostamento per non sovrapporre le pedine nella stessa casella.
-
-interface Hop {
-  from: THREE.Vector3;
-  to: THREE.Vector3;
-  height: number;
-}
-
-interface TokenView {
-  mesh: THREE.Group;
-  shownPosition: number;
-  queue: Hop[];
-  hopTime: number;
-  // personaggio animato (null finché non è caricato: intanto si vede la pedina semplice)
-  character: CharacterModel | null;
-  // momento in cui nascondere la pedina dopo la bancarotta
-  hideAt: number;
-  wasBankrupt: boolean;
-  inJail: boolean;
-  // reazione da mostrare appena il personaggio si ferma
-  pendingReaction: Reaction | null;
-}
-
-// Come reagisce un giocatore a quello che è appena successo (null = nessuna reazione).
-function reactionFor(prev: GameState, next: GameState, playerId: number): Reaction | null {
-  const before = prev.players[playerId];
-  const after = next.players[playerId];
-  if (!before || !after || after.bankrupt) return null;
-  const owned = [0, 0];
-  const houses = [0, 0];
-  [prev, next].forEach((s, k) => {
-    for (const o of Object.values(s.ownership)) {
-      if (o.owner !== playerId) continue;
-      owned[k]++;
-      houses[k] += o.houses;
-    }
-  });
-  if (houses[1] > houses[0]) return 'build';
-  if (owned[1] > owned[0]) return 'cheer';
-  if (after.money < before.money) return 'hit';
-  if (after.money > before.money) return 'collect';
-  return null;
-}
-
-// Grandezza dei personaggi-pedina (la testa grande li rende un po' più alti di così).
-const CHARACTER_HEIGHT = 0.5;
-
-// Verso cui guarda un personaggio fermo: fuori dal tabellone, cioè verso chi guarda.
-function restYaw(pos: THREE.Vector3): number {
-  if (Math.abs(pos.x) > Math.abs(pos.z)) return pos.x > 0 ? Math.PI / 2 : -Math.PI / 2;
-  return pos.z > 0 ? 0 : Math.PI;
-}
-
-// Rotazione più breve da un angolo all'altro.
-function turnTowards(from: number, to: number, k: number): number {
-  let d = (to - from) % (Math.PI * 2);
-  if (d > Math.PI) d -= Math.PI * 2;
-  if (d < -Math.PI) d += Math.PI * 2;
-  return from + d * k;
-}
-
-export type CameraMode = 'follow' | 'overview';
 
 export class Board3D {
   private renderer: THREE.WebGLRenderer;
@@ -123,17 +25,13 @@ export class Board3D {
   private playerCount = 0;
   private raycaster = new THREE.Raycaster();
   private clock = new THREE.Clock();
-  private camTarget = new THREE.Vector3();
-  private camPos = new THREE.Vector3(0, 14, 11);
-  private lookAt = new THREE.Vector3();
+  private rig = new CameraRig(this.camera);
   private focusPlayer = 0;
   private selected: string | null = null;
   private resizeObserver: ResizeObserver;
   private frame = 0;
   private busy = false;
-  private dice: THREE.Mesh[] = [];
-  private diceAnim: (DiceAnim | null)[] = [null, null];
-  private diceHideAt = 0;
+  private dice!: Dice3D;
   private tokensWaitUntil = 0;
   // velocità delle animazioni: 1 normale, 2 doppia; Infinity = istantanea (niente animazioni)
   speed = 1;
@@ -171,10 +69,9 @@ export class Board3D {
     container.appendChild(this.renderer.domElement);
 
     this.buildScene();
-    this.dice = [this.makeDie(), this.makeDie()];
-    this.marker = this.makeMarker();
+    this.dice = new Dice3D(this.scene);
+    this.marker = makeMarker();
     this.scene.add(this.marker);
-    this.camera.position.copy(this.camPos);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
@@ -201,179 +98,25 @@ export class Board3D {
     this.scene.add(sun);
     this.scene.add(this.city.group);
 
-    // base del tabellone
-    const base = new THREE.Mesh(
-      new THREE.BoxGeometry(11.4, 0.3, 11.4),
-      new THREE.MeshStandardMaterial({ color: 0x6b8f71, roughness: 0.9 }),
-    );
-    base.position.y = -0.2;
-    base.receiveShadow = true;
-    this.scene.add(base);
-
-    const center = new THREE.Mesh(
-      new THREE.PlaneGeometry(9, 9),
-      new THREE.MeshStandardMaterial({ map: centerTexture(), roughness: 0.95 }),
-    );
-    center.rotation.x = -Math.PI / 2;
-    center.position.y = -0.04;
-    center.receiveShadow = true;
-    this.scene.add(center);
-
-    // caselle: un blocchetto con la faccia superiore disegnata
-    const geo = new THREE.BoxGeometry(TILE, 0.1, TILE);
-    const sideMat = new THREE.MeshStandardMaterial({ color: 0xeae4d3, roughness: 0.8 });
-    board.spaces.forEach((space, i) => {
-      const tex = spaceTexture(space, this.renderer);
-      tex.center.set(0.5, 0.5);
-      tex.rotation = textRotation(i);
-      const topMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, emissive: 0x000000 });
-      // ordine facce BoxGeometry: +x, -x, +y, -y, +z, -z
-      const tile = new THREE.Mesh(geo, [sideMat, sideMat, topMat, sideMat, sideMat, sideMat]);
-      tile.position.copy(spaceCenter(i)).setY(-0.05);
-      tile.receiveShadow = true;
-      tile.userData.spaceId = space.id;
-      this.scene.add(tile);
-      this.tiles.push(tile);
-
-      const group = new THREE.Group();
-      group.position.copy(spaceCenter(i));
-      this.scene.add(group);
-      this.buildings.push(group);
-    });
-  }
-
-  // Ogni giocatore ha una pedina di forma diversa, oltre che di colore diverso.
-  private makeToken(color: string, shape: number): THREE.Group {
-    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.15 });
-    const g = new THREE.Group();
-    const parts: THREE.Mesh[] = [];
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.06, 28), mat);
-    base.position.y = 0.03;
-    parts.push(base);
-    switch (shape % 4) {
-      case 0: {
-        // pedone: cono e testa tonda
-        const body = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.36, 24), mat);
-        body.position.y = 0.22;
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.1, 24, 16), mat);
-        head.position.y = 0.44;
-        parts.push(body, head);
-        break;
-      }
-      case 1: {
-        // torre: cilindro con merli
-        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.34, 20), mat);
-        body.position.y = 0.23;
-        parts.push(body);
-        for (let k = 0; k < 4; k++) {
-          const m = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.07, 0.06), mat);
-          const a = (k * Math.PI) / 2;
-          m.position.set(Math.cos(a) * 0.08, 0.43, Math.sin(a) * 0.08);
-          parts.push(m);
-        }
-        break;
-      }
-      case 2: {
-        // gemma: ottaedro su uno stelo
-        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 0.16, 12), mat);
-        stem.position.y = 0.14;
-        const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.16), mat);
-        gem.position.y = 0.36;
-        gem.scale.y = 1.3;
-        parts.push(stem, gem);
-        break;
-      }
-      default: {
-        // anello: un toro in piedi
-        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.1, 12), mat);
-        stem.position.y = 0.1;
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.05, 14, 28), mat);
-        ring.position.y = 0.3;
-        parts.push(stem, ring);
-      }
-    }
-    for (const m of parts) {
-      m.castShadow = true;
-      g.add(m);
-    }
-    return g;
-  }
-
-  // Freccia che fluttua sopra la pedina di chi è di turno.
-  private makeMarker(): THREE.Mesh {
-    const m = new THREE.Mesh(
-      new THREE.ConeGeometry(0.1, 0.2, 4),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffd54a, emissiveIntensity: 0.8 }),
-    );
-    m.rotation.x = Math.PI;
-    return m;
+    const { tiles, buildings } = buildBoard(this.scene, this.renderer);
+    this.tiles = tiles;
+    this.buildings = buildings;
   }
 
   // ---------- dadi 3D ----------
-
-  private dieFace(value: number): THREE.MeshStandardMaterial {
-    const c = document.createElement('canvas');
-    c.width = c.height = 128;
-    const ctx = c.getContext('2d')!;
-    ctx.fillStyle = '#fffdf6';
-    ctx.fillRect(0, 0, 128, 128);
-    ctx.fillStyle = '#1f2421';
-    const pos: Record<number, [number, number][]> = {
-      1: [[64, 64]],
-      2: [[34, 34], [94, 94]],
-      3: [[30, 30], [64, 64], [98, 98]],
-      4: [[34, 34], [94, 34], [34, 94], [94, 94]],
-      5: [[30, 30], [98, 30], [64, 64], [30, 98], [98, 98]],
-      6: [[34, 28], [94, 28], [34, 64], [94, 64], [34, 100], [94, 100]],
-    };
-    for (const [x, y] of pos[value]) {
-      ctx.beginPath();
-      ctx.arc(x, y, value === 1 ? 14 : 11, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    const tex = new THREE.CanvasTexture(c);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.4 });
-  }
-
-  private makeDie(): THREE.Mesh {
-    // facce nell'ordine di BoxGeometry (+x, -x, +y, -y, +z, -z); le facce opposte sommano 7
-    const mats = DIE_FACES.map((v) => this.dieFace(v));
-    const die = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.34), mats);
-    die.castShadow = true;
-    die.visible = false;
-    // prima si porta in alto la faccia giusta (X e Z), poi si gira attorno all'asse verticale (Y)
-    die.rotation.order = 'YXZ';
-    this.scene.add(die);
-    return die;
-  }
 
   // Fa cadere e rotolare i dadi vicino alla pedina, fermandoli sul risultato del motore.
   showDice(values: [number, number], playerId: number): void {
     const token = this.tokens[playerId]?.mesh;
     const at = token ? token.position.clone().setY(0) : new THREE.Vector3();
-    // un po' verso il centro del tabellone, così restano sul piano verde
-    const inward = at.clone().multiplyScalar(-1).setY(0);
-    if (inward.lengthSq() > 0.01) inward.normalize();
-    const side = new THREE.Vector3(-inward.z, 0, inward.x);
-    const center = at.clone().add(inward.multiplyScalar(1.6));
-    values.forEach((v, i) => {
-      const die = this.dice[i];
-      const final = FACE_UP[v].clone();
-      final.y += Math.random() * Math.PI * 2;
-      const end = center.clone().add(side.clone().multiplyScalar(i === 0 ? -0.32 : 0.32)).setY(0.17);
-      const start = end.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.6, 2.4, (Math.random() - 0.5) * 0.6));
-      this.diceAnim[i] = { start, end, final, spin: new THREE.Vector3(Math.PI * (4 + i * 2), Math.PI * 2, Math.PI * (2 + i * 2)), t: 0 };
-      die.visible = true;
-    });
     const fast = this.reduceMotion || !Number.isFinite(this.speed);
-    this.diceHideAt = this.clock.elapsedTime + (fast ? 2 : DICE_SECONDS / this.speed + 2.2);
+    this.dice.roll(values, at, this.clock.elapsedTime + (fast ? 2 : DICE_SECONDS / this.speed + 2.2));
     this.tokensWaitUntil = this.clock.elapsedTime + (fast ? 0 : DICE_SECONDS / this.speed);
   }
 
   // Salta le animazioni in corso: dadi fermi sul risultato e pedine già arrivate.
   skip(): void {
-    for (const a of this.diceAnim) if (a) a.t = 1;
+    this.dice.finish();
     this.tokensWaitUntil = 0;
     for (const t of this.tokens) {
       const last = t.queue.at(-1);
@@ -386,30 +129,6 @@ export class Board3D {
 
   get isBusy(): boolean {
     return this.busy;
-  }
-
-  private animateDice(dt: number): void {
-    this.diceAnim.forEach((a, i) => {
-      if (!a) return;
-      const die = this.dice[i];
-      a.t = this.reduceMotion ? 1 : Math.min(a.t + (dt * this.speed) / DICE_SECONDS, 1);
-      const u = a.t;
-      // caduta con due piccoli rimbalzi
-      const bounce = u < 0.6 ? 1 - (u / 0.6) ** 2 : u < 0.85 ? 0.12 * Math.sin(((u - 0.6) / 0.25) * Math.PI) : 0.03 * Math.sin(((u - 0.85) / 0.15) * Math.PI);
-      const k = Math.min(u / 0.6, 1);
-      die.position.set(
-        a.start.x + (a.end.x - a.start.x) * k,
-        a.end.y + Math.max(bounce, 0) * (a.start.y - a.end.y),
-        a.start.z + (a.end.z - a.start.z) * k,
-      );
-      const ease = 1 - (1 - u) ** 3;
-      die.rotation.set(a.final.x + a.spin.x * (1 - ease), a.final.y + a.spin.y * (1 - ease), a.final.z + a.spin.z * (1 - ease));
-      if (u >= 1) this.diceAnim[i] = null;
-    });
-    if (this.diceHideAt && this.clock.elapsedTime > this.diceHideAt) {
-      for (const d of this.dice) d.visible = false;
-      this.diceHideAt = 0;
-    }
   }
 
   private tokenRest(playerId: number, index: number): THREE.Vector3 {
@@ -470,7 +189,7 @@ export class Board3D {
     const p = state.players[playerId];
     const mesh = new THREE.Group();
     const size = tokenScale(state.players.length);
-    const fallback = this.makeToken(playerColor(p), p.id);
+    const fallback = makeToken(playerColor(p), p.id);
     fallback.scale.setScalar(size);
     mesh.add(fallback);
     mesh.position.copy(this.tokenRest(p.id, p.position));
@@ -595,29 +314,6 @@ export class Board3D {
     this.city.setNight(k.night);
   }
 
-  // ---------- camera ----------
-
-  private updateCamera(dt: number): void {
-    const token = this.tokens[this.focusPlayer]?.mesh;
-    if (this.cameraMode === 'overview' || !token) {
-      this.camTarget.set(0, 0, 0);
-      this.camPos.set(0, 12, 9.5);
-    } else {
-      // la camera sta all'esterno del tabellone, alle spalle della pedina, e guarda verso il centro
-      const p = token.position;
-      const out = new THREE.Vector3(p.x, 0, p.z);
-      if (out.lengthSq() < 0.01) out.set(0, 0, 1);
-      out.normalize();
-      this.camTarget.set(p.x * 0.8, 0, p.z * 0.8);
-      this.camPos.set(p.x + out.x * 3.4, 3.7, p.z + out.z * 3.4);
-    }
-    // inseguimento morbido (indipendente dalla frequenza dei fotogrammi)
-    const k = this.reduceMotion ? 1 : 1 - Math.exp(-dt * 3);
-    this.camera.position.lerp(this.camPos, k);
-    this.lookAt.lerp(this.camTarget, k);
-    this.camera.lookAt(this.lookAt);
-  }
-
   // ---------- ciclo di animazione ----------
 
   private loop = (): void => {
@@ -625,7 +321,7 @@ export class Board3D {
     const dt = Math.min(this.clock.getDelta(), 0.1);
     let moving = false;
     if (!Number.isFinite(this.speed)) this.skip();
-    this.animateDice(dt);
+    this.dice.update(dt, this.speed, this.reduceMotion, this.clock.elapsedTime);
     const diceRolling = this.clock.elapsedTime < this.tokensWaitUntil;
     const turnK = 1 - Math.exp(-dt * 10);
     // le reazioni partono quando tutti sono fermi (chi incassa aspetta che arrivi chi paga)
@@ -685,7 +381,7 @@ export class Board3D {
     }
     this.updateSky(dt);
     this.city.update(dt, this.reduceMotion);
-    this.updateCamera(dt);
+    this.rig.update(dt, this.cameraMode === 'overview' ? null : this.tokens[this.focusPlayer]?.mesh ?? null, this.reduceMotion);
     this.renderer.render(this.scene, this.camera);
   };
 
@@ -693,10 +389,7 @@ export class Board3D {
     const w = this.container.clientWidth || 1;
     const h = this.container.clientHeight || 1;
     this.renderer.setSize(w, h, false);
-    this.camera.aspect = w / h;
-    // su schermi stretti allarga il campo visivo per vedere tutto il tabellone
-    this.camera.fov = w / h < 0.8 ? 60 : 45;
-    this.camera.updateProjectionMatrix();
+    this.rig.resize(w, h);
   }
 
   // ---------- clic sulle caselle ----------

@@ -1,0 +1,44 @@
+/* Schermata iniziale: pulsante di avvio e colonna con le informazioni sul gioco. */
+/* ---------- schermata iniziale: pulsante di avvio ben visibile ---------- */
+.setup button.primary[type=submit] { min-height: 54px; font-size: 1.1rem; margin-top: 6px; }
+.look-btn { transition: transform 0.12s; }
+.look-btn:hover { transform: scale(1.06); }
+
+/* ---------- schermata iniziale: due colonne con le informazioni sul gioco ---------- */
+.setup-grid {
+  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px;
+  align-items: start; margin-top: 24px; text-align: left;
+}
+.setup-grid .setup-main form { margin-top: 0; }
+.setup-info { display: grid; gap: 16px; }
+@media (max-width: 860px) {
+  .setup-grid { grid-template-columns: minmax(0, 1fr); max-width: 560px; margin-left: auto; margin-right: auto; }
+}
+.intro-block { padding: 16px 18px; }
+.intro-block h2 { margin: 0 0 10px; font-size: 1.15rem; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: step; }
+.steps li { display: flex; gap: 12px; align-items: flex-start; }
+.step-icon {
+  flex: 0 0 40px; height: 40px; display: grid; place-items: center; font-size: 1.3rem;
+  border-radius: 12px; background: var(--accent-soft);
+}
+.steps strong { display: block; }
+.steps p { margin: 1px 0 0; color: var(--muted); font-size: 0.9em; line-height: 1.4; }
+.rules-more { margin-top: 12px; border-top: 1px solid color-mix(in srgb, var(--line) 50%, transparent); padding-top: 8px; }
+.rules-more summary { cursor: pointer; font-weight: 700; min-height: 36px; display: flex; align-items: center; color: var(--accent); }
+.rules-more ul { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 0.9em; line-height: 1.4; }
+.facts { list-style: none; margin: 0 0 12px; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.facts li {
+  background: var(--space); border-radius: var(--radius); padding: 8px 6px; text-align: center;
+  border: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+}
+.facts strong { display: block; font-size: 1.2rem; font-variant-numeric: tabular-nums; color: var(--accent); }
+.facts span { font-size: 0.78em; color: var(--muted); }
+.districts { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.districts li {
+  display: flex; flex-direction: column; padding: 6px 10px; border-radius: var(--radius-s);
+  border-left: 6px solid var(--g); background: color-mix(in srgb, var(--g) 12%, var(--space));
+}
+.district-name { font-weight: 700; font-size: 0.9em; }
+.district-price { font-size: 0.78em; color: var(--muted); font-variant-numeric: tabular-nums; }
+@media (max-width: 380px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .districts { grid-template-columns: minmax(0, 1fr); } }
