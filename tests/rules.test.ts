@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { board, cards } from '../src/data';
-import { applyAction, createGame, computeRent, RuleError, JAIL_FINE, unmortgageCost, netWorth, MAX_LOG, actingPlayer } from '../src/engine';
+import { applyAction, createGame, computeRent, RuleError, JAIL_FINE, unmortgageCost, netWorth, MAX_LOG, actingPlayer, seededRng, QUICK_START_PROPERTIES } from '../src/engine';
 import { ctxWith, newGame, indexOf, own } from './helpers';
 
 const salary = 200;
@@ -103,7 +103,7 @@ describe('affitti e tasse', () => {
     const ctx = ctxWith();
     expect(computeRent(s, ctx, 'periferia-2', 0)).toBe(8);
     s.ownership['periferia-2'].houses = 2;
-    expect(computeRent(s, ctx, 'periferia-2', 0)).toBe(60);
+    expect(computeRent(s, ctx, 'periferia-2', 0)).toBe(80);
   });
 
   it('nessun affitto su una casella ipotecata', () => {
@@ -326,8 +326,8 @@ describe('case, ipoteche e bancarotta', () => {
     s0.players[0].money = 2;
     own(s0, 'periferia-1', 0, 0, true);
     own(s0, 'periferia-2', 1, 3);
-    let s = applyAction(s0, { type: 'roll' }, ctxWith(1, 2)); // affitto 160 con 3 case
-    expect(s.players[0].money).toBe(2 - 160);
+    let s = applyAction(s0, { type: 'roll' }, ctxWith(1, 2)); // affitto 210 con 3 case
+    expect(s.players[0].money).toBe(2 - 210);
     expect(s.creditor).toBe(1);
     s = applyAction(s, { type: 'bankrupt' }, ctxWith());
     expect(s.players[0].bankrupt).toBe(true);
@@ -477,7 +477,7 @@ describe('regole della casa', () => {
   const ctx0 = { board, cards, rng: () => 0.999 };
 
   it('i soldi iniziali si possono scegliere', () => {
-    const s = createGame(['A', 'B'], ctx0, { startingMoney: 2000 });
+    const s = createGame(['A', 'B'], ctx0, { startingMoney: 2000, seatBonus: 0 });
     expect(s.players.map((p) => p.money)).toEqual([2000, 2000]);
     expect(s.rules.maxRounds).toBeNull();
   });
@@ -504,7 +504,7 @@ describe('regole della casa', () => {
   });
 
   it('montepremi: tasse e multe vanno sulla Panchina e chi ci arriva le incassa', () => {
-    let s = createGame(['A', 'B'], ctx0, { parkPot: true });
+    let s = createGame(['A', 'B'], ctx0, { parkPot: true, seatBonus: 0 });
     s = applyAction(s, { type: 'roll' }, ctxWith(1, 3)); // tassa 200
     expect(s.pot).toBe(200);
     s = applyAction(s, { type: 'endTurn' }, ctxWith());
@@ -512,6 +512,28 @@ describe('regole della casa', () => {
     s = applyAction(s, { type: 'roll' }, ctxWith(2, 3)); // 15 + 5 = 20 Panchina
     expect(s.players[1].money).toBe(1700);
     expect(s.pot).toBe(0);
+  });
+
+  it('chi gioca dopo parte con 30 in più per ogni posto', () => {
+    const s = createGame(['A', 'B', 'C', 'D'], ctx0);
+    expect(s.players.map((p) => p.money)).toEqual([1500, 1530, 1560, 1590]);
+    const senza = createGame(['A', 'B'], ctx0, { seatBonus: 0 });
+    expect(senza.players.map((p) => p.money)).toEqual([1500, 1500]);
+  });
+
+  it('partita rapida: ognuno riceve 3 proprietà diverse senza pagare', () => {
+    const s = createGame(['A', 'B', 'C'], { board, cards, rng: seededRng(42) }, { quickStart: true, seatBonus: 0 });
+    const owned = Object.entries(s.ownership);
+    expect(owned).toHaveLength(9);
+    for (const p of s.players) {
+      expect(owned.filter(([, o]) => o.owner === p.id)).toHaveLength(QUICK_START_PROPERTIES);
+      expect(p.money).toBe(1500);
+    }
+    for (const [id, o] of owned) {
+      expect(board.spaces.find((sp) => sp.id === id)?.type).toBe('property');
+      expect(o).toEqual({ owner: o.owner, houses: 0, mortgaged: false });
+    }
+    expect(Object.keys(createGame(['A', 'B'], ctx0).ownership)).toHaveLength(0);
   });
 
   it('senza la regola del montepremi le tasse vanno alla banca', () => {

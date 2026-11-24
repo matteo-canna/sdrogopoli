@@ -3,7 +3,7 @@
 // Uso: npm run simula -- [partite] [giocatori]
 import { writeFileSync } from 'node:fs';
 import { board, cards } from '../src/data';
-import { applyAction, chooseBotAction, computeRent, createGame, seededRng, type GameContext, type GameState } from '../src/engine';
+import { QUICK_START_PROPERTIES, applyAction, chooseBotAction, computeRent, createGame, seededRng, type GameContext, type GameState } from '../src/engine';
 
 const GAMES = Number(process.argv[2] ?? 400);
 const PLAYERS = Number(process.argv[3] ?? 4);
@@ -118,6 +118,25 @@ lines.push('');
 lines.push(`## Caselle più visitate`);
 const top = stats.landings.map((n, i) => ({ n, i })).sort((a, b) => b.n - a.n).slice(0, 8);
 for (const t of top) lines.push(`- ${board.spaces[t.i].name}: ${pct(t.n, totalLandings)} degli arrivi`);
+
+// ---------- partita rapida (regola della casa) ----------
+const quickRounds: number[] = [];
+const quickWins = Array(PLAYERS).fill(0);
+for (let seed = 1; seed <= GAMES; seed++) {
+  const ctx: GameContext = { board, cards, rng: seededRng(seed * 104729) };
+  let s = createGame(Array.from({ length: PLAYERS }, (_, i) => ({ name: `P${i + 1}`, isBot: true })), ctx, { quickStart: true });
+  while (s.phase !== 'gameOver' && s.round <= MAX_ROUNDS) s = applyAction(s, chooseBotAction(s, ctx), ctx);
+  if (s.phase === 'gameOver' && s.winner !== null) {
+    quickRounds.push(s.round);
+    quickWins[s.winner]++;
+  }
+}
+quickRounds.sort((a, b) => a - b);
+lines.push('');
+lines.push(`## Partita rapida`);
+lines.push(`Stesse partite con la regola della casa "partita rapida" (${QUICK_START_PROPERTIES} proprietà a testa all'inizio).`);
+lines.push(`- Partite finite: ${quickRounds.length} su ${GAMES} · giri per finire: mediana **${quickRounds[Math.floor(quickRounds.length / 2)] ?? '-'}**, 90° percentile ${quickRounds[Math.floor(quickRounds.length * 0.9)] ?? '-'}`);
+lines.push(`- Vittorie per posto: ${quickWins.map((w, i) => `${i + 1}° ${pct(w, quickRounds.length)}`).join(' · ')}`);
 
 const report = lines.join('\n') + '\n';
 const out = process.argv[4] ?? 'docs/bilanciamento.md';

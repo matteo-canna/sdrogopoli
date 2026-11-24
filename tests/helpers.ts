@@ -17,7 +17,8 @@ export function ctxWith(...dice: number[]): GameContext {
 
 // Nuova partita con mazzi in ordine fisso (RNG che non mescola).
 export function newGame(names = ['Anna', 'Bruno']): GameState {
-  return createGame(names, { board, cards, rng: () => 0.999 });
+  // senza bonus per i posti, così tutti partono con gli stessi soldi
+  return createGame(names, { board, cards, rng: () => 0.999 }, { seatBonus: 0 });
 }
 
 export function indexOf(spaceId: string): number {
