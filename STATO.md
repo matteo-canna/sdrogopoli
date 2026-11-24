@@ -10,7 +10,7 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 2. ✅ Contenuti originali: tabellone, caselle, prezzi, affitti e carte in JSON (`src/data/`).
 3. ✅ Motore di gioco con test: turni, dadi, movimento, acquisto, affitti, carte, prigione, bancarotta, vincitore.
 4. ✅ Interfaccia minima
-5. ✅ Vista 3D con camera che segue la pedina: tabellone HTML/CSS, 2-4 giocatori sullo stesso dispositivo.
+5. ✅ Vista 3D con camera che segue la pedina: tabellone HTML/CSS, 2-8 giocatori sullo stesso dispositivo.
 
 ## Decisioni
 - Interfaccia in HTML/CSS + TypeScript semplice (niente React per ora; si può rivalutare).
@@ -43,6 +43,7 @@ Prototipo giocabile nel browser, completamente gratuito (niente server, pubblici
 - 2026-11-24: tabellone più vivo (`src/ui/three/city.ts`): al centro una città in miniatura con parco e fontana, lago con barchette, due quartieri di palazzine, alberi e lampioni lungo il viale; case con finestre, porta e comignolo, palazzi a gradoni. Ciclo giorno/tramonto/notte/alba che avanza di una tappa a ogni giro (di notte si accendono finestre e lampioni); pulsante per scegliere ciclo, sempre giorno o sempre notte.
 - 2026-11-24: interfaccia rinnovata dopo una revisione di design e accessibilità: token di stile comuni in `src/ui/style.css` (colori, raggi, ombre, focus), schermata iniziale con intestazione e scheda "Chi gioca?", pannello del turno con il colore di chi gioca, schede giocatori con striscia colorata e proprietà in ordine di tabellone, barra dei comandi 3D compatta. Accessibilità: in tema scuro il testo dei pulsanti principali ora è scuro (prima contrasto 2.3:1), bordi dei campi a 3:1, anello di focus visibile da tastiera, animazioni spente con "riduci movimento". Prima/dopo in `docs/interfaccia/`.
 - 2026-11-24: schermata di caricamento (in `index.html`, visibile prima del codice) con barra di avanzamento e consigli a rotazione; intanto si caricano i personaggi 3D che servono (`src/ui/loading.ts`). Se un modello non arriva la schermata sparisce comunque (al massimo 12 secondi). Schermata iniziale su due colonne: a fianco di "Chi gioca?" ci sono "Come si gioca" in 4 passi, le regole in breve, i numeri del tabellone e gli 8 quartieri con i prezzi (`src/ui/intro.ts`, con test); in fondo versione e crediti.
+- 2026-11-24: fino a 8 giocatori (`MAX_PLAYERS = 8`, prima 4). Nella schermata iniziale si vedono 4 posti e "Aggiungi giocatore" mostra gli altri; ogni posto ha colore (8 colori) e personaggio proposti diversi. Nella stessa casella, da 5 giocatori in su, le pedine si dispongono su una griglia 3×3 senza il centro e sono più piccole del 20% (`src/ui/tokenLayout.ts`, con test che controlla che non si sovrappongano); nel 2D vanno a capo su due file. Partita rapida in 8: 2 proprietà a testa invece di 3 (le proprietà sono 22). Classifica finale con medaglie per i primi tre e poi 4°-8°. Simulazione con 8 computer (300 partite): mediana 33 giri, vittorie per posto tra 14% (1°) e 10% (8°), il bonus di 30 per posto resta uguale. Anteprime in `docs/interfaccia/otto-*.jpg`.
 
 ## Prossimi passi possibili
 - Multiplayer online (rimandato da Matteo).

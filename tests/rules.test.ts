@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { board, cards } from '../src/data';
-import { applyAction, createGame, computeRent, RuleError, JAIL_FINE, unmortgageCost, netWorth, MAX_LOG, actingPlayer, seededRng, QUICK_START_PROPERTIES } from '../src/engine';
+import { applyAction, createGame, computeRent, RuleError, JAIL_FINE, unmortgageCost, netWorth, MAX_LOG, actingPlayer, seededRng, QUICK_START_PROPERTIES, MAX_PLAYERS, quickStartProperties } from '../src/engine';
 import { ctxWith, newGame, indexOf, own } from './helpers';
 
 const salary = 200;
@@ -13,10 +13,19 @@ describe('inizio partita', () => {
     expect(s.phase).toBe('roll');
   });
 
-  it('servono da 2 a 4 giocatori', () => {
+  it('servono da 2 a 8 giocatori', () => {
     const ctx = { board, cards, rng: Math.random };
+    const names = (n: number) => Array.from({ length: n }, (_, i) => `G${i + 1}`);
+    expect(MAX_PLAYERS).toBe(8);
     expect(() => createGame(['Solo'], ctx)).toThrow();
-    expect(() => createGame(['A', 'B', 'C', 'D', 'E'], ctx)).toThrow();
+    expect(createGame(names(5), ctx).players).toHaveLength(5);
+    expect(createGame(names(8), ctx).players).toHaveLength(8);
+    expect(() => createGame(names(9), ctx)).toThrow();
+  });
+
+  it('in 8 il bonus del posto arriva a 210 per l\'ultimo', () => {
+    const s = createGame(Array.from({ length: 8 }, (_, i) => `G${i + 1}`), { board, cards, rng: Math.random });
+    expect(s.players.map((p) => p.money)).toEqual([1500, 1530, 1560, 1590, 1620, 1650, 1680, 1710]);
   });
 
   it("l'aspetto della pedina scelto all'inizio resta nella partita", () => {
@@ -534,6 +543,18 @@ describe('regole della casa', () => {
       expect(o).toEqual({ owner: o.owner, houses: 0, mortgaged: false });
     }
     expect(Object.keys(createGame(['A', 'B'], ctx0).ownership)).toHaveLength(0);
+  });
+
+  it('partita rapida in 8: le proprietà bastano, 2 a testa tutte diverse', () => {
+    const names = Array.from({ length: 8 }, (_, i) => `G${i + 1}`);
+    expect(quickStartProperties(board, 4)).toBe(QUICK_START_PROPERTIES);
+    expect(quickStartProperties(board, 8)).toBe(2);
+    const s = createGame(names, { board, cards, rng: seededRng(7) }, { quickStart: true });
+    const owned = Object.entries(s.ownership);
+    expect(owned).toHaveLength(16);
+    expect(owned.every(([id]) => board.spaces.some((sp) => sp.id === id && sp.type === 'property'))).toBe(true);
+    for (const p of s.players) expect(owned.filter(([, o]) => o.owner === p.id)).toHaveLength(2);
+    expect(s.log.at(-1)).toContain('2 proprietà');
   });
 
   it('senza la regola del montepremi le tasse vanno alla banca', () => {

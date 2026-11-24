@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { board } from '../../data';
 import type { GameState } from '../../engine';
 import { gridPosition } from '../view';
+import { tokenScale, tokenSlot } from '../tokenLayout';
 import { appearanceOf, playerColor } from '../characters';
 import { createCharacter, type CharacterModel, type Reaction } from './characters3d';
 import { centerTexture, spaceTexture } from './textures';
@@ -48,7 +49,6 @@ interface DiceAnim {
 }
 
 // Piccolo spostamento per non sovrapporre le pedine nella stessa casella.
-const TOKEN_OFFSETS = [new THREE.Vector3(-0.2, 0, -0.2), new THREE.Vector3(0.2, 0, -0.2), new THREE.Vector3(-0.2, 0, 0.2), new THREE.Vector3(0.2, 0, 0.2)];
 
 interface Hop {
   from: THREE.Vector3;
@@ -119,6 +119,8 @@ export class Board3D {
   private buildings: THREE.Group[] = [];
   private ownerMarkers: THREE.Mesh[] = [];
   private tokens: TokenView[] = [];
+  // numero di giocatori della partita mostrata: decide dove stanno le pedine nella casella
+  private playerCount = 0;
   private raycaster = new THREE.Raycaster();
   private clock = new THREE.Clock();
   private camTarget = new THREE.Vector3();
@@ -391,7 +393,8 @@ export class Board3D {
   }
 
   private tokenRest(playerId: number, index: number): THREE.Vector3 {
-    return spaceCenter(index).add(TOKEN_OFFSETS[playerId]);
+    const slot = tokenSlot(playerId, this.playerCount);
+    return spaceCenter(index).add(new THREE.Vector3(slot.x, 0, slot.z));
   }
 
   // ---------- aggiornamento dallo stato del motore ----------
@@ -405,6 +408,7 @@ export class Board3D {
         this.scene.remove(t.mesh);
         t.character?.dispose();
       }
+      this.playerCount = state.players.length;
       this.tokens = state.players.map((p) => this.createTokenView(state, p.id));
       this.lastState = null;
     }
@@ -445,7 +449,9 @@ export class Board3D {
   private createTokenView(state: GameState, playerId: number): TokenView {
     const p = state.players[playerId];
     const mesh = new THREE.Group();
+    const size = tokenScale(state.players.length);
     const fallback = this.makeToken(playerColor(p), p.id);
+    fallback.scale.setScalar(size);
     mesh.add(fallback);
     mesh.position.copy(this.tokenRest(p.id, p.position));
     mesh.rotation.y = restYaw(mesh.position);
@@ -453,7 +459,7 @@ export class Board3D {
     this.scene.add(mesh);
     const view: TokenView = { mesh, shownPosition: p.position, queue: [], hopTime: 0, character: null, hideAt: 0, wasBankrupt: p.bankrupt, inJail: p.inJail, pendingReaction: null };
     const key = this.tokensKey;
-    createCharacter(appearanceOf(p), CHARACTER_HEIGHT)
+    createCharacter(appearanceOf(p), CHARACTER_HEIGHT * size)
       .then((character) => {
         // la partita (o l'aspetto) potrebbe essere cambiata nel frattempo
         if (key !== this.tokensKey || this.disposed) {
@@ -647,7 +653,7 @@ export class Board3D {
     const active = this.tokens[this.currentPlayer]?.mesh;
     this.marker.visible = !!active && active.visible;
     if (active) {
-      const top = this.tokens[this.currentPlayer]?.character ? CHARACTER_HEIGHT * 1.45 + 0.15 : 0.75;
+      const top = (this.tokens[this.currentPlayer]?.character ? CHARACTER_HEIGHT * 1.45 + 0.15 : 0.75) * tokenScale(this.playerCount);
       this.marker.position.set(active.position.x, active.position.y + top + Math.sin(this.clock.elapsedTime * 3) * 0.06, active.position.z);
       this.marker.rotation.y += dt * 1.5;
     }

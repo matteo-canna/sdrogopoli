@@ -69,7 +69,7 @@ export const CHARACTERS: CharacterDef[] = [
   },
 ];
 
-// Colori tra cui scegliere (i primi quattro sono quelli proposti ai posti 1-4).
+// Colori tra cui scegliere: uno diverso per ciascuno degli 8 posti, nello stesso ordine.
 export const COLOR_CHOICES = ['#e4572e', '#2e86de', '#f4b400', '#8e44ad', '#27ae60', '#e84393', '#00b8b8', '#5d4037'];
 export const COLOR_NAMES: Record<string, string> = {
   '#e4572e': 'Rosso',
@@ -86,9 +86,12 @@ export function characterDef(id: string): CharacterDef {
   return CHARACTERS.find((c) => c.id === id) ?? CHARACTERS[0];
 }
 
+// Personaggio proposto a ciascun posto: i primi cinque tutti diversi, poi si ricomincia.
+const SEAT_CHARACTERS = [0, 2, 1, 4, 3, 1, 0, 2];
+
 // Aspetto proposto per il posto i (personaggi e colori diversi).
 export function defaultAppearance(seat: number): Appearance {
-  const def = CHARACTERS[[0, 2, 1, 4][seat % 4]];
+  const def = CHARACTERS[SEAT_CHARACTERS[seat % SEAT_CHARACTERS.length]];
   return { character: def.id, color: COLOR_CHOICES[seat % COLOR_CHOICES.length], hat: true, cape: true, item: def.defaultItem };
 }
 
