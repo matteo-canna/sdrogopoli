@@ -41,10 +41,19 @@ export interface GameRules {
   maxRounds: number | null;
   // tasse e multe finiscono sulla Panchina del Parco: chi ci si ferma le incassa
   parkPot: boolean;
+  // soldi in più per ogni posto dopo il primo (compensa il vantaggio di chi inizia)
+  seatBonus: number;
+  // partita rapida: ogni giocatore riceve subito alcune proprietà a caso
+  quickStart: boolean;
 }
 
+// Bonus consigliato per chi gioca dopo: con 4 giocatori il primo vince circa quanto gli altri.
+export const SEAT_BONUS = 30;
+// Proprietà regalate a ciascuno nella partita rapida.
+export const QUICK_START_PROPERTIES = 3;
+
 export function defaultRules(board: BoardData): GameRules {
-  return { startingMoney: board.startingMoney, maxRounds: null, parkPot: false };
+  return { startingMoney: board.startingMoney, maxRounds: null, parkPot: false, seatBonus: SEAT_BONUS, quickStart: false };
 }
 
 // Configurazione di un giocatore alla creazione della partita.
@@ -158,13 +167,13 @@ export function createGame(players: (string | PlayerSetup)[], ctx: GameContext, 
       ctx.rng,
     );
   }
-  return {
+  const state: GameState = {
     players: setups.map((setup, id) => ({
       id,
       name: setup.name,
       isBot: setup.isBot ?? false,
       ...(setup.appearance ? { appearance: { ...setup.appearance } } : {}),
-      money: fullRules.startingMoney,
+      money: fullRules.startingMoney + id * fullRules.seatBonus,
       position: 0,
       inJail: false,
       jailAttempts: 0,
@@ -189,4 +198,20 @@ export function createGame(players: (string | PlayerSetup)[], ctx: GameContext, 
     log: ['Inizia la partita!'],
     eventCount: 1,
   };
+  if (fullRules.quickStart) dealProperties(state, ctx);
+  return state;
+}
+
+// Partita rapida: distribuisce a turno proprietà scelte a caso, senza costi.
+function dealProperties(state: GameState, ctx: GameContext): void {
+  const ids = shuffle(
+    ctx.board.spaces.filter((sp) => sp.type === 'property').map((sp) => sp.id),
+    ctx.rng,
+  );
+  let k = 0;
+  for (let round = 0; round < QUICK_START_PROPERTIES; round++) {
+    for (const p of state.players) state.ownership[ids[k++]] = { owner: p.id, houses: 0, mortgaged: false };
+  }
+  state.log.push(`Partita rapida: ognuno riceve ${QUICK_START_PROPERTIES} proprietà a caso.`);
+  state.eventCount++;
 }

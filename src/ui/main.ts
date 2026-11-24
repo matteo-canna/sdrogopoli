@@ -1,7 +1,7 @@
 // Controller dell'interfaccia: collega i clic alle azioni del motore e ridisegna la pagina.
 import './style.css';
 import { board, cards } from '../data';
-import { actingPlayer, applyAction, chooseBotAction, createGame, RuleError, type Action, type Appearance, type GameContext, type GameState } from '../engine';
+import { QUICK_START_PROPERTIES, SEAT_BONUS, actingPlayer, applyAction, chooseBotAction, createGame, RuleError, type Action, type Appearance, type GameContext, type GameState } from '../engine';
 import { escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
 import { CharacterPreview } from './three/characters3d';
@@ -200,6 +200,8 @@ function renderSetup(): void {
               <option value="40">40 giri</option>
             </select>
           </label>
+          <label class="check"><input type="checkbox" name="quick"> Partita rapida: ognuno parte con ${QUICK_START_PROPERTIES} proprietà a caso</label>
+          <label class="check"><input type="checkbox" name="bonus" checked> Chi gioca dopo parte con ${board.currency.symbol} ${SEAT_BONUS} in più per ogni posto (compensa il vantaggio di chi inizia)</label>
           <label class="check"><input type="checkbox" name="pot"> Montepremi: tasse e multe vanno sulla Panchina del Parco e chi ci arriva le incassa</label>
         </details>
         <button class="primary" type="submit">Inizia la partita</button>
@@ -244,6 +246,8 @@ function renderSetup(): void {
       startingMoney: Number(data.get('money')) || board.startingMoney,
       maxRounds: rounds,
       parkPot: data.get('pot') === 'on',
+      quickStart: data.get('quick') === 'on',
+      seatBonus: data.get('bonus') === 'on' ? SEAT_BONUS : 0,
     });
     destroyPreview();
     editingSeat = null;

@@ -6,7 +6,7 @@ import type { PropertySpace, Space } from './types';
 
 // Soldi che il computer cerca di tenere da parte per pagare affitti e tasse.
 const RESERVE = 150;
-const BUILD_RESERVE = 250;
+const BUILD_RESERVE = 150;
 
 function spaceOf(ctx: GameContext, id: string): Space {
   return ctx.board.spaces.find((s) => s.id === id)!;
