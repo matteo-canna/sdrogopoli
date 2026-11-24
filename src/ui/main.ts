@@ -455,6 +455,13 @@ function render3d(s: GameState): void {
         app.querySelector('.hud')?.classList.toggle('busy', busy);
         if (!busy) scheduleBot();
       },
+      () => {
+        // grafica 3D persa: si ricrea la scena con lo stato attuale (la partita non si ferma)
+        destroy3d();
+        setTimeout(() => {
+          if (state && viewMode === '3d' && !board3d) render();
+        }, 300);
+      },
     );
     board3d.cameraMode = cameraMode;
     board3d.onHop = () => audio.play('hop');

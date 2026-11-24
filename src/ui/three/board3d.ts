@@ -146,6 +146,8 @@ export class Board3D {
     private container: HTMLElement,
     private onSpaceClick: (spaceId: string) => void,
     private onBusyChange: (busy: boolean) => void,
+    // chiamata se il browser spegne la grafica (per esempio con poca memoria): la scena va ricreata
+    private onLost: () => void = () => {},
   ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -165,6 +167,7 @@ export class Board3D {
     this.resize();
     this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown);
     this.renderer.domElement.addEventListener('pointerup', this.onPointerUp);
+    this.renderer.domElement.addEventListener('webglcontextlost', this.onContextLost);
     this.loop();
   }
 
@@ -655,22 +658,38 @@ export class Board3D {
 
   private disposed = false;
 
+  private onContextLost = (e: Event): void => {
+    e.preventDefault();
+    if (!this.disposed) this.onLost();
+  };
+
   dispose(): void {
     this.disposed = true;
     for (const t of this.tokens) t.character?.dispose();
     cancelAnimationFrame(this.frame);
     this.resizeObserver.disconnect();
+    this.renderer.domElement.removeEventListener('webglcontextlost', this.onContextLost);
     this.renderer.dispose();
+    // restituisce subito il contesto WebGL al browser (altrimenti resta occupato fino alla pulizia della memoria)
+    this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
   }
 }
 
 // Vero se il browser supporta WebGL; altrimenti si usa il tabellone 2D.
+// Si controlla una volta sola: ogni prova apre un contesto WebGL, e il browser ne tiene pochi
+// (superato il limite spegne il più vecchio, cioè proprio il tabellone, che diventava bianco).
+let webglChecked: boolean | null = null;
 export function webglAvailable(): boolean {
+  if (webglChecked !== null) return webglChecked;
   try {
     const c = document.createElement('canvas');
-    return !!(c.getContext('webgl2') || c.getContext('webgl'));
+    const gl = (c.getContext('webgl2') || c.getContext('webgl')) as WebGLRenderingContext | null;
+    webglChecked = !!gl;
+    // libera subito il contesto di prova
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
   } catch {
-    return false;
+    webglChecked = false;
   }
+  return webglChecked;
 }
