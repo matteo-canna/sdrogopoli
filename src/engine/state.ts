@@ -95,6 +95,8 @@ export interface Auction {
   bidders: number[];
   // indice in "bidders" di chi deve rispondere ora
   turn: number;
+  // aste in serie dopo una bancarotta verso la banca: caselle ancora da mettere all'asta
+  queue?: string[];
 }
 
 // Parte di uno scambio: soldi e caselle che un giocatore cede.

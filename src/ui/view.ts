@@ -1,6 +1,6 @@
 // Funzioni di rendering: trasformano lo stato del motore in HTML.
 import { board, cards } from '../data';
-import { actingPlayer, computeRent, MIN_BID, netWorth, unmortgageCost, type GameState, type Space, type TradeSide } from '../engine';
+import { actingPlayer, computeRent, debtOptions, liquidationValue, MIN_BID, netWorth, unmortgageCost, type GameState, type Space, type TradeSide } from '../engine';
 import { playerColor } from './characters';
 
 const SYMBOL = board.currency.symbol;
@@ -192,8 +192,7 @@ export function renderTurnActions(state: GameState): string {
     b.push(`<button data-action="decline">Lascia all'asta</button>`);
   } else if (state.phase === 'endTurn') {
     if (p.money < 0) {
-      b.push(`<p class="warning">Sei in debito di ${money(-p.money)}: vendi case o ipoteca (tocca le tue proprietà), oppure dichiara bancarotta.</p>`);
-      b.push(`<button class="danger" data-action="bankrupt">Bancarotta</button>`);
+      b.push(renderDebt(state, p.id));
     } else {
       b.push(`<button class="primary" data-action="endTurn">Fine turno</button>`);
     }
@@ -229,6 +228,36 @@ function renderTradeOffer(state: GameState): string {
     <h4>🤝 ${from} propone uno scambio a ${to}</h4>
     <p><strong>${from} dà:</strong> ${sideText(t.give)}</p>
     <p><strong>${from} chiede:</strong> ${sideText(t.get)}</p>
+  </div>`;
+}
+
+// Pannello del debito: quanto manca, cosa si può vendere o ipotecare e quanto rende.
+// La bancarotta compare solo quando nemmeno vendendo tutto si arriva a coprire il debito.
+function renderDebt(state: GameState, playerId: number): string {
+  const ctx = { board, cards, rng: Math.random };
+  const debt = -state.players[playerId].money;
+  const available = liquidationValue(state, ctx, playerId);
+  const creditor = state.creditor === null ? 'alla banca' : `a ${escapeHtml(state.players[state.creditor].name)}`;
+  if (available < debt) {
+    return `<div class="debt-panel">
+      <p class="warning">Devi ${money(debt)} ${creditor}.</p>
+      <p>Anche vendendo tutte le case e ipotecando tutto arriveresti a ${money(available)}: non basta.</p>
+      <button class="danger" data-action="bankrupt">Dichiara bancarotta</button>
+    </div>`;
+  }
+  const options = debtOptions(state, ctx, playerId)
+    .map(({ action, gain }) => {
+      const id = 'spaceId' in action ? action.spaceId : '';
+      const name = escapeHtml(board.spaces.find((s) => s.id === id)?.name ?? '');
+      const label = action.type === 'sell' ? `Vendi una casa su ${name}` : `Ipoteca ${name}`;
+      return `<li><button data-action="${action.type}" data-space="${id}">${label} <strong>+${money(gain)}</strong></button></li>`;
+    })
+    .join('');
+  return `<div class="debt-panel">
+    <p class="warning">Devi ${money(debt)} ${creditor}.</p>
+    <p>Puoi ricavare fino a ${money(available)}. Scegli tu cosa vendere o ipotecare, oppure lascia fare al gioco.</p>
+    <button class="primary" data-action="coverDebt">Copri il debito automaticamente</button>
+    <ul class="debt-options">${options}</ul>
   </div>`;
 }
 

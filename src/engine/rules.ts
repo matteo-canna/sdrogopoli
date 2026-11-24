@@ -372,27 +372,40 @@ function doDecline(state: GameState, ctx: GameContext): void {
   requirePhase(state, 'buy');
   const p = current(state);
   log(state, `${p.name} non compra.`);
-  startAuction(state, ctx);
+  startAuction(state, ctx, ctx.board.spaces[p.position].id);
 }
 
 // ---------- aste ----------
 
-function startAuction(state: GameState, ctx: GameContext): void {
-  const p = current(state);
+// Apre l'asta per una casella. Con "queue" l'asta fa parte di una serie (le proprietà di chi
+// è fallito verso la banca): finita una si passa alla successiva, poi il turno riprende.
+function startAuction(state: GameState, ctx: GameContext, spaceId: string, queue?: string[]): void {
   const n = state.players.length;
   const bidders: number[] = [];
   for (let k = 0; k < n; k++) {
-    const id = (p.id + k) % n;
+    const id = (state.current + k) % n;
     if (!state.players[id].bankrupt && state.players[id].money >= MIN_BID) bidders.push(id);
   }
+  const space = spaceById(ctx, spaceId);
   if (bidders.length === 0) {
+    if (queue) log(state, `Nessuno può fare offerte: ${space.name} resta libera.`);
+    afterAuction(state, ctx, queue);
+    return;
+  }
+  state.auction = { spaceId, highestBid: 0, highestBidder: null, bidders, turn: 0, ...(queue ? { queue } : {}) };
+  state.phase = 'auction';
+  log(state, `Asta per ${space.name}!`);
+}
+
+function afterAuction(state: GameState, ctx: GameContext, queue?: string[]): void {
+  state.auction = null;
+  if (!queue) {
     finishMove(state);
     return;
   }
-  const space = ctx.board.spaces[p.position];
-  state.auction = { spaceId: space.id, highestBid: 0, highestBidder: null, bidders, turn: 0 };
-  state.phase = 'auction';
-  log(state, `Asta per ${space.name}!`);
+  const next = queue.shift();
+  if (next) startAuction(state, ctx, next, queue);
+  else state.phase = 'roll';
 }
 
 function doBid(state: GameState, ctx: GameContext, amount: number): void {
@@ -432,8 +445,7 @@ function checkAuctionEnd(state: GameState, ctx: GameContext): void {
   } else {
     log(state, `Nessuna offerta: ${space.name} resta libera.`);
   }
-  state.auction = null;
-  finishMove(state);
+  afterAuction(state, ctx, a.queue);
 }
 
 // ---------- scambi ----------
@@ -459,9 +471,36 @@ function doProposeTrade(state: GameState, ctx: GameContext, offer: Omit<TradeOff
   if (empty(offer.give) && empty(offer.get)) throw new RuleError('Lo scambio è vuoto.');
   validateSide(state, ctx, from, offer.give);
   validateSide(state, ctx, offer.to, offer.get);
+  validateInterest(state, ctx, { from, ...offer });
   state.trade = { from, ...offer, give: { ...offer.give, spaces: [...offer.give.spaces] }, get: { ...offer.get, spaces: [...offer.get.spaces] } };
   if (current(state).isBot) state.tradeProposedThisTurn = true;
   log(state, `${current(state).name} propone uno scambio a ${to.name}.`);
+}
+
+// Chi riceve una casella ipotecata (scambio o bancarotta) paga subito alla banca il 10%
+// del valore d'ipoteca; per riscattarla poi paga comunque valore più 10%.
+export function transferInterest(mortgage: number): number {
+  return Math.ceil(mortgage * 0.1);
+}
+
+// Interessi dovuti per le caselle ipotecate di una lista.
+export function interestOn(state: GameState, ctx: GameContext, spaceIds: string[]): number {
+  return spaceIds.reduce((sum, id) => {
+    const space = spaceById(ctx, id);
+    return sum + (state.ownership[id]?.mortgaged && 'mortgage' in space ? transferInterest(space.mortgage) : 0);
+  }, 0);
+}
+
+// Dopo lo scambio di denaro, ciascuno deve poter pagare gli interessi delle caselle ipotecate che riceve.
+function validateInterest(state: GameState, ctx: GameContext, t: Omit<TradeOffer, 'from'> & { from: number }): void {
+  const check = (who: number, receives: TradeSide, gives: TradeSide) => {
+    const due = interestOn(state, ctx, receives.spaces);
+    if (due > 0 && state.players[who].money - gives.money + receives.money < due) {
+      throw new RuleError(`${state.players[who].name} non può pagare ${due} di interessi sulle caselle ipotecate.`);
+    }
+  };
+  check(t.from, t.get, t.give);
+  check(t.to, t.give, t.get);
 }
 
 function transfer(state: GameState, from: number, to: number, side: TradeSide): void {
@@ -476,8 +515,19 @@ function doAcceptTrade(state: GameState, ctx: GameContext): void {
   // le condizioni potrebbero essere cambiate: si ricontrolla tutto
   validateSide(state, ctx, t.from, t.give);
   validateSide(state, ctx, t.to, t.get);
+  validateInterest(state, ctx, t);
+  const dueFrom = interestOn(state, ctx, t.get.spaces);
+  const dueTo = interestOn(state, ctx, t.give.spaces);
   transfer(state, t.from, t.to, t.give);
   transfer(state, t.to, t.from, t.get);
+  if (dueFrom) {
+    pay(state, t.from, dueFrom, null);
+    log(state, `${state.players[t.from].name} paga ${dueFrom} di interessi sulle caselle ipotecate.`);
+  }
+  if (dueTo) {
+    pay(state, t.to, dueTo, null);
+    log(state, `${state.players[t.to].name} paga ${dueTo} di interessi sulle caselle ipotecate.`);
+  }
   state.trade = null;
   stat(state, t.from).trades++;
   stat(state, t.to).trades++;
@@ -615,20 +665,79 @@ function endByNetWorth(state: GameState, ctx: GameContext): void {
   log(state, `Fine dei ${state.rules.maxRounds} giri! ${best.name} vince con un patrimonio di ${netWorth(state, ctx, best.id)}.`);
 }
 
+// Quanto può ancora ricavare un giocatore vendendo tutte le case (a metà prezzo)
+// e ipotecando tutte le caselle libere da ipoteca.
+export function liquidationValue(state: GameState, ctx: GameContext, playerId: number): number {
+  let total = 0;
+  for (const [id, own] of Object.entries(state.ownership)) {
+    if (own.owner !== playerId) continue;
+    const space = spaceById(ctx, id);
+    if (space.type === 'property') total += (own.houses * space.housePrice) / 2;
+    if (!own.mortgaged && 'mortgage' in space) total += space.mortgage;
+  }
+  return total;
+}
+
+// Mosse possibili adesso per fare cassa, con quanto rende ciascuna:
+// vendere una casa (si parte dalle vie più costruite del quartiere) o ipotecare.
+export function debtOptions(state: GameState, ctx: GameContext, playerId: number): { action: Action; gain: number }[] {
+  const options: { action: Action; gain: number }[] = [];
+  for (const space of ctx.board.spaces) {
+    const own = state.ownership[space.id];
+    if (!own || own.owner !== playerId) continue;
+    if (space.type === 'property' && own.houses > 0) {
+      const max = Math.max(...groupProperties(ctx, space.group).map((g) => state.ownership[g.id]?.houses ?? 0));
+      if (own.houses === max) options.push({ action: { type: 'sell', spaceId: space.id }, gain: space.housePrice / 2 });
+      continue;
+    }
+    if (own.mortgaged || !('mortgage' in space)) continue;
+    if (space.type === 'property' && groupProperties(ctx, space.group).some((g) => (state.ownership[g.id]?.houses ?? 0) > 0)) continue;
+    options.push({ action: { type: 'mortgage', spaceId: space.id }, gain: space.mortgage });
+  }
+  return options;
+}
+
 function doBankrupt(state: GameState, ctx: GameContext): void {
   const p = current(state);
   if (p.money >= 0) throw new RuleError('Non sei in debito.');
+  if (p.money + liquidationValue(state, ctx, p.id) >= 0) {
+    throw new RuleError('Puoi ancora coprire il debito: vendi case o ipoteca.');
+  }
   const creditor = state.creditor;
+  // le case si vendono alla banca a metà prezzo: il ricavato copre parte del debito
   for (const [id, own] of Object.entries(state.ownership)) {
-    if (own.owner !== p.id) continue;
+    if (own.owner !== p.id || own.houses === 0) continue;
+    const space = spaceById(ctx, id);
+    if (space.type === 'property') p.money += (own.houses * space.housePrice) / 2;
+    own.houses = 0;
+  }
+  const toAuction: string[] = [];
+  const mortgagedToCreditor: string[] = [];
+  for (const space of ctx.board.spaces) {
+    const own = state.ownership[space.id];
+    if (!own || own.owner !== p.id) continue;
     if (creditor === null) {
-      delete state.ownership[id]; // tornano alla banca, libere
+      delete state.ownership[space.id]; // tornano alla banca, libere, e vanno all'asta
+      toAuction.push(space.id);
     } else {
-      state.ownership[id] = { owner: creditor, houses: 0, mortgaged: own.mortgaged };
+      state.ownership[space.id] = { owner: creditor, houses: 0, mortgaged: own.mortgaged };
+      if (own.mortgaged) mortgagedToCreditor.push(space.id);
     }
   }
-  // il creditore restituisce la parte di debito che il fallito non poteva coprire
-  if (creditor !== null) state.players[creditor].money += p.money;
+  if (creditor !== null) {
+    // il creditore restituisce la parte di debito che il fallito non poteva coprire
+    const c = state.players[creditor];
+    c.money += p.money;
+    // e paga gli interessi sulle caselle ipotecate ricevute, per quanto può
+    const due = Math.min(interestOn(state, ctx, mortgagedToCreditor), Math.max(c.money, 0));
+    if (due > 0) {
+      pay(state, creditor, due, null);
+      log(state, `${c.name} paga ${due} di interessi sulle caselle ipotecate ricevute.`);
+    }
+  } else if (state.rules?.parkPot) {
+    // nella Panchina del Parco resta solo quello che il fallito ha davvero pagato
+    state.pot = Math.max(0, (state.pot ?? 0) + p.money);
+  }
   for (const cardId of p.jailCards) {
     const card = ctx.cards.cards.find((c) => c.id === cardId) as Card;
     state.decks[card.deck].push(card.id);
@@ -649,6 +758,11 @@ function doBankrupt(state: GameState, ctx: GameContext): void {
     return;
   }
   nextPlayer(state, ctx);
+  if (toAuction.length && state.phase !== 'gameOver') {
+    log(state, `Le proprietà di ${p.name} vanno all'asta.`);
+    const [first, ...rest] = toAuction;
+    startAuction(state, ctx, first, rest);
+  }
 }
 
 // Applica un'azione e restituisce il nuovo stato. Lancia RuleError se l'azione non è valida.

@@ -1,5 +1,5 @@
 // Giocatore controllato dal computer: sceglie sempre un'azione valida in base allo stato.
-import { actingPlayer, ownsWholeGroup, unmortgageCost, HOTEL, MIN_BID, type Action } from './rules';
+import { actingPlayer, interestOn, ownsWholeGroup, unmortgageCost, HOTEL, MIN_BID, type Action } from './rules';
 import type { GameContext, GameState, TradeSide } from './state';
 import { JAIL_FINE } from './state';
 import type { PropertySpace, Space } from './types';
@@ -36,7 +36,8 @@ function wantsToBuy(state: GameState, ctx: GameContext, space: Space): boolean {
 }
 
 // Cerca di coprire un debito: prima vende case, poi ipoteca ciò che rende meno.
-function raiseMoney(state: GameState, ctx: GameContext): Action | null {
+// Serve anche al pulsante "Copri il debito automaticamente" delle persone.
+export function raiseMoney(state: GameState, ctx: GameContext): Action | null {
   const holdings = myHoldings(state, ctx);
   const withHouses = holdings
     .filter((h) => h.space.type === 'property' && h.own.houses > 0)
@@ -134,8 +135,9 @@ function chooseAuctionAction(state: GameState, ctx: GameContext, me: number): Ac
 function chooseTradeResponse(state: GameState, ctx: GameContext): Action {
   const t = state.trade!;
   const me = t.to;
-  if (state.players[me].money < t.get.money) return { type: 'rejectTrade' };
-  const received = t.give.money + t.give.spaces.reduce((sum, id) => sum + valueFor(state, ctx, me, id), 0);
+  const interest = interestOn(state, ctx, t.give.spaces);
+  if (state.players[me].money - t.get.money + t.give.money < interest) return { type: 'rejectTrade' };
+  const received = t.give.money - interest + t.give.spaces.reduce((sum, id) => sum + valueFor(state, ctx, me, id), 0);
   // cedere una casella che completa il quartiere dell'avversario costa molto di più
   const lost =
     t.get.money +

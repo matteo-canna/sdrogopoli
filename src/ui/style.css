@@ -122,6 +122,11 @@ button.link { background: none; border: none; color: var(--muted); text-decorati
 button.link:hover { color: var(--danger); }
 .error { color: var(--danger); font-weight: 600; }
 .warning { color: var(--danger); margin: 0; width: 100%; text-align: center; }
+.debt-panel { width: 100%; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.debt-panel p { margin: 0; text-align: center; }
+.debt-options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+.actions .debt-options button { width: 100%; min-height: 44px; padding: 6px 12px; font-size: 0.9rem; display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; }
+.actions .debt-options strong { white-space: nowrap; }
 
 /* ---------- partita ---------- */
 .game {

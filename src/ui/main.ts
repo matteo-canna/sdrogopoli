@@ -1,7 +1,7 @@
 // Controller dell'interfaccia: collega i clic alle azioni del motore e ridisegna la pagina.
 import './style.css';
 import { board, cards } from '../data';
-import { DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, SEAT_BONUS, demoRules, actingPlayer, applyAction, chooseBotAction, createGame, RuleError, type Action, type Appearance, type GameContext, type GameState } from '../engine';
+import { DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, SEAT_BONUS, demoRules, actingPlayer, applyAction, chooseBotAction, createGame, raiseMoney, RuleError, type Action, type Appearance, type GameContext, type GameState } from '../engine';
 import { escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
 import type { SkyMode } from './three/city';
@@ -647,13 +647,15 @@ app.addEventListener('click', (e) => {
       return render();
     case 'newGame':
     case 'quit':
-      if (action === 'quit' && !confirmQuit(target)) return;
+      if (action === 'quit' && !confirmTwice(target)) return;
       cancelBot();
       state = null;
       selected = null;
       error = '';
       save();
       return render();
+    case 'coverDebt':
+      return coverDebt();
     case 'build':
     case 'sell':
     case 'mortgage':
@@ -665,7 +667,10 @@ app.addEventListener('click', (e) => {
     case 'payJailFine':
     case 'useJailCard':
     case 'endTurn':
+      return act({ type: action });
     case 'bankrupt':
+      // la bancarotta non si annulla: serve un secondo tocco
+      if (!confirmTwice(target)) return;
       return act({ type: action });
   }
 });
@@ -705,7 +710,26 @@ app.addEventListener('submit', (e) => {
 });
 
 // Chiede conferma con un secondo tocco, senza finestre di dialogo del browser.
-function confirmQuit(button: HTMLElement): boolean {
+// Vende case e ipoteca, come farebbe il computer, finché il debito è coperto.
+function coverDebt(): void {
+  if (!state) return;
+  newsFrom = state.eventCount ?? 0;
+  lastActorBot = false;
+  let s = state;
+  for (let i = 0; i < 200 && s.players[s.current].money < 0; i++) {
+    const step = raiseMoney(s, ctx);
+    if (!step) break;
+    s = applyAction(s, step, ctx);
+  }
+  state = s;
+  error = '';
+  audio.play('coin');
+  save();
+  render();
+}
+
+// Azioni che non si annullano: il primo tocco chiede conferma, il secondo esegue.
+function confirmTwice(button: HTMLElement): boolean {
   if (button.dataset.confirm === 'yes') return true;
   button.dataset.confirm = 'yes';
   button.textContent = 'Tocca di nuovo per confermare';
