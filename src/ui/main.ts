@@ -223,9 +223,16 @@ function renderSetup(): void {
   editingSeat = null;
   app.innerHTML = `
     <main class="setup">
-      <h1>Sdrogopoli</h1>
-      <p>Compra le vie della città, costruisci case e manda in rovina gli amici. Da 2 a 4 giocatori sullo stesso dispositivo.</p>
-      <form id="setup-form">
+      <header class="brand">
+        <div class="brand-strip" aria-hidden="true">${board.groups.map((g) => `<span style="background:${g.color}"></span>`).join('')}</div>
+        <h1>Sdrogopoli</h1>
+        <p>Compra le vie della città, costruisci case e manda in rovina gli amici. Da 2 a 4 giocatori sullo stesso dispositivo.</p>
+      </header>
+      <form id="setup-form" class="card">
+        <div class="form-head">
+          <h2>Chi gioca?</h2>
+          <p>Tocca il cerchio colorato per scegliere personaggio e colore. Lascia vuoto un nome per giocare in meno.</p>
+        </div>
         ${[0, 1, 2, 3]
           .map(
             (i) => `<div class="setup-row">${lookButton(i)}
@@ -330,7 +337,7 @@ function hudHtml(s: GameState): string {
   const news = fresh ? s.log.slice(-fresh) : [];
   const total = s.lastRoll ? s.lastRoll[0] + s.lastRoll[1] : 0;
   return `
-    <div class="turn">
+    <div class="turn" style="--c:${playerColor(p)}">
       <span class="token big" style="background:${playerColor(p)}"></span>
       <span>${s.phase === 'gameOver' ? '<strong>Partita finita</strong>' : `Tocca a <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>`}</span>
       ${s.rules?.maxRounds ? `<span class="pill">Giro ${s.round} di ${s.rules.maxRounds}</span>` : ''}
