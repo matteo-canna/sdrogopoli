@@ -5,7 +5,10 @@ import { QUICK_START_PROPERTIES, SEAT_BONUS, actingPlayer, applyAction, chooseBo
 import { escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
 import type { SkyMode } from './three/city';
-import { CharacterPreview } from './three/characters3d';
+import { CharacterPreview, loadModel } from './three/characters3d';
+import { renderIntro } from './intro';
+import { runLoading } from './loading';
+import { version } from '../../package.json';
 import { tutorialTip } from './tutorial';
 import { addResult, renderLeaderboard, renderSummary, sortLeaderboard, type LeaderEntry } from './summary';
 import { CHARACTERS, COLOR_CHOICES, COLOR_NAMES, characterDef, defaultAppearance, playerColor } from './characters';
@@ -223,9 +226,18 @@ function renderSetup(): void {
   editingSeat = null;
   app.innerHTML = `
     <main class="setup">
-      <h1>Sdrogopoli</h1>
-      <p>Compra le vie della città, costruisci case e manda in rovina gli amici. Da 2 a 4 giocatori sullo stesso dispositivo.</p>
-      <form id="setup-form">
+      <header class="brand">
+        <div class="brand-strip" aria-hidden="true">${board.groups.map((g) => `<span style="background:${g.color}"></span>`).join('')}</div>
+        <h1>Sdrogopoli</h1>
+        <p>Compra le vie della città, costruisci case e manda in rovina gli amici. Da 2 a 4 giocatori sullo stesso dispositivo.</p>
+      </header>
+      <div class="setup-grid">
+      <div class="setup-main">
+      <form id="setup-form" class="card">
+        <div class="form-head">
+          <h2>Chi gioca?</h2>
+          <p>Tocca il cerchio colorato per scegliere personaggio e colore. Lascia vuoto un nome per giocare in meno.</p>
+        </div>
         ${[0, 1, 2, 3]
           .map(
             (i) => `<div class="setup-row">${lookButton(i)}
@@ -258,7 +270,13 @@ function renderSetup(): void {
         <button class="primary" type="submit">Inizia la partita</button>
       </form>
       <div id="leaderboard-slot">${renderLeaderboard(loadLeaderboard())}</div>
-      <p class="credits">Personaggi 3D: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit di Kay Lousberg</a> (CC0)</p>
+      </div>
+      <aside class="setup-info">${renderIntro()}</aside>
+      </div>
+      <footer class="credits">
+        <p>🆓 Gratis, senza pubblicità e senza account. Le partite restano su questo dispositivo.</p>
+        <p>Personaggi 3D: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit di Kay Lousberg</a> (CC0) · Versione ${version}</p>
+      </footer>
     </main>`;
   document.querySelector('#leaderboard-slot')!.addEventListener('click', (e) => {
     if (!(e.target as HTMLElement).closest('[data-reset-leaderboard]')) return;
@@ -330,7 +348,7 @@ function hudHtml(s: GameState): string {
   const news = fresh ? s.log.slice(-fresh) : [];
   const total = s.lastRoll ? s.lastRoll[0] + s.lastRoll[1] : 0;
   return `
-    <div class="turn">
+    <div class="turn" style="--c:${playerColor(p)}">
       <span class="token big" style="background:${playerColor(p)}"></span>
       <span>${s.phase === 'gameOver' ? '<strong>Partita finita</strong>' : `Tocca a <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>`}</span>
       ${s.rules?.maxRounds ? `<span class="pill">Giro ${s.round} di ${s.rules.maxRounds}</span>` : ''}
@@ -655,4 +673,15 @@ function confirmQuit(button: HTMLElement): boolean {
   return false;
 }
 
+// Prima partenza: si disegna la pagina sotto la schermata di caricamento, poi si caricano
+// in anticipo i personaggi 3D che serviranno (quelli della partita salvata o della schermata iniziale).
 render();
+const neededCharacters = webglAvailable()
+  ? [...new Set((state ? state.players.map((p) => p.appearance?.character) : setupLooks.map((l) => l.character)).filter((c): c is string => !!c))]
+  : [];
+void runLoading(
+  neededCharacters.map((id) => ({
+    label: `${characterDef(id).emoji} ${characterDef(id).label} pronto`,
+    run: () => loadModel(id),
+  })),
+);

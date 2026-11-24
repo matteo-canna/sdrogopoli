@@ -121,18 +121,20 @@ export function renderPlayers(state: GameState): string {
   const ctx = { board, cards, rng: Math.random };
   return state.players
     .map((p) => {
-      const owned = Object.entries(state.ownership)
-        .filter(([, o]) => o.owner === p.id)
-        .map(([id, o]) => {
-          const s = board.spaces.find((sp) => sp.id === id)!;
-          const c = groupColor(s) ?? '#999';
-          return `<button class="chip ${o.mortgaged ? 'mortgaged' : ''}" data-space="${id}" style="border-color:${c}">${escapeHtml(s.name)}${o.houses ? ` ${o.houses === 5 ? '🏢' : '🏠×' + o.houses}` : ''}</button>`;
+      // proprietà nell'ordine del tabellone, così i quartieri restano vicini
+      const owned = board.spaces
+        .filter((sp) => state.ownership[sp.id]?.owner === p.id)
+        .map((s) => {
+          const o = state.ownership[s.id];
+          const c = groupColor(s) ?? '#8a948d';
+          const label = `${s.name}${o.mortgaged ? ' (ipotecata)' : ''}${o.houses ? `, ${o.houses === 5 ? 'palazzo' : o.houses === 1 ? '1 casa' : `${o.houses} case`}` : ''}`;
+          return `<button class="chip ${o.mortgaged ? 'mortgaged' : ''}" data-space="${s.id}" style="--g:${c}" aria-label="${escapeHtml(label)}">${escapeHtml(s.name)}${o.houses ? ` <span class="chip-houses">${o.houses === 5 ? '🏢' : '🏠' + o.houses}</span>` : ''}</button>`;
         })
         .join('');
       const active = p.id === state.current && state.phase !== 'gameOver';
       const where = p.bankrupt ? 'In bancarotta' : p.inJail ? '🚓 In Caserma' : `📍 ${escapeHtml(board.spaces[p.position].name)}`;
       return `
-        <div class="player ${active ? 'active' : ''} ${p.bankrupt ? 'out' : ''}">
+        <div class="player ${active ? 'active' : ''} ${p.bankrupt ? 'out' : ''}" style="--c:${playerColor(p)}">
           <div class="player-head">
             <span class="token big" style="background:${playerColor(p)}"></span>
             <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>
@@ -187,7 +189,7 @@ export function renderTurnActions(state: GameState): string {
     const space = board.spaces[p.position];
     const price = 'price' in space ? space.price : 0;
     b.push(`<button class="primary" data-action="buy" ${p.money < price ? 'disabled' : ''}>Compra ${escapeHtml(space.name)} (${money(price)})</button>`);
-    b.push(`<button data-action="decline">Non comprare (va all'asta)</button>`);
+    b.push(`<button data-action="decline">Lascia all'asta</button>`);
   } else if (state.phase === 'endTurn') {
     if (p.money < 0) {
       b.push(`<p class="warning">Sei in debito di ${money(-p.money)}: vendi case o ipoteca (tocca le tue proprietà), oppure dichiara bancarotta.</p>`);
