@@ -3,9 +3,68 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f3efe3" />
     <title>Sdrogopoli</title>
+    <!-- stile della schermata di caricamento: qui dentro così si vede subito, prima del codice del gioco -->
+    <style>
+      #splash {
+        --bg: #f3efe3; --ink: #1f2421; --muted: #5d6660; --accent: #2f6f4f; --soft: #d5e8dc; --track: #e3dccb;
+        position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px;
+        background: radial-gradient(ellipse at 50% 30%, #fffdf6 0%, var(--bg) 65%);
+        color: var(--ink); text-align: center;
+        font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        transition: opacity 0.4s ease, visibility 0.4s;
+      }
+      @media (prefers-color-scheme: dark) {
+        #splash { --bg: #141816; --ink: #eef1ec; --muted: #a7b0aa; --accent: #5fbf8f; --soft: #24402f; --track: #2a2f2c;
+          background: radial-gradient(ellipse at 50% 30%, #1f2421 0%, var(--bg) 65%); }
+      }
+      #splash.hide { opacity: 0; visibility: hidden; }
+      .splash-box { width: min(100%, 420px); }
+      .splash-houses { display: flex; justify-content: center; align-items: flex-end; gap: 6px; height: 64px; }
+      .splash-houses span {
+        width: 22px; border-radius: 4px 4px 2px 2px; animation: splash-grow 1.6s ease-in-out infinite;
+        transform-origin: bottom;
+      }
+      .splash-houses span:nth-child(1) { height: 30px; background: #8b5a2b; animation-delay: 0s; }
+      .splash-houses span:nth-child(2) { height: 42px; background: #7fc8e8; animation-delay: 0.1s; }
+      .splash-houses span:nth-child(3) { height: 36px; background: #d0499a; animation-delay: 0.2s; }
+      .splash-houses span:nth-child(4) { height: 52px; background: #f08a24; animation-delay: 0.3s; }
+      .splash-houses span:nth-child(5) { height: 46px; background: #d8262e; animation-delay: 0.4s; }
+      .splash-houses span:nth-child(6) { height: 58px; background: #f2d21b; animation-delay: 0.5s; }
+      .splash-houses span:nth-child(7) { height: 40px; background: #2e9e5b; animation-delay: 0.6s; }
+      .splash-houses span:nth-child(8) { height: 64px; background: #2b4fa8; animation-delay: 0.7s; }
+      @keyframes splash-grow { 0%, 100% { transform: scaleY(0.55); } 50% { transform: scaleY(1); } }
+      .splash-title { font-size: clamp(2.6rem, 10vw, 3.6rem); margin: 16px 0 4px; color: var(--accent); text-shadow: 0 3px 0 var(--soft); line-height: 1; }
+      .splash-sub { margin: 0 0 28px; color: var(--muted); }
+      .splash-bar { height: 10px; border-radius: 999px; background: var(--track); overflow: hidden; position: relative; }
+      .splash-bar span {
+        position: absolute; left: 0; top: 0; bottom: 0; width: 35%; border-radius: 999px; background: var(--accent);
+        animation: splash-slide 1.2s ease-in-out infinite;
+      }
+      /* quando si conosce l'avanzamento la barra si riempie invece di scorrere */
+      #splash.determinate .splash-bar span { animation: none; transition: width 0.3s ease; }
+      @keyframes splash-slide { 0% { left: -35%; } 100% { left: 100%; } }
+      .splash-status { margin: 10px 0 0; font-size: 0.9rem; color: var(--muted); min-height: 1.3em; }
+      .splash-tip { margin: 28px auto 0; max-width: 34ch; font-size: 0.95rem; line-height: 1.45; min-height: 2.9em; }
+      @media (prefers-reduced-motion: reduce) {
+        .splash-houses span, .splash-bar span { animation: none; }
+        .splash-bar span { width: 100%; opacity: 0.4; }
+      }
+    </style>
   </head>
   <body>
+    <div id="splash" role="status" aria-live="polite" aria-busy="true">
+      <div class="splash-box">
+        <div class="splash-houses" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <h1 class="splash-title">Sdrogopoli</h1>
+        <p class="splash-sub">Il gioco della città da comprare</p>
+        <div class="splash-bar" role="progressbar" aria-label="Caricamento" aria-valuemin="0" aria-valuemax="100"><span></span></div>
+        <p class="splash-status">Carico il gioco…</p>
+        <p class="splash-tip"></p>
+        <noscript><p>Per giocare serve JavaScript attivo nel browser.</p></noscript>
+      </div>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/ui/main.ts"></script>
   </body>
