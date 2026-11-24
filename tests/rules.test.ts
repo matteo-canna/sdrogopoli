@@ -250,7 +250,7 @@ describe('carte', () => {
 
   it('una carta di guadagno dà i soldi e torna in fondo al mazzo', () => {
     const s = applyAction(drawing('quartiere-01', 'quartiere'), { type: 'roll' }, ctxWith(1, 1));
-    expect(s.players[0].money).toBe(1700);
+    expect(s.players[0].money).toBe(1680);
     expect(s.decks.quartiere.at(-1)).toBe('quartiere-01');
   });
 
@@ -260,10 +260,10 @@ describe('carte', () => {
     expect(s.players[0].money).toBe(1500 + salary);
   });
 
-  it('"indietro di 3" porta su un\'altra casella e la risolve', () => {
-    const s = applyAction(drawing('sorte-04', 'sorte'), { type: 'roll' }, ctxWith(1, 1)); // 7 - 3 = 4 tassa
-    expect(s.players[0].position).toBe(4);
-    expect(s.players[0].money).toBe(1500 - 200);
+  it('"indietro di 2" porta su un\'altra casella e la risolve', () => {
+    const s = applyAction(drawing('sorte-04', 'sorte'), { type: 'roll' }, ctxWith(1, 1)); // 7 - 2 = 5 fermata
+    expect(s.players[0].position).toBe(5);
+    expect(s.phase).toBe('buy');
   });
 
   it('"fermata più vicina" porta alla prossima fermata', () => {
@@ -274,8 +274,8 @@ describe('carte', () => {
 
   it('"compleanno" fa pagare tutti gli altri giocatori', () => {
     const s = applyAction(drawing('quartiere-03', 'quartiere'), { type: 'roll' }, ctxWith(1, 1));
-    expect(s.players[0].money).toBe(1510);
-    expect(s.players[1].money).toBe(1490);
+    expect(s.players[0].money).toBe(1515);
+    expect(s.players[1].money).toBe(1485);
   });
 
   it('le riparazioni si pagano per casa e per palazzo', () => {
@@ -283,7 +283,7 @@ describe('carte', () => {
     own(s0, 'borgo-1', 0, 2);
     own(s0, 'borgo-2', 0, 5);
     const s = applyAction(s0, { type: 'roll' }, ctxWith(1, 1));
-    expect(s.players[0].money).toBe(1500 - (2 * 25 + 100));
+    expect(s.players[0].money).toBe(1500 - (2 * 30 + 90));
   });
 
   it('la carta "esci gratis" resta al giocatore e lascia il mazzo', () => {
@@ -634,6 +634,8 @@ describe('regole della casa', () => {
     const names = Array.from({ length: 8 }, (_, i) => `G${i + 1}`);
     expect(quickStartProperties(board, 4)).toBe(QUICK_START_PROPERTIES);
     expect(quickStartProperties(board, 8)).toBe(2);
+    // in due se ne danno di più: la partita normale a due dura troppo
+    expect(quickStartProperties(board, 2)).toBe(4);
     const s = createGame(names, { board, cards, rng: seededRng(7) }, { quickStart: true });
     const owned = Object.entries(s.ownership);
     expect(owned).toHaveLength(16);

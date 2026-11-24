@@ -9,42 +9,42 @@
     {
       "id": "periferia",
       "name": "Periferia",
-      "color": "#8b5a2b"
+      "color": "#4a5563"
     },
     {
       "id": "borgo",
       "name": "Borgo Vecchio",
-      "color": "#7fc8e8"
+      "color": "#9a5b33"
     },
     {
       "id": "mercato",
       "name": "Mercato",
-      "color": "#d0499a"
+      "color": "#138a8a"
     },
     {
       "id": "porto",
       "name": "Porto",
-      "color": "#f08a24"
+      "color": "#3a5fcd"
     },
     {
       "id": "universita",
       "name": "Città Universitaria",
-      "color": "#d8262e"
+      "color": "#b28dd6"
     },
     {
       "id": "centro",
       "name": "Centro Storico",
-      "color": "#f2d21b"
+      "color": "#f08c6c"
     },
     {
       "id": "colline",
       "name": "Colline",
-      "color": "#2e9e5b"
+      "color": "#e3b23c"
     },
     {
       "id": "lungolago",
       "name": "Lungolago",
-      "color": "#2b4fa8"
+      "color": "#6fd1b0"
     }
   ],
   "spaces": [
