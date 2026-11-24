@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { board, cards } from '../src/data';
-import { applyAction, createGame, computeRent, RuleError, JAIL_FINE, unmortgageCost, netWorth, MAX_LOG, actingPlayer, seededRng, QUICK_START_PROPERTIES, MAX_PLAYERS, quickStartProperties } from '../src/engine';
+import { applyAction, createGame, computeRent, RuleError, JAIL_FINE, unmortgageCost, netWorth, MAX_LOG, actingPlayer, seededRng, QUICK_START_PROPERTIES, MAX_PLAYERS, quickStartProperties, demoRules, DEMO_ROUNDS, DEMO_SEAT_BONUS, DEMO_MAX_PLAYERS, maxPlayers } from '../src/engine';
 import { ctxWith, newGame, indexOf, own } from './helpers';
 
 const salary = 200;
@@ -21,6 +21,27 @@ describe('inizio partita', () => {
     expect(createGame(names(5), ctx).players).toHaveLength(5);
     expect(createGame(names(8), ctx).players).toHaveLength(8);
     expect(() => createGame(names(9), ctx)).toThrow();
+  });
+
+  it('modalità demo: fino a 12 giocatori, con 20 giri e bonus del posto di 20', () => {
+    const ctx = { board, cards, rng: Math.random };
+    const names = (n: number) => Array.from({ length: n }, (_, i) => `G${i + 1}`);
+    expect(() => createGame(names(9), ctx)).toThrow();
+    const s = createGame(names(12), ctx, demoRules());
+    expect(s.players).toHaveLength(12);
+    expect(s.rules.demo).toBe(true);
+    expect(s.rules.maxRounds).toBe(DEMO_ROUNDS);
+    expect(s.players[11].money).toBe(1500 + 11 * DEMO_SEAT_BONUS);
+    expect(() => createGame(names(DEMO_MAX_PLAYERS + 1), ctx, demoRules())).toThrow();
+    expect(maxPlayers({ demo: false })).toBe(8);
+    expect(maxPlayers({ demo: true })).toBe(12);
+  });
+
+  it('partita rapida in 12 (demo): 1 proprietà a testa', () => {
+    const s = createGame(Array.from({ length: 12 }, (_, i) => `G${i + 1}`), { board, cards, rng: seededRng(5) }, { ...demoRules(), quickStart: true });
+    const owned = Object.values(s.ownership);
+    expect(owned).toHaveLength(12);
+    for (const p of s.players) expect(owned.filter((o) => o.owner === p.id)).toHaveLength(1);
   });
 
   it('in 8 il bonus del posto arriva a 210 per l\'ultimo', () => {

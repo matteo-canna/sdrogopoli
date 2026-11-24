@@ -45,6 +45,8 @@ export interface GameRules {
   seatBonus: number;
   // partita rapida: ogni giocatore riceve subito alcune proprietà a caso
   quickStart: boolean;
+  // modalità demo sperimentale: si può giocare fino a DEMO_MAX_PLAYERS
+  demo: boolean;
 }
 
 // Bonus consigliato per chi gioca dopo: con 4 giocatori il primo vince circa quanto gli altri.
@@ -60,7 +62,7 @@ export function quickStartProperties(board: BoardData, playerCount: number): num
 }
 
 export function defaultRules(board: BoardData): GameRules {
-  return { startingMoney: board.startingMoney, maxRounds: null, parkPot: false, seatBonus: SEAT_BONUS, quickStart: false };
+  return { startingMoney: board.startingMoney, maxRounds: null, parkPot: false, seatBonus: SEAT_BONUS, quickStart: false, demo: false };
 }
 
 // Configurazione di un giocatore alla creazione della partita.
@@ -175,6 +177,23 @@ export const MAX_JAIL_ATTEMPTS = 3;
 export const MIN_PLAYERS = 2;
 // Fino a 8 giocatori: ci sono 8 colori e le pedine stanno ancora in una casella.
 export const MAX_PLAYERS = 8;
+// Nella modalità demo (sperimentale) si arriva a 12.
+export const DEMO_MAX_PLAYERS = 12;
+
+// Regole proposte nella modalità demo. In 12 una partita senza limite dura circa 29 giri, cioè il doppio
+// dei turni di una partita in 4: con 20 giri (vince il patrimonio più alto) si torna a una durata simile
+// a quella in 8. Simulazione con 200 partite tra 12 computer: tutte finite, vittorie per posto tra 5% e 13%
+// (atteso 8%), circa 2 quartieri completati al giro 10 grazie agli scambi.
+export const DEMO_ROUNDS = 20;
+export const DEMO_SEAT_BONUS = 20;
+export function demoRules(): Partial<GameRules> {
+  return { demo: true, maxRounds: DEMO_ROUNDS, seatBonus: DEMO_SEAT_BONUS };
+}
+
+// Numero massimo di giocatori con queste regole.
+export function maxPlayers(rules: Pick<GameRules, 'demo'>): number {
+  return rules.demo ? DEMO_MAX_PLAYERS : MAX_PLAYERS;
+}
 
 // Mescola un array con l'algoritmo di Fisher-Yates usando l'RNG iniettato.
 export function shuffle<T>(items: T[], rng: Rng): T[] {
@@ -189,8 +208,9 @@ export function shuffle<T>(items: T[], rng: Rng): T[] {
 export function createGame(players: (string | PlayerSetup)[], ctx: GameContext, rules: Partial<GameRules> = {}): GameState {
   const fullRules = { ...defaultRules(ctx.board), ...rules };
   const setups = players.map((p) => (typeof p === 'string' ? { name: p } : p));
-  if (setups.length < MIN_PLAYERS || setups.length > MAX_PLAYERS) {
-    throw new Error(`Servono da ${MIN_PLAYERS} a ${MAX_PLAYERS} giocatori`);
+  const max = maxPlayers(fullRules);
+  if (setups.length < MIN_PLAYERS || setups.length > max) {
+    throw new Error(`Servono da ${MIN_PLAYERS} a ${max} giocatori`);
   }
   const deckIds = Object.keys(ctx.cards.decks) as DeckId[];
   const decks = {} as Record<DeckId, string[]>;

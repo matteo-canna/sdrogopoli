@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { tokenScale, tokenSlot } from '../src/ui/tokenLayout';
-import { MAX_PLAYERS } from '../src/engine';
+import { DEMO_MAX_PLAYERS } from '../src/engine';
 
 // raggio della base della pedina semplice nel 3D (vedi makeToken in board3d.ts)
 const TOKEN_RADIUS = 0.17;
 
 describe('pedine nella stessa casella', () => {
-  for (let n = 2; n <= MAX_PLAYERS; n++) {
+  for (let n = 2; n <= DEMO_MAX_PLAYERS; n++) {
     it(`con ${n} giocatori non si sovrappongono e restano nella casella`, () => {
       const r = TOKEN_RADIUS * tokenScale(n);
       const slots = Array.from({ length: n }, (_, id) => tokenSlot(id, n));
