@@ -135,6 +135,8 @@ export class Board3D {
   private diceAnim: (DiceAnim | null)[] = [null, null];
   private diceHideAt = 0;
   private tokensWaitUntil = 0;
+  // velocità delle animazioni: 1 normale, 2 doppia; Infinity = istantanea (niente animazioni)
+  speed = 1;
   private marker!: THREE.Mesh;
   private currentPlayer = 0;
   private winner: number | null = null;
@@ -364,15 +366,33 @@ export class Board3D {
       this.diceAnim[i] = { start, end, final, spin: new THREE.Vector3(Math.PI * (4 + i * 2), Math.PI * 2, Math.PI * (2 + i * 2)), t: 0 };
       die.visible = true;
     });
-    this.diceHideAt = this.clock.elapsedTime + (this.reduceMotion ? 2 : DICE_SECONDS + 2.2);
-    this.tokensWaitUntil = this.clock.elapsedTime + (this.reduceMotion ? 0 : DICE_SECONDS);
+    const fast = this.reduceMotion || !Number.isFinite(this.speed);
+    this.diceHideAt = this.clock.elapsedTime + (fast ? 2 : DICE_SECONDS / this.speed + 2.2);
+    this.tokensWaitUntil = this.clock.elapsedTime + (fast ? 0 : DICE_SECONDS / this.speed);
+  }
+
+  // Salta le animazioni in corso: dadi fermi sul risultato e pedine già arrivate.
+  skip(): void {
+    for (const a of this.diceAnim) if (a) a.t = 1;
+    this.tokensWaitUntil = 0;
+    for (const t of this.tokens) {
+      const last = t.queue.at(-1);
+      if (!last) continue;
+      t.mesh.position.copy(last.to).setY(0);
+      t.queue = [];
+      t.hopTime = 0;
+    }
+  }
+
+  get isBusy(): boolean {
+    return this.busy;
   }
 
   private animateDice(dt: number): void {
     this.diceAnim.forEach((a, i) => {
       if (!a) return;
       const die = this.dice[i];
-      a.t = this.reduceMotion ? 1 : Math.min(a.t + dt / DICE_SECONDS, 1);
+      a.t = this.reduceMotion ? 1 : Math.min(a.t + (dt * this.speed) / DICE_SECONDS, 1);
       const u = a.t;
       // caduta con due piccoli rimbalzi
       const bounce = u < 0.6 ? 1 - (u / 0.6) ** 2 : u < 0.85 ? 0.12 * Math.sin(((u - 0.6) / 0.25) * Math.PI) : 0.03 * Math.sin(((u - 0.85) / 0.15) * Math.PI);
@@ -604,6 +624,7 @@ export class Board3D {
     this.frame = requestAnimationFrame(this.loop);
     const dt = Math.min(this.clock.getDelta(), 0.1);
     let moving = false;
+    if (!Number.isFinite(this.speed)) this.skip();
     this.animateDice(dt);
     const diceRolling = this.clock.elapsedTime < this.tokensWaitUntil;
     const turnK = 1 - Math.exp(-dt * 10);
@@ -632,7 +653,7 @@ export class Board3D {
       }
       moving = true;
       // la pedina parte quando i dadi si sono fermati
-      t.hopTime += dt;
+      t.hopTime += dt * this.speed;
       const big = hop.height > 1;
       const dur = big ? HOP_SECONDS * 3 : HOP_SECONDS;
       const u = Math.min(t.hopTime / dur, 1);
@@ -686,6 +707,11 @@ export class Board3D {
   };
   private onPointerUp = (e: PointerEvent): void => {
     if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 6) return;
+    // un tocco durante un'animazione la salta, invece di selezionare una casella
+    if (this.busy) {
+      this.skip();
+      return;
+    }
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);

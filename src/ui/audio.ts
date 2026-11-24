@@ -34,6 +34,24 @@ class AudioEngine {
   sfxOn = readPref(PREF_SFX, true);
   musicOn = readPref(PREF_MUSIC, true);
 
+  constructor() {
+    // iPhone: con "playback" i suoni del gioco si sentono anche con l'interruttore silenzioso
+    // (Safari 17 e successivi; altrove la proprietà non esiste e non succede nulla)
+    try {
+      const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+      if (session) session.type = 'playback';
+    } catch {
+      /* non supportato */
+    }
+    // tornando al gioco da un'altra app il contesto audio può essere sospeso: si riattiva
+    const wake = () => {
+      if (document.visibilityState === 'visible' && this.ctx && this.ctx.state !== 'running') void this.ctx.resume().catch(() => {});
+    };
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('pageshow', wake);
+    window.addEventListener('focus', wake);
+  }
+
   // Da chiamare dentro un gestore di clic: crea o riattiva il contesto audio.
   unlock(): void {
     if (!this.ctx) {
@@ -51,7 +69,8 @@ class AudioEngine {
       const data = this.noise.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     }
-    if (this.ctx.state === 'suspended') void this.ctx.resume();
+    // su iPhone il contesto può restare 'interrupted' dopo una chiamata o un'altra app
+    if (this.ctx.state !== 'running') void this.ctx.resume().catch(() => {});
     if (this.musicOn) this.startMusic();
   }
 
