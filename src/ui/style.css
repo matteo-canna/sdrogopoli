@@ -5,6 +5,7 @@
 @import './styles/game.css';
 @import './styles/panels.css';
 @import './styles/layout.css';
+@import './styles/board2d.css';
 @import './styles/characters.css';
 @import './styles/extras.css';
 @import './styles/setup.css';

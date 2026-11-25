@@ -54,31 +54,61 @@ function groupColor(space: Space): string | null {
   return board.groups.find((g) => g.id === space.group)?.color ?? null;
 }
 
+// Case e palazzo come piccoli segni dentro la fascia colorata, come sul tabellone vero.
+function housePips(houses: number): string {
+  if (houses <= 0) return '';
+  const pips = houses === 5 ? '<i class="hotel"></i>' : '<i class="house"></i>'.repeat(houses);
+  return `<span class="pips" aria-hidden="true">${pips}</span>`;
+}
+
 export function renderBoard(state: GameState, selected: string | null): string {
+  const marks = playerMarks(state.players);
   const cells = board.spaces.map((space, i) => {
     const { row, col } = gridPosition(i);
     const own = state.ownership[space.id];
     const color = groupColor(space);
-    const tokens = state.players
-      .filter((p) => !p.bankrupt && p.position === i)
-      .map((p) => `<span class="token" style="background:${playerColor(p)}" title="${escapeHtml(p.name)}"></span>`)
+    const here = state.players.filter((p) => !p.bankrupt && p.position === i);
+    // pedine grandi con la sigla; quella di chi è di turno ha un anello
+    const tokens = here
+      .map((p) => {
+        const c = playerColor(p);
+        return `<span class="pawn ${p.id === state.current && state.phase !== 'gameOver' ? 'now' : ''}" style="background:${c};color:${inkOn(c)}" title="${escapeHtml(p.name)}">${escapeHtml(marks[p.id])}</span>`;
+      })
       .join('');
-    const houses = own && own.houses > 0 ? `<span class="houses">${own.houses === 5 ? '🏢' : '🏠'.repeat(own.houses)}</span>` : '';
     const owner = own ? playerBadge(state, own.owner, 'owner') : '';
-    const price = 'price' in space ? `<span class="price">${space.price}</span>` : '';
+    const ownColor = own ? playerColor(state.players[own.owner]) : '';
+    const price = 'price' in space && !own && !here.length ? `<span class="price">${space.price}</span>` : '';
     const icon = ICONS[space.type] ? `<span class="icon">${ICONS[space.type]}</span>` : '';
+    const label = [
+      space.name,
+      own ? `di ${state.players[own.owner].name}` : '',
+      own?.mortgaged ? 'ipotecata' : '',
+      own && own.houses ? (own.houses === 5 ? 'palazzo' : own.houses === 1 ? '1 casa' : `${own.houses} case`) : '',
+      here.length ? `qui: ${here.map((p) => p.name).join(', ')}` : '',
+    ].filter(Boolean).join(', ');
     return `
-      <button class="space ${side(i)} ${selected === space.id ? 'selected' : ''} ${own?.mortgaged ? 'mortgaged' : ''}"
-        style="grid-row:${row};grid-column:${col}" data-space="${space.id}" aria-label="${escapeHtml(space.name)}${own ? `, di ${escapeHtml(state.players[own.owner].name)}` : ''}">
-        ${color ? `<span class="band" style="background:${color}"></span>` : ''}
+      <button class="space ${side(i)} ${own ? 'owned' : ''} ${selected === space.id ? 'selected' : ''} ${own?.mortgaged ? 'mortgaged' : ''}"
+        style="grid-row:${row};grid-column:${col}${own ? `;--own:${ownColor}` : ''}" data-space="${space.id}" aria-label="${escapeHtml(label)}">
+        ${color ? `<span class="band" style="background:${color}">${housePips(own?.houses ?? 0)}</span>` : ''}
         ${owner}
         ${icon}
         <span class="name">${escapeHtml(space.name)}</span>
-        ${price}${houses}
-        <span class="tokens ${state.players.length > 8 ? 'many' : ''}">${tokens}</span>
+        ${price}
+        <span class="pawns ${here.length > 3 ? 'crowd' : ''}">${tokens}</span>
       </button>`;
   });
   return cells.join('');
+}
+
+// Il centro del tavolo: di chi è il turno, gli ultimi dadi e le ultime mosse.
+export function renderTable(state: GameState): string {
+  const p = state.players[state.current];
+  const last = state.log.slice(-3).reverse();
+  return `
+    <h1 class="title">Sdrogopoli</h1>
+    ${state.phase === 'gameOver' ? '' : `<p class="table-turn">${playerBadge(state, p.id)} <span>Tocca a <strong>${escapeHtml(p.name)}</strong></span></p>`}
+    ${state.lastRoll ? `<span class="center-dice">${renderDice(state)}</span>` : ''}
+    ${last.length ? `<ol class="table-log" aria-label="Ultime mosse">${last.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ol>` : ''}`;
 }
 
 // Quante vie del quartiere ha chi è di turno, e se comprando questa lo completerebbe.

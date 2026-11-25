@@ -21,18 +21,15 @@
 .space { transition: filter 0.12s; }
 .space:hover { filter: brightness(0.94); }
 .space.selected { outline: 3px solid var(--accent); outline-offset: -3px; z-index: 1; }
-.space.mortgaged { opacity: 0.5; }
 .space.corner { justify-content: center; font-weight: 600; }
 .band { display: block; width: 100%; height: 18%; min-height: 4px; border-radius: 2px; margin-bottom: 2px; flex-shrink: 0; }
 .name { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .price { color: var(--muted); margin-top: auto; }
 .icon { font-size: 1.4em; }
-.houses { font-size: 0.9em; }
 .owner {
   position: absolute; top: 1px; right: 1px; min-width: 1.5em; height: 1.5em; padding: 0 2px; border-radius: 999px; border: 1px solid #fff;
   font-size: 0.85em; font-weight: 800; line-height: 1.35em; text-align: center; box-shadow: 0 0 0 1px rgba(0,0,0,.25);
 }
-.tokens { position: absolute; bottom: 2px; left: 2px; right: 2px; display: flex; flex-wrap: wrap-reverse; gap: 1px; }
 .token { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.3); }
 .token.big { width: 16px; height: 16px; flex-shrink: 0; }
 /* dischetto con la sigla del giocatore */
