@@ -2,7 +2,7 @@
 // la lingua e si compongono le frasi con i loro valori ({name}, {amount}, ...).
 // I nomi delle vie e dei quartieri sono nomi propri della città e restano in italiano; le altre
 // caselle (Partenza, Caserma, fermate...) e le carte hanno la traduzione in src/data/*.en.json.
-import { BOARDS, board, cards } from '../data';
+import { BOARDS, board, cards, currentChoice } from '../data';
 import cardsEn from '../data/cards.en.json';
 import { it, type MsgKey } from './it';
 import { en } from './en';
@@ -63,7 +63,26 @@ const CARD_TARGET: Record<string, string> = Object.fromEntries(
 );
 
 export function spaceName(spaceId: string, lang: Lang = current): string {
+  // un tabellone fatto con l'editor ha i nomi suoi, in una lingua sola, anche se riusa gli id
+  if (currentChoice().custom) {
+    const own = board.spaces.find((sp) => sp.id === spaceId)?.name;
+    if (own) return own;
+  }
   return SPACE_NAMES[lang][spaceId] ?? SPACE_NAMES.it[spaceId] ?? spaceId;
+}
+
+export function groupName(groupId: string): string {
+  if (currentChoice().custom) {
+    const own = board.groups.find((g) => g.id === groupId)?.name;
+    if (own) return own;
+  }
+  return GROUP_NAMES[groupId] ?? groupId;
+}
+
+// Il nome di un tabellone: quelli del gioco nelle traduzioni, quelli dell'editor nei loro dati.
+export function boardTitle(id: string, data?: { title?: string }, lang: Lang = current): string {
+  if (data?.title) return data.title;
+  return format(lang, `board.${id}` as MsgKey);
 }
 
 export function deckName(deck: string, lang: Lang = current): string {
@@ -88,7 +107,7 @@ function value(name: string, v: string | number | undefined, lang: Lang): string
   if (v === undefined) return `{${name}}`;
   const s = String(v);
   if (name === 'space') return spaceName(s, lang);
-  if (name === 'group') return GROUP_NAMES[s] ?? s;
+  if (name === 'group') return groupName(s);
   if (name === 'card') return cardText(s, lang);
   if (name === 'choice') {
     const [id, i] = s.split('#');

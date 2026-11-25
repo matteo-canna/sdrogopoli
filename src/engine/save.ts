@@ -3,6 +3,7 @@
 // passo per passo e arrivare allo stesso stato: serve per annullare, rivedere e controllare.
 import { applyAction, type Action } from './rules';
 import { defaultRules, type GameContext, type GameState } from './state';
+import type { BoardData } from './types';
 
 // Versioni del salvataggio:
 //  1: solo lo stato della partita, senza campo "version" (fino a novembre 2026)
@@ -18,6 +19,9 @@ export interface SaveFile {
   // tabellone su cui si gioca (id in src/data/boards.ts). I salvataggi di prima
   // non ce l'hanno: valgono sul tabellone predefinito.
   board?: string;
+  // i dati del tabellone quando è uno fatto con l'editor: così la partita si riprende, si
+  // esporta e si rivede anche su un dispositivo che quel tabellone non ce l'ha
+  boardData?: BoardData;
 }
 
 // Completa uno stato salvato da una versione precedente del gioco con i campi aggiunti dopo.
@@ -63,11 +67,12 @@ export function readSave(raw: unknown, ctx: GameContext, seed: number): SaveFile
     actions: file.actions,
     state: migrateState(file.state, ctx, seed),
     ...(typeof file.board === 'string' ? { board: file.board } : {}),
+    ...(file.boardData && typeof file.boardData === 'object' ? { boardData: file.boardData } : {}),
   };
 }
 
-export function newSave(initial: GameState, board?: string): SaveFile {
-  return { version: SAVE_VERSION, initial: structuredClone(initial), actions: [], state: initial, ...(board ? { board } : {}) };
+export function newSave(initial: GameState, board?: string, boardData?: BoardData): SaveFile {
+  return { version: SAVE_VERSION, initial: structuredClone(initial), actions: [], state: initial, ...(board ? { board } : {}), ...(boardData ? { boardData } : {}) };
 }
 
 // Il tabellone di un salvataggio, letto prima di aprirlo (serve per scegliere i dati giusti).
@@ -75,6 +80,12 @@ export function fileBoard(raw: unknown): string | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const id = (raw as { board?: unknown }).board;
   return typeof id === 'string' ? id : undefined;
+}
+
+// I dati del tabellone fatto con l'editor che il salvataggio si porta dietro (da controllare).
+export function fileBoardData(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return undefined;
+  return (raw as { boardData?: unknown }).boardData;
 }
 
 // Rigioca il registro dallo stato iniziale. Il contesto non deve avere un "rng" proprio:

@@ -12,6 +12,8 @@ export interface BoardChoice {
   data: BoardData;
   // nomi inglesi delle caselle, per id
   names: Record<string, string>;
+  // fatto con l'editor: i nomi stanno nei dati (data.title, nomi di caselle e quartieri)
+  custom?: boolean;
 }
 
 export const BOARDS: BoardChoice[] = [
@@ -21,7 +23,29 @@ export const BOARDS: BoardChoice[] = [
 
 export const DEFAULT_BOARD = BOARDS[0].id;
 
+// I tabelloni fatti con l'editor (salvati nel browser, arrivati da un link o dentro una partita).
+let custom: BoardChoice[] = [];
+
+export function customBoards(): BoardChoice[] {
+  return custom;
+}
+
+// Aggiunge o sostituisce un tabellone fatto con l'editor. Chi lo chiama l'ha già controllato.
+export function addCustomBoard(id: string, data: BoardData): BoardChoice {
+  const choice: BoardChoice = { id, data, names: {}, custom: true };
+  custom = [...custom.filter((b) => b.id !== id), choice];
+  return choice;
+}
+
+export function removeCustomBoard(id: string): void {
+  custom = custom.filter((b) => b.id !== id);
+}
+
+export function isBuiltinBoard(id: string | undefined | null): boolean {
+  return BOARDS.some((b) => b.id === id);
+}
+
 // Il tabellone con questo id; se non esiste (salvataggio vecchio o rovinato) quello predefinito.
 export function boardChoice(id: string | undefined | null): BoardChoice {
-  return BOARDS.find((b) => b.id === id) ?? BOARDS[0];
+  return BOARDS.find((b) => b.id === id) ?? custom.find((b) => b.id === id) ?? BOARDS[0];
 }

@@ -7,3 +7,4 @@ export * from './bot';
 export * from './save';
 export * from './presets';
 export * from './cards';
+export * from './boardCheck';

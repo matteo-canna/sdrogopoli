@@ -1,5 +1,6 @@
 // Schermata iniziale: chi gioca, personaggi, regole della casa e classifica tra amici.
 import { BOARDS, DEFAULT_BOARD, board, currentBoard, setBoard } from '../data';
+import { savedBoards } from './boardStore';
 import { BOT_LEVELS, BOT_STYLES, PRESETS, WHEEL_EVERY, estimatedMinutes, type BotStyle, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
 import { webglAvailable } from './webgl';
 import { load3d } from './lazy3d';
@@ -11,7 +12,7 @@ import { renderIntro } from './intro';
 import { version } from '../../package.json';
 import { renderLeaderboard } from './summary';
 import { CHARACTERS, COLOR_CHOICES, colorName, itemName, characterDef, defaultAppearance } from './characters';
-import { getLang, t, tn, type MsgKey } from '../i18n';
+import { boardTitle, getLang, t, tn, type MsgKey } from '../i18n';
 import { KEYS, loadLeaderboard, loadProgress, parseProgress, readPref, saveLeaderboard, savePreset, saveProgress, writePref } from './prefs';
 import { ACHIEVEMENTS, achievementText, achievementTitle, EXTRA_COLORS, titleLabel, unlockedColors, unlockedTitles } from './achievements';
 import { downloadProfile, parseProfileFile, mergeProgress, profileRows, PROFILE_EXT } from './profile';
@@ -56,6 +57,33 @@ function loadLooks(): Appearance[] {
     if (look.item && !(look.item in characterDef(look.character).items)) look.item = '';
     return look;
   });
+}
+
+// I tabelloni da scegliere: quelli del gioco e quelli fatti con l'editor in questo browser.
+function boardListHtml(checked = currentBoard()): string {
+  const builtin = BOARDS.map((b) => ({ id: b.id, title: t(`board.${b.id}` as MsgKey), text: t(`boardText.${b.id}` as MsgKey) }));
+  const mine = savedBoards().map((b) => ({
+    id: b.id,
+    title: escapeHtml(boardTitle(b.id, b.data)),
+    text: t('boardText.custom', { spaces: b.data.spaces.length, groups: b.data.groups.length }),
+  }));
+  return [...builtin, ...mine]
+    .map((b) => `<label class="preset"><input type="radio" name="board" value="${b.id}" ${b.id === checked ? 'checked' : ''}><span><strong>${b.title}</strong><small>${b.text}</small></span></label>`)
+    .join('');
+}
+
+// Dopo l'editor (o un link): l'elenco dei tabelloni si riscrive, il resto della schermata resta.
+export function refreshBoards(checked = currentBoard()): void {
+  const list = document.querySelector<HTMLElement>('#setup-form .boards .preset-list');
+  if (list) list.innerHTML = boardListHtml(checked);
+  const props = document.querySelector<HTMLElement>('#setup-form [data-board-props]');
+  if (props) props.textContent = String(propertyCount());
+}
+
+function chooseBoard(id: string): void {
+  setBoard(id);
+  writePref(KEYS.board, currentBoard());
+  refreshBoards();
 }
 
 function propertyCount(): number {
@@ -319,13 +347,11 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
         <label class="check demo-toggle"><input type="checkbox" name="demo">
           <span><strong>🧪 ${t('setup.demo')}</strong> <span class="badge-demo">${t('setup.experimental')}</span><br>
           <small>${t('setup.demoText', { n: DEMO_MAX_PLAYERS, rounds: DEMO_ROUNDS, bonus: `${board.currency.symbol} ${DEMO_SEAT_BONUS}` })}</small></span></label>
-        ${BOARDS.length > 1 ? `
         <fieldset class="presets boards">
           <legend>${t('setup.board')}</legend>
-          <div class="preset-list" role="radiogroup">
-            ${BOARDS.map((b) => `<label class="preset"><input type="radio" name="board" value="${b.id}" ${b.id === currentBoard() ? 'checked' : ''}><span><strong>${t(`board.${b.id}` as MsgKey)}</strong><small>${t(`boardText.${b.id}` as MsgKey)}</small></span></label>`).join('')}
-          </div>
-        </fieldset>` : ''}
+          <div class="preset-list" role="radiogroup">${boardListHtml()}</div>
+          <button type="button" class="link" data-board-editor>✏️ ${t('editor.open')}</button>
+        </fieldset>
         <fieldset class="presets">
           <legend>${t('setup.gameType')}</legend>
           <div class="preset-list" role="radiogroup">
@@ -583,12 +609,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
   };
   form.addEventListener('change', (e) => {
     const t = e.target as HTMLInputElement;
-    if (t.name === 'board') {
-      setBoard(t.value);
-      writePref(KEYS.board, t.value);
-      const props = form.querySelector<HTMLElement>('[data-board-props]');
-      if (props) props.textContent = String(propertyCount());
-    }
+    if (t.name === 'board') chooseBoard(t.value);
     if (t.name === 'preset') applyPreset(t.value);
     else if (['rounds', 'quick', 'sprint', 'goal', 'pot', 'money'].includes(t.name)) {
       form.querySelector<HTMLInputElement>('input[name=preset][value=custom]')!.checked = true;
@@ -602,7 +623,10 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
   form.addEventListener('click', (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>('button');
     if (!t) return;
-    if (t.hasAttribute('data-add-seat')) {
+    if (t.hasAttribute('data-board-editor')) {
+      // l'editor arriva in un pezzo di codice a parte, solo quando serve
+      void import('./boardEditor').then((m) => m.openBoardEditor(currentBoard(), (id) => chooseBoard(id ?? currentBoard())));
+    } else if (t.hasAttribute('data-add-seat')) {
       // mostra il prossimo posto nascosto e porta lì il cursore
       const row = form.querySelector<HTMLElement>('.setup-row[hidden]');
       if (row) {
