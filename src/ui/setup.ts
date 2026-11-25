@@ -12,6 +12,8 @@ import { version } from '../../package.json';
 import { renderLeaderboard } from './summary';
 import { CHARACTERS, COLOR_CHOICES, COLOR_NAMES, characterDef, defaultAppearance } from './characters';
 import { KEYS, loadLeaderboard, readPref, saveLeaderboard, writePref } from './prefs';
+import { openSettings } from './settings';
+import { audio } from './audio';
 
 // posti nella schermata iniziale: i primi 4 si vedono subito, gli altri con "Aggiungi giocatore"
 // (oltre l'8° solo nella modalità demo)
@@ -304,7 +306,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       </div>
       <footer class="credits">
         <p>🆓 Gratis, senza pubblicità e senza account. Le partite restano su questo dispositivo.</p>
-        <p>Personaggi 3D: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit di Kay Lousberg</a> (CC0) · Versione ${version} · <button type="button" class="link" data-credits>Crediti e licenze</button> · <a href="${reportUrl(null, 'iniziale')}" target="_blank" rel="noopener">Segnala un problema</a></p>
+        <p>Personaggi 3D: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit di Kay Lousberg</a> (CC0) · Versione ${version} · <button type="button" class="link" data-credits>Crediti e licenze</button> · <button type="button" class="link" data-settings>⚙️ Impostazioni</button> · <a href="${reportUrl(null, 'iniziale')}" target="_blank" rel="noopener">Segnala un problema</a></p>
       </footer>
       <dialog class="credits-dialog" aria-labelledby="credits-title">
         <h2 id="credits-title">Crediti e licenze</h2>
@@ -326,6 +328,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     document.querySelector('#leaderboard-slot')!.innerHTML = '';
   });
   document.querySelector('[data-credits]')!.addEventListener('click', () => document.querySelector<HTMLDialogElement>('.credits-dialog')!.showModal());
+  document.querySelector('[data-settings]')!.addEventListener('click', () => openSettings((next) => audio.setVolumes(next.sfxVolume, next.musicVolume)));
   const form = document.querySelector<HTMLFormElement>('#setup-form')!;
   const onlineBox = document.querySelector<HTMLElement>('.online-card');
   if (online && onlineBox) {

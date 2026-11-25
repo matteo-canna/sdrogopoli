@@ -35,11 +35,11 @@
 
 /* ---------- crediti e licenze ---------- */
 .credits button.link { font-size: inherit; font-weight: inherit; padding: 0; color: inherit; box-shadow: none; min-height: 0; }
-.credits-dialog {
+.credits-dialog, .settings-dialog {
   max-width: min(92vw, 520px); border: none; border-radius: var(--radius-l); padding: 20px 24px;
   background: var(--panel); color: var(--ink); box-shadow: var(--shadow); text-align: left;
 }
-.credits-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+.credits-dialog::backdrop, .settings-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 .credits-dialog h2 { margin: 0 0 8px; font-family: var(--font-title); color: var(--accent); }
 .credits-dialog h3 { margin: 16px 0 4px; font-size: 1em; }
 .credits-dialog ul { padding-left: 20px; margin: 4px 0; }
@@ -150,3 +150,13 @@
 .sprint-die { display: inline-grid; place-items: center; min-width: 1.6em; height: 1.6em; padding: 0 3px; border-radius: 5px; background: var(--gold); color: #1f2421; font-weight: 800; font-size: 0.85em; margin-left: 3px; }
 .setup .preset input { flex: none; width: 18px; height: 18px; min-height: 0; padding: 0; margin: 2px 0 0; accent-color: var(--accent); }
 .preset strong { overflow-wrap: anywhere; }
+
+/* ---------- impostazioni (B45) ---------- */
+.settings-dialog h2 { margin: 0 0 8px; font-family: var(--font-title); color: var(--accent); }
+.settings-dialog fieldset { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius); margin: 10px 0; padding: 8px 12px; display: grid; gap: 6px; }
+.settings-dialog legend { font-weight: 700; padding: 0 4px; }
+.settings-dialog .check { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+.settings-dialog .range { display: grid; grid-template-columns: 5.5em minmax(0, 1fr) 3.2em; align-items: center; gap: 8px; min-height: 40px; }
+.settings-dialog output { text-align: right; font-variant-numeric: tabular-nums; }
+.settings-dialog form[method=dialog] { display: flex; justify-content: flex-end; margin-top: 12px; }
+.settings-dialog .range input { width: 100%; margin: 0; }

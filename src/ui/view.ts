@@ -61,7 +61,25 @@ function housePips(houses: number): string {
   return `<span class="pips" aria-hidden="true">${pips}</span>`;
 }
 
+// Descrizione a voce di una casella: nome, proprietario, case e chi c'è sopra.
+export function spaceLabel(state: GameState, i: number): string {
+  const space = board.spaces[i];
+  const own = state.ownership[space.id];
+  const here = state.players.filter((p) => !p.bankrupt && p.position === i);
+  return [
+    space.name,
+    'price' in space && !own ? `in vendita a ${space.price}` : '',
+    own ? `di ${state.players[own.owner].name}` : '',
+    own?.mortgaged ? 'ipotecata' : '',
+    own && own.houses ? (own.houses === 5 ? 'palazzo' : own.houses === 1 ? '1 casa' : `${own.houses} case`) : '',
+    here.length ? `qui: ${here.map((p) => p.name).join(', ')}` : '',
+  ].filter(Boolean).join(', ');
+}
+
+// Il tabellone è un solo punto di sosta per il tasto Tab: le frecce scorrono le caselle
+// (tabindex "mobile": vale 0 solo per la casella selezionata o, senza selezione, per quella di chi gioca).
 export function renderBoard(state: GameState, selected: string | null): string {
+  const stop = selected ?? board.spaces[state.players[state.current]?.position ?? 0]?.id;
   const marks = playerMarks(state.players);
   const cells = board.spaces.map((space, i) => {
     const { row, col } = gridPosition(i);
@@ -79,16 +97,10 @@ export function renderBoard(state: GameState, selected: string | null): string {
     const ownColor = own ? playerColor(state.players[own.owner]) : '';
     const price = 'price' in space && !own && !here.length ? `<span class="price">${space.price}</span>` : '';
     const icon = ICONS[space.type] ? `<span class="icon">${ICONS[space.type]}</span>` : '';
-    const label = [
-      space.name,
-      own ? `di ${state.players[own.owner].name}` : '',
-      own?.mortgaged ? 'ipotecata' : '',
-      own && own.houses ? (own.houses === 5 ? 'palazzo' : own.houses === 1 ? '1 casa' : `${own.houses} case`) : '',
-      here.length ? `qui: ${here.map((p) => p.name).join(', ')}` : '',
-    ].filter(Boolean).join(', ');
+    const label = spaceLabel(state, i);
     return `
       <button class="space ${side(i)} ${own ? 'owned' : ''} ${selected === space.id ? 'selected' : ''} ${own?.mortgaged ? 'mortgaged' : ''}"
-        style="grid-row:${row};grid-column:${col}${own ? `;--own:${ownColor}` : ''}" data-space="${space.id}" aria-label="${escapeHtml(label)}">
+        style="grid-row:${row};grid-column:${col}${own ? `;--own:${ownColor}` : ''}" data-space="${space.id}" tabindex="${space.id === stop ? 0 : -1}" aria-label="${escapeHtml(label)}">
         ${color ? `<span class="band" style="background:${color}">${housePips(own?.houses ?? 0)}</span>` : ''}
         ${owner}
         ${icon}

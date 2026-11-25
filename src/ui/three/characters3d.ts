@@ -5,6 +5,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { Appearance } from '../../engine';
 import { characterDef } from '../characters';
+import { motionReduced } from '../motion';
 
 // altezza del modello originale (circa 2,4 unità) ridotta a quella di una pedina
 const MODEL_HEIGHT = 2.4;
@@ -179,7 +180,10 @@ export class CharacterPreview {
   private frame = 0;
   private request = 0;
   private resizeObserver: ResizeObserver;
-  private reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  // letto a ogni fotogramma: la scelta nelle impostazioni vale subito
+  private get reduceMotion(): boolean {
+    return motionReduced();
+  }
 
   constructor(private container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
