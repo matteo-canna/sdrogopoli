@@ -14,7 +14,8 @@ import { KEYS, loadLeaderboard, loadProgress, parseProgress, readPref, saveLeade
 import { ACHIEVEMENTS, achievementText, achievementTitle, EXTRA_COLORS, titleLabel, unlockedTitles } from './achievements';
 import { downloadProfile, parseProfileFile, mergeProgress, profileRows, OLD_PROFILE_EXT, PROFILE_EXT } from './profile';
 import { DAILY_ROUNDS, dailyPlayers, dailySeed, dailyText, dayId, parseDaily } from './daily';
-import { openSettings } from './settings';
+import { loadSettings, openSettings } from './settings';
+import { backgroundHtml } from './setupBackground';
 import { audio } from './audio';
 
 // posti nella schermata iniziale: i primi 4 si vedono subito, gli altri con "Aggiungi giocatore"
@@ -69,6 +70,21 @@ function propertyCount(): number {
 }
 
 
+// Titolo su una targa come quella dei giochi da tavolo: le lettere entrano una alla volta
+// (solo decorazione: il testo vero è nascosto per i lettori di schermo).
+function titlePlate(text: string): string {
+  let k = 0;
+  return `<span class="title-plate" aria-hidden="true">${[...text]
+    .map((ch) => (ch === ' ' ? '<span class="gap"> </span>' : `<span style="--i:${k++}">${escapeHtml(ch)}</span>`))
+    .join('')}</span>`;
+}
+
+// Fila dei colori dei quartieri, usata in alto nella finestra della pedina.
+function groupsStrip(): string {
+  const n = board.groups.length;
+  return `linear-gradient(90deg, ${board.groups.map((g, i) => `${g.color} ${((i * 100) / n).toFixed(2)}% ${(((i + 1) * 100) / n).toFixed(2)}%`).join(', ')})`;
+}
+
 // Pedina del posto i: tocco grande e rotondo (con la matita) che apre la finestra di scelta.
 function lookButton(i: number, name: string): string {
   const look = setupLooks[i];
@@ -93,7 +109,14 @@ function refreshSeat(i: number): void {
   const btn = row.querySelector<HTMLElement>('.look-btn')!;
   btn.style.setProperty('--c', look.color);
   btn.setAttribute('aria-label', t('look.seatLabel', { player: seatName(i), name: def.label, color: colorName(look.color) }));
-  btn.querySelector('.look-btn-emoji')!.textContent = def.emoji;
+  const emoji = btn.querySelector('.look-btn-emoji')!;
+  if (emoji.textContent !== def.emoji) {
+    emoji.textContent = def.emoji;
+    // saltello della pedina appena cambiata (la classe si toglie e si rimette per ripartire)
+    btn.classList.remove('bump');
+    void btn.offsetWidth;
+    btn.classList.add('bump');
+  }
 }
 
 // Partite salvate con un nome e file da importare.
@@ -229,11 +252,12 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
   // Ordine della pagina: 1) la partita da preparare (con il riepilogo e il pulsante sempre a portata),
   // 2) gli altri modi di giocare, 3) le informazioni sul gioco e i traguardi.
   app.innerHTML = `
-    <main class="setup">
+    ${backgroundHtml(loadSettings().background)}
+    <main class="setup" style="--groups-strip:${groupsStrip()}">
       <header class="brand">
-        <div class="brand-strip" aria-hidden="true">${board.groups.map((g) => `<span style="background:${g.color}"></span>`).join('')}</div>
-        <h1>Gioco Folle!</h1>
-        <p>${t('setup.tagline', { min: MIN_PLAYERS, max: MAX_PLAYERS })}</p>
+        <div class="brand-strip" aria-hidden="true">${board.groups.map((g, i) => `<span style="--c:${g.color};--i:${i}"></span>`).join('')}</div>
+        <h1><span class="visually-hidden">Gioco Folle!</span>${titlePlate('Gioco Folle!')}</h1>
+        <p class="tagline">${t('setup.tagline', { min: MIN_PLAYERS, max: MAX_PLAYERS })}</p>
       </header>
       ${resume ? `<section class="card resume" aria-labelledby="resume-title">
         <h2 id="resume-title">${t('setup.resumeTitle')}</h2>
@@ -446,7 +470,14 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     if ((e.target as HTMLElement).closest('[data-profile-export]')) downloadProfile(loadProgress());
   });
   document.querySelector('[data-credits]')!.addEventListener('click', () => document.querySelector<HTMLDialogElement>('.credits-dialog')!.showModal());
-  document.querySelector('[data-settings]')!.addEventListener('click', () => openSettings((next) => audio.setVolumes(next.sfxVolume, next.musicVolume)));
+  document.querySelector('[data-settings]')!.addEventListener('click', () =>
+    openSettings((next) => {
+      audio.setVolumes(next.sfxVolume, next.musicVolume);
+      // lo sfondo cambia subito, senza ridisegnare il resto
+      const bg = document.querySelector('.setup-bg');
+      if (bg && !bg.classList.contains(`bg-${next.background}`)) bg.outerHTML = backgroundHtml(next.background);
+    }),
+  );
   const form = document.querySelector<HTMLFormElement>('#setup-form')!;
   const onlineBox = document.querySelector<HTMLElement>('.online-card');
   if (online && onlineBox) {
@@ -511,7 +542,8 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     box.innerHTML = seats
       .map((i) => {
         const bot = form.querySelector<HTMLSelectElement>(`select[name=t${i}]`)!.value !== 'human';
-        return `<li>${avatarHtml(setupLooks[i])}<span>${bot ? '🤖 ' : ''}${escapeHtml(seatName(i))}</span></li>`;
+        // toccando un giocatore del riepilogo si sceglie la sua pedina
+        return `<li><button type="button" class="summary-seat" data-summary-look="${i}" aria-haspopup="dialog" aria-label="${escapeHtml(t('look.seatLabel', { player: seatName(i), name: characterDef(setupLooks[i].character).label, color: colorName(setupLooks[i].color) }))}">${avatarHtml(setupLooks[i])}<span>${bot ? '🤖 ' : ''}${escapeHtml(seatName(i))}</span></button></li>`;
       })
       .join('');
     box.setAttribute('aria-label', tn('setup.seats', seats.length));
@@ -638,6 +670,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       syncSeats();
       showDuration();
     } else if (b.dataset.look !== undefined) openPicker(Number(b.dataset.look));
+    else if (b.dataset.summaryLook !== undefined) openPicker(Number(b.dataset.summaryLook));
   });
   const showError = (text: string) => {
     form.querySelector('[data-setup-error]')!.innerHTML = `<p class="error">${text}</p>`;
