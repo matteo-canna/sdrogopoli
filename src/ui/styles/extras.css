@@ -200,3 +200,19 @@
   background: hsl(var(--h) 75% 55%); animation: confetto-fall 1.6s ease-in var(--d) forwards; opacity: 0;
 }
 @keyframes confetto-fall { from { opacity: 1; transform: translateY(0) rotate(0); } to { opacity: 0; transform: translateY(160px) rotate(540deg); } }
+
+/* ---------- 3D: cartellino della casella e ritorno alla vista proposta ---------- */
+.space-tag {
+  position: absolute; left: 0; top: 0; pointer-events: none; z-index: 3; max-width: 220px;
+  display: grid; text-align: center; gap: 1px; padding: 6px 10px; border-radius: 10px;
+  background: var(--panel); color: var(--ink); box-shadow: var(--shadow); border-bottom: 4px solid var(--c, transparent);
+  font-size: 0.9em; white-space: nowrap;
+}
+.space-tag small { color: var(--muted); }
+.view3d-reset {
+  position: absolute; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 3;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow);
+  border-radius: 999px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; min-height: 40px;
+}
+.view3d-reset:hover { background: var(--accent-soft); }
+.view3d-reset[hidden], .space-tag[hidden] { display: none; }

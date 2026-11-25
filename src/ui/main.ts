@@ -647,6 +647,15 @@ app.addEventListener('keydown', (e) => {
     return;
   }
   if (el.matches('.board3d')) {
+    // + e − per avvicinarsi, Maiusc con le frecce per girare, 0 per tornare alla vista proposta
+    const view = { '+': () => board3d?.zoomBy(0.85), '=': () => board3d?.zoomBy(0.85), '-': () => board3d?.zoomBy(1 / 0.85), '0': () => board3d?.resetView() }[e.key];
+    const turn = e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight');
+    if (view || turn) {
+      e.preventDefault();
+      if (view) view();
+      else board3d?.rotateBy(e.key === 'ArrowLeft' ? 0.26 : -0.26);
+      return;
+    }
     const from = selected ? board.spaces.findIndex((sp) => sp.id === selected) : s.players[s.current].position;
     const i = moveOnBoard(from, e.key);
     if (i === null) return;

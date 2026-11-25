@@ -2,8 +2,15 @@
 import * as THREE from 'three';
 
 export type CameraMode = 'follow' | 'overview';
+const UP = new THREE.Vector3(0, 1, 0);
+
+export const MIN_ZOOM = 0.45;
+export const MAX_ZOOM = 1.8;
 
 export class CameraRig {
+  // scelte di chi guarda: giro intorno al punto guardato (radianti) e distanza (1 = quella proposta)
+  yaw = 0;
+  zoom = 1;
   private target = new THREE.Vector3();
   private pos = new THREE.Vector3(0, 14, 11);
   private lookAt = new THREE.Vector3();
@@ -26,11 +33,34 @@ export class CameraRig {
       this.target.set(p.x * 0.8, 0, p.z * 0.8);
       this.pos.set(p.x + out.x * 3.4, 3.7, p.z + out.z * 3.4);
     }
+    if (this.yaw || this.zoom !== 1) {
+      const off = this.pos.clone().sub(this.target).applyAxisAngle(UP, this.yaw).multiplyScalar(this.zoom);
+      this.pos.copy(this.target).add(off);
+    }
     // inseguimento morbido (indipendente dalla frequenza dei fotogrammi)
     const k = reduceMotion ? 1 : 1 - Math.exp(-dt * 3);
     this.camera.position.lerp(this.pos, k);
     this.lookAt.lerp(this.target, k);
     this.camera.lookAt(this.lookAt);
+  }
+
+  // Gesti: girare intorno e avvicinarsi.
+  rotate(delta: number): void {
+    this.yaw = Math.atan2(Math.sin(this.yaw + delta), Math.cos(this.yaw + delta));
+  }
+
+  zoomBy(factor: number): void {
+    this.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, this.zoom * factor));
+  }
+
+  // Vero se chi guarda ha girato o avvicinato la camera.
+  get moved(): boolean {
+    return Math.abs(this.yaw) > 1e-3 || Math.abs(this.zoom - 1) > 1e-3;
+  }
+
+  reset(): void {
+    this.yaw = 0;
+    this.zoom = 1;
   }
 
   // Vero quando la camera è arrivata dove deve stare.
