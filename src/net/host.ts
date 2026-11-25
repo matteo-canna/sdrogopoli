@@ -1,7 +1,7 @@
 // L'oste: raccoglie chi entra al tavolo, avvia la partita, controlla che ogni mossa arrivi da chi
 // deve giocare e manda lo stato a tutti. Muove il computer per i posti dei computer, per chi si è
 // scollegato e per chi ha lasciato scadere il tempo della mossa.
-import { actingPlayer, applyAction, chooseBotAction, createGame, type Action, type Appearance, type GameContext, type GameRules, type GameState, type PlayerSetup } from '../engine';
+import { actingPlayer, applyAction, BOT_STYLES, chooseBotAction, createGame, type Action, type Appearance, type GameContext, type GameRules, type GameState, type PlayerSetup } from '../engine';
 import { PROTOCOL_VERSION, type Member, type NetMessage } from './protocol';
 import { cleanLook, cleanName, uniqueColors } from './sanitize';
 import { SAY_GAP_MS, sayText } from './chat';
@@ -185,7 +185,7 @@ export class HostRoom {
     const players: PlayerSetup[] = this.members.map((m, i) => ({ name: m.name, appearance: m.look ?? cleanLook(null, i) }));
     for (let c = 0; c < this.computers; c++) {
       const seat = players.length;
-      players.push({ name: `Computer ${c + 1}`, isBot: true, appearance: cleanLook(null, seat) });
+      players.push({ name: `Computer ${c + 1}`, isBot: true, appearance: cleanLook(null, seat), bot: { level: 'normale', style: BOT_STYLES[c % BOT_STYLES.length].id } });
     }
     // due giocatori con lo stesso colore: il secondo prende il primo colore libero
     const looks = uniqueColors(players.map((p) => p.appearance!));

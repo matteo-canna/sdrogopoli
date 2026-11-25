@@ -1,6 +1,6 @@
 // Funzioni di rendering: trasformano lo stato del motore in HTML.
 import { board, cards } from '../data';
-import { actingPlayer, computeRent, debtOptions, liquidationValue, MIN_BID, netWorth, unmortgageCost, type GameState, type Space, type TradeSide } from '../engine';
+import { actingPlayer, BOT_LEVELS, BOT_STYLES, computeRent, debtOptions, liquidationValue, MIN_BID, netWorth, unmortgageCost, type BotProfile, type GameState, type Space, type TradeSide } from '../engine';
 import { inkOn, playerColor, playerMarks } from './characters';
 
 // Dischetto con il colore e la sigla del giocatore (la sigla lo distingue anche senza colori).
@@ -206,6 +206,7 @@ export function renderPlayers(state: GameState): string {
           </div>
           <div class="player-meta">
             <span>${where}</span>
+            ${p.bot ? `<span class="bot-kind" title="${escapeHtml(botStyleText(p.bot.style))}">🤖 ${escapeHtml(botLabel(p.bot))}</span>` : ''}
             ${p.bankrupt ? '' : `<span title="Contanti + proprietà + case">Patrimonio ${money(netWorth(state, ctx, p.id))}</span>`}
           </div>
           ${p.jailCards.length ? `<div class="status">🎟️ ${p.jailCards.length} carta esci gratis</div>` : ''}
@@ -391,4 +392,15 @@ export function renderTradeEditor(state: GameState, d: TradeDraft): string {
       <button type="button" data-action="closeTrade">Annulla</button>
     </div>
   </form>`;
+}
+
+// "Difficile · Collezionista": livello e carattere di un computer.
+export function botLabel(b: BotProfile): string {
+  const level = BOT_LEVELS.find((l) => l.id === b.level)?.label ?? '';
+  const style = BOT_STYLES.find((x) => x.id === b.style);
+  return style && style.id !== 'equilibrato' ? `${level} · ${style.label}` : level;
+}
+
+export function botStyleText(style: string): string {
+  return BOT_STYLES.find((x) => x.id === style)?.text ?? '';
 }

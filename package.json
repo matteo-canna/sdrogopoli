@@ -10,7 +10,8 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "test:watch": "vitest",
-    "simula": "vite-node scripts/simula.ts"
+    "simula": "vite-node scripts/simula.ts",
+    "livelli": "vite-node scripts/livelli.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",
