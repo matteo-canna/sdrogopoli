@@ -250,7 +250,7 @@ describe('carte', () => {
 
   it('una carta di guadagno dà i soldi e torna in fondo al mazzo', () => {
     const s = applyAction(drawing('quartiere-01', 'quartiere'), { type: 'roll' }, ctxWith(1, 1));
-    expect(s.players[0].money).toBe(1680);
+    expect(s.players[0].money).toBe(1610);
     expect(s.decks.quartiere.at(-1)).toBe('quartiere-01');
   });
 

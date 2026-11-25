@@ -16,8 +16,8 @@ export const SECONDS_PER_TURN = 25;
 
 export const PRESETS: Preset[] = [
   { id: 'classica', label: 'Classica', text: 'Si gioca finché resta uno solo.', rules: {}, rounds: 46 },
-  { id: 'rapida', label: 'Rapida', text: 'Ognuno parte con qualche proprietà a caso.', rules: { quickStart: true }, rounds: 31 },
-  { id: 'sprint', label: 'Sprint', text: 'Partita rapida con il Dado Sprint: occasioni e affitti pieni.', rules: { quickStart: true, sprintDie: true }, rounds: 28 },
+  { id: 'rapida', label: 'Rapida', text: 'Ognuno parte con qualche proprietà a caso.', rules: { quickStart: true }, rounds: 28 },
+  { id: 'sprint', label: 'Sprint', text: 'Partita rapida con il Dado Sprint: occasioni e affitti pieni.', rules: { quickStart: true, sprintDie: true }, rounds: 26 },
   { id: 'obiettivo', label: 'Obiettivo', text: 'Vince chi per primo completa 2 quartieri o arriva a 4000 di patrimonio.', rules: { goalGroups: 2, goalWorth: 4000 }, rounds: 21 },
   { id: 'breve', label: 'Breve', text: '15 giri, poi vince il patrimonio più alto.', rules: { quickStart: true, maxRounds: 15 }, rounds: 15 },
 ];

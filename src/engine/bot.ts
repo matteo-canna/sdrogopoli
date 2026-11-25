@@ -5,6 +5,7 @@ import { actingPlayer, computeRent, interestOn, ownsWholeGroup, unmortgageCost, 
 import type { BotLevel, BotProfile, BotStyle, GameContext, GameState, Player, TradeSide } from './state';
 import { JAIL_FINE } from './state';
 import type { PropertySpace, Space } from './types';
+import { cardValue } from './cards';
 
 // Soldi che il computer normale cerca di tenere da parte per pagare affitti e tasse.
 const RESERVE = 150;
@@ -366,6 +367,33 @@ export function chooseBotAction(state: GameState, ctx: GameContext): Action {
       // all'inizio conviene uscire subito per comprare; più avanti meglio restare dentro
       if (k.payJail && me.inJail && me.money >= JAIL_FINE + k.reserve * 2 && Object.keys(state.ownership).length < 20) return { type: 'payJailFine' };
       return { type: 'roll' };
+    case 'cardChoice': {
+      const card = ctx.cards.cards.find((c) => c.id === state.pendingCard);
+      if (!card || card.effect.kind !== 'choice') return { type: 'chooseCard', option: 0 };
+      // il facile prende la prima; gli altri quella che conviene di più
+      if (k.mistakes) return { type: 'chooseCard', option: 0 };
+      let houses = 0;
+      let hotels = 0;
+      for (const o of Object.values(state.ownership)) {
+        if (o.owner !== actor) continue;
+        if (o.houses === HOTEL) hotels++;
+        else houses += o.houses;
+      }
+      const start = ctx.board.spaces.find((sp) => sp.type === 'start');
+      const values = card.effect.options.map((o) =>
+        cardValue(o.effect, {
+          others: state.players.filter((p) => p.id !== actor && !p.bankrupt).length,
+          houses,
+          hotels,
+          salary: start && 'salary' in start ? start.salary : 200,
+          position: me.position,
+          size: ctx.board.spaces.length,
+          indexOf: (id) => ctx.board.spaces.findIndex((sp) => sp.id === id),
+          jailIsSafe: Object.keys(state.ownership).length >= 20,
+        }),
+      );
+      return { type: 'chooseCard', option: values.indexOf(Math.max(...values)) };
+    }
     case 'buy': {
       const space = ctx.board.spaces[me.position];
       return wantsToBuy(state, ctx, space, k) ? { type: 'buy' } : { type: 'decline' };

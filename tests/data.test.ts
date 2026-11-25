@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { board, cards } from '../src/data';
+import { typicalCardValue } from '../src/engine';
 
 // Controlli di coerenza sui dati: evitano errori di battitura nei JSON.
 describe('dati del tabellone', () => {
@@ -61,7 +62,11 @@ describe('identità propria', () => {
   const CLASSIC_REPAIRS = ['25/100', '40/115'];
 
   it('le carte non copiano gli importi del classico', () => {
-    for (const c of cards.cards) {
+    // anche le opzioni delle carte con scelta
+    const effects: { id: string; effect: unknown }[] = cards.cards.flatMap((c) =>
+      c.effect.kind === 'choice' ? c.effect.options.map((o) => ({ id: c.id, effect: o.effect as unknown })) : [{ id: c.id, effect: c.effect as unknown }],
+    );
+    for (const c of effects) {
       const e = c.effect as { kind: string; amount?: number; steps?: number; perHouse?: number; perHotel?: number };
       const value = e.amount ?? e.steps;
       if (value !== undefined) expect(CLASSIC[e.kind] ?? [], c.id).not.toContain(value);
@@ -78,5 +83,35 @@ describe('identità propria', () => {
       expect(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]), g.id).toBeGreaterThan(80);
     });
     expect(new Set(board.groups.map((g) => g.color)).size).toBe(board.groups.length);
+  });
+});
+
+describe('mazzi di carte', () => {
+  const indexOf = (id: string) => board.spaces.findIndex((sp) => sp.id === id);
+  const salary = (board.spaces.find((sp) => sp.type === 'start') as { salary: number }).salary;
+
+  it('16 carte per mazzo, da 6 a 8 con una scelta', () => {
+    for (const deck of ['sorte', 'quartiere']) expect(cards.cards.filter((c) => c.deck === deck)).toHaveLength(16);
+    const choices = cards.cards.filter((c) => c.effect.kind === 'choice');
+    expect(choices.length).toBeGreaterThanOrEqual(6);
+    expect(choices.length).toBeLessThanOrEqual(8);
+    for (const c of choices) {
+      if (c.effect.kind !== 'choice') continue;
+      expect(c.effect.options.length, c.id).toBe(2);
+      for (const o of c.effect.options) {
+        expect(o.label.length, c.id).toBeGreaterThan(5);
+        // la carta "esci gratis" si tiene in mano: non può essere un'opzione
+        expect(['choice', 'getOutOfJailFree'], c.id).not.toContain(o.effect.kind);
+        if (o.effect.kind === 'moveTo') expect(indexOf(o.effect.space), c.id).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it('il valore medio di ogni mazzo è vicino a zero', () => {
+    for (const deck of ['sorte', 'quartiere']) {
+      const values = cards.cards.filter((c) => c.deck === deck).map((c) => typicalCardValue(c.effect, salary, indexOf));
+      const mean = values.reduce((a, b) => a + b, 0) / values.length;
+      expect(Math.abs(mean), `${deck}: ${mean.toFixed(1)}`).toBeLessThanOrEqual(12);
+    }
   });
 });

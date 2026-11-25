@@ -21,7 +21,8 @@ export type Action =
   | { type: 'acceptTrade' }
   | { type: 'rejectTrade' }
   // chi riceve lo scambio risponde con condizioni diverse (dal suo punto di vista: cosa dà, cosa chiede)
-  | { type: 'counterTrade'; offer: { give: TradeSide; get: TradeSide } };
+  | { type: 'counterTrade'; offer: { give: TradeSide; get: TradeSide } }
+  | { type: 'chooseCard'; option: number };
 
 export const MIN_BID = 10;
 // controproposte per trattativa: chi riceve ne fa una, chi ha proposto può rispondere con un'altra
@@ -194,7 +195,7 @@ function resolveLanding(state: GameState, ctx: GameContext): void {
     if (own.owner !== p.id) {
       const base = computeRent(state, ctx, space.id, diceTotal(state));
       // Dado Sprint "Affitto pieno": vale solo per l'arrivo di questo lancio
-      const rent = state.sprintRent ? Math.ceil(base * 1.5) : base;
+      const rent = state.sprintRent ? base * 2 : base;
       if (rent > 0) {
         pay(state, p.id, rent, own.owner);
         stat(state, p.id).rentPaid += rent;
@@ -208,7 +209,7 @@ function resolveLanding(state: GameState, ctx: GameContext): void {
     log(state, `${p.name} paga ${space.amount} di tasse.`);
   } else if (space.type === 'card') {
     drawCard(state, ctx, space.deck);
-    if (state.phase === 'buy') return;
+    if (state.phase === 'buy' || state.phase === 'cardChoice') return;
   } else if (space.type === 'goToJail') {
     sendToJail(state, ctx);
   } else if (space.type === 'free' && state.rules?.parkPot && state.pot > 0) {
@@ -237,8 +238,26 @@ function drawCard(state: GameState, ctx: GameContext, deck: DeckId): void {
     current(state).jailCards.push(card.id);
   } else {
     state.decks[deck].push(card.id); // torna in fondo al mazzo
+    if (card.effect.kind === 'choice') {
+      state.pendingCard = card.id;
+      state.phase = 'cardChoice';
+      return;
+    }
     applyCardEffect(state, ctx, card.effect);
   }
+}
+
+function doChooseCard(state: GameState, ctx: GameContext, option: number): void {
+  requirePhase(state, 'cardChoice');
+  const card = ctx.cards.cards.find((c) => c.id === state.pendingCard);
+  if (!card || card.effect.kind !== 'choice') throw new RuleError('Nessuna carta da scegliere.');
+  const chosen = card.effect.options[option];
+  if (!chosen) throw new RuleError('Scelta non valida.');
+  state.pendingCard = null;
+  log(state, `${current(state).name} sceglie: ${chosen.label}.`);
+  applyCardEffect(state, ctx, chosen.effect);
+  // effetti senza movimento: il turno prosegue come dopo una carta normale
+  if (state.phase === 'cardChoice') finishMove(state);
 }
 
 function applyCardEffect(state: GameState, ctx: GameContext, effect: CardEffect): void {
@@ -298,6 +317,9 @@ function applyCardEffect(state: GameState, ctx: GameContext, effect: CardEffect)
       break;
     }
     case 'getOutOfJailFree':
+      // solo come carta a sé (si tiene in mano): nelle scelte non è ammessa
+      break;
+    case 'choice':
       break;
   }
 }
@@ -382,7 +404,7 @@ function doRoll(state: GameState, ctx: GameContext): void {
 
 function sprintText(name: string, face: SprintFace): string {
   if (typeof face === 'number') return `Dado Sprint: ${name} avanza di ${face} in più.`;
-  return face === 'occasione' ? `Dado Sprint: Occasione! ${name} prosegue fino alla prossima proprietà in vendita.` : `Dado Sprint: Affitto pieno! Se ${name} paga un affitto, paga il 50% in più.`;
+  return face === 'occasione' ? `Dado Sprint: Occasione! ${name} prosegue fino alla prossima proprietà in vendita.` : `Dado Sprint: Affitto pieno! Se ${name} paga un affitto, paga il doppio.`;
 }
 
 function doBuy(state: GameState, ctx: GameContext): void {
@@ -904,6 +926,7 @@ export function applyAction(state: GameState, action: Action, gameCtx: GameConte
     case 'acceptTrade': doAcceptTrade(next, ctx); break;
     case 'rejectTrade': doRejectTrade(next); break;
     case 'counterTrade': doCounterTrade(next, ctx, action.offer); break;
+    case 'chooseCard': doChooseCard(next, ctx, action.option); break;
   }
   // obiettivi della partita: si controllano dopo ogni mossa, ma non a metà di un'asta o di uno scambio
   if (next.phase !== 'gameOver' && next.phase !== 'auction' && !next.trade) checkGoals(next, ctx);

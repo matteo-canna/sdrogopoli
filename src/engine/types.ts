@@ -68,7 +68,14 @@ export type CardEffect =
   | { kind: 'collectFromEachPlayer'; amount: number }
   | { kind: 'goToJail' }
   | { kind: 'getOutOfJailFree' }
-  | { kind: 'repairs'; perHouse: number; perHotel: number };
+  | { kind: 'repairs'; perHouse: number; perHotel: number }
+  // carta con scelta: chi la pesca sceglie una delle opzioni
+  | { kind: 'choice'; options: CardOption[] };
+
+export interface CardOption {
+  label: string;
+  effect: Exclude<CardEffect, { kind: 'choice' }>;
+}
 
 export interface Card {
   id: string;
