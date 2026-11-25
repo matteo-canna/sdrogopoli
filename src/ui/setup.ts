@@ -196,14 +196,27 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       </div>
       <footer class="credits">
         <p>🆓 Gratis, senza pubblicità e senza account. Le partite restano su questo dispositivo.</p>
-        <p>Personaggi 3D: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit di Kay Lousberg</a> (CC0) · Versione ${version}</p>
+        <p>Personaggi 3D: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit di Kay Lousberg</a> (CC0) · Versione ${version} · <button type="button" class="link" data-credits>Crediti e licenze</button></p>
       </footer>
+      <dialog class="credits-dialog" aria-labelledby="credits-title">
+        <h2 id="credits-title">Crediti e licenze</h2>
+        <p>Sdrogopoli è un gioco originale e gratuito: niente pubblicità, niente acquisti, niente account. Le partite e le preferenze restano solo su questo dispositivo.</p>
+        <h3>Cosa c'è dentro</h3>
+        <ul>
+          <li><strong>Tabellone, nomi, carte, icone, suoni e musica</strong>: originali di Sdrogopoli. I suoni e la musica si generano al momento nel browser.</li>
+          <li><strong>Personaggi 3D</strong>: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit Adventurers di Kay Lousberg</a>, licenza CC0 (pubblico dominio).</li>
+          <li><strong>Grafica 3D</strong>: <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a>, licenza MIT.</li>
+        </ul>
+        <p><a href="${import.meta.env.BASE_URL}licenze.txt" target="_blank" rel="noopener">Testo completo delle licenze</a> · <a href="https://github.com/matteo-canna/sdrogopoli" target="_blank" rel="noopener">Codice sorgente</a></p>
+        <form method="dialog"><button class="primary">Chiudi</button></form>
+      </dialog>
     </main>`;
   document.querySelector('#leaderboard-slot')!.addEventListener('click', (e) => {
     if (!(e.target as HTMLElement).closest('[data-reset-leaderboard]')) return;
     saveLeaderboard([]);
     document.querySelector('#leaderboard-slot')!.innerHTML = '';
   });
+  document.querySelector('[data-credits]')!.addEventListener('click', () => document.querySelector<HTMLDialogElement>('.credits-dialog')!.showModal());
   const form = document.querySelector<HTMLFormElement>('#setup-form')!;
   if (resume) {
     const box = document.querySelector<HTMLElement>('.resume')!;
