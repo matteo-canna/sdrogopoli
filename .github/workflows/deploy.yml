@@ -12,9 +12,10 @@ permissions:
   pages: write
   id-token: write
 
+# un gruppo per ramo: le prove di una PR non fermano più la pubblicazione di main
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: pages-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
