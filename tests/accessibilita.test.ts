@@ -47,6 +47,11 @@ describe('impostazioni', () => {
       motion: 'ridotto',
       sfxVolume: 100,
       musicVolume: 0,
+      background: 'citta',
     });
+  });
+  it('lo sfondo della schermata iniziale si sceglie tra quelli che esistono', () => {
+    expect(parseSettings('{"background":"festa"}').background).toBe('festa');
+    expect(parseSettings('{"background":"spiaggia"}').background).toBe('citta');
   });
 });

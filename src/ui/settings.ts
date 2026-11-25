@@ -3,6 +3,7 @@
 import { KEYS, readPref, writePref } from './prefs';
 import { detectLang, getLang, LANGS, setLang, t, type Lang, type MsgKey } from '../i18n';
 import { QUALITIES, type Quality } from './quality';
+import { BACKGROUNDS, DEFAULT_BACKGROUND, type BackgroundId } from './setupBackground';
 export { motionReduced } from './motion';
 
 export const TEXT_SIZES = [
@@ -26,9 +27,11 @@ export interface Settings {
   // da 0 a 100
   sfxVolume: number;
   musicVolume: number;
+  // sfondo animato della schermata iniziale
+  background: BackgroundId;
 }
 
-export const DEFAULT_SETTINGS: Settings = { lang: 'auto', quality: 'auto', text: 'normale', motion: 'sistema', sfxVolume: 100, musicVolume: 100 };
+export const DEFAULT_SETTINGS: Settings = { lang: 'auto', quality: 'auto', text: 'normale', motion: 'sistema', sfxVolume: 100, musicVolume: 100, background: DEFAULT_BACKGROUND };
 
 function volume(v: unknown, fallback: number): number {
   const n = Math.round(Number(v));
@@ -46,6 +49,7 @@ export function parseSettings(raw: string | null): Settings {
       motion: MOTIONS.find((m) => m.id === o.motion)?.id ?? DEFAULT_SETTINGS.motion,
       sfxVolume: volume(o.sfxVolume, DEFAULT_SETTINGS.sfxVolume),
       musicVolume: volume(o.musicVolume, DEFAULT_SETTINGS.musicVolume),
+      background: BACKGROUNDS.find((b) => b === o.background) ?? DEFAULT_BACKGROUND,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -87,6 +91,7 @@ function dialogHtml(s: Settings): string {
       <fieldset><legend>${t('settings.text')}</legend>${radios('text', TEXT_SIZES.map((x) => ({ id: x.id, label: t(`settings.text.${x.id}` as MsgKey) })), s.text)}</fieldset>
       <fieldset><legend>${t('settings.motion')}</legend>${radios('motion', MOTIONS.map((x) => ({ id: x.id, label: t(`settings.motion.${x.id}` as MsgKey) })), s.motion)}
         <p class="hint">${t('settings.motionHint')}</p></fieldset>
+      <fieldset><legend>${t('settings.background')}</legend>${radios('background', BACKGROUNDS.map((b) => ({ id: b, label: t(`settings.background.${b}` as MsgKey) })), s.background)}</fieldset>
       <fieldset><legend>${t('settings.quality')}</legend>${radios(
         'quality',
         QUALITIES.map((q) => ({ id: q.id, label: t(`settings.quality.${q.id}` as MsgKey) })),
