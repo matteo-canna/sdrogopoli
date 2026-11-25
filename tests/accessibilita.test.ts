@@ -40,7 +40,8 @@ describe('impostazioni', () => {
   it('valori mancanti o strani tornano a quelli di partenza', () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('non json')).toEqual(DEFAULT_SETTINGS);
-    expect(parseSettings('{"text":"gigante","motion":"ridotto","sfxVolume":"140","musicVolume":-3}')).toEqual({
+    expect(parseSettings('{"lang":"fr","text":"gigante","motion":"ridotto","sfxVolume":"140","musicVolume":-3}')).toEqual({
+      lang: 'auto',
       text: 'normale',
       motion: 'ridotto',
       sfxVolume: 100,

@@ -1,6 +1,9 @@
 // Stato della partita e creazione di una nuova partita.
 import type { BoardData, CardsData, DeckId } from './types';
 import { rngStep, type Rng } from './dice';
+import type { Message } from '../i18n';
+
+export type LogLine = string | Message;
 
 export interface Player {
   id: number;
@@ -176,7 +179,8 @@ export interface GameState {
   // soldi accumulati sulla Panchina del Parco (regola della casa)
   pot: number;
   winner: number | null;
-  log: string[];
+  // righe del registro: frasi da comporre nella lingua di chi legge (le partite vecchie hanno testo già scritto)
+  log: LogLine[];
   // numero totale di eventi registrati (il registro tiene solo gli ultimi)
   eventCount: number;
   // statistiche per giocatore, per il riepilogo di fine partita
@@ -309,7 +313,7 @@ export function createGame(players: (string | PlayerSetup)[], gameCtx: GameConte
     round: 1,
     pot: 0,
     winner: null,
-    log: ['Inizia la partita!'],
+    log: [{ k: 'log.start' }],
     eventCount: 1,
     stats: setups.map(() => emptyStats()),
     history: [],
@@ -338,6 +342,6 @@ function dealProperties(state: GameState, ctx: GameContext & { rng: Rng }): void
   for (let round = 0; round < each; round++) {
     for (const p of state.players) state.ownership[ids[k++]] = { owner: p.id, houses: 0, mortgaged: false };
   }
-  state.log.push(`Partita rapida: ognuno riceve ${each} proprietà a caso.`);
+  state.log.push({ k: 'log.quickStart', p: { n: each } });
   state.eventCount++;
 }

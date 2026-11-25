@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { board } from '../../data';
 import type { Space } from '../../engine';
+import { spaceName } from '../../i18n';
 
 const ICONS: Partial<Record<Space['type'], string>> = {
   start: '🏁', station: '🚋', utility: '💡', tax: '💸', card: '❓', jail: '🚓', free: '🪑', goToJail: '👮',
@@ -53,7 +54,7 @@ export function spaceTexture(space: Space, renderer: THREE.WebGLRenderer): THREE
   ctx.font = '600 30px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  for (const line of wrap(ctx, space.name, size - 24).slice(0, 3)) {
+  for (const line of wrap(ctx, spaceName(space.id), size - 24).slice(0, 3)) {
     ctx.fillText(line, size / 2, top);
     top += 34;
   }

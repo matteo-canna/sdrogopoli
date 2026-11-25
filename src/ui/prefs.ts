@@ -1,6 +1,7 @@
 // Preferenze ricordate nel browser. Se l'archiviazione non funziona (navigazione privata,
 // spazio pieno) si gioca lo stesso: le funzioni non lanciano mai errori.
 import type { SkyMode } from './three/city';
+import type { MsgKey } from '../i18n';
 import { sortLeaderboard, type LeaderEntry } from './summary';
 
 export const KEYS = {
@@ -53,10 +54,10 @@ export function loadSpeed(): Speed {
   return SPEEDS.find((v) => v.id === readPref(KEYS.speed)) ?? SPEEDS[1];
 }
 
-export const SKY_LABELS: Record<SkyMode, [string, string]> = {
-  cycle: ['🌗', 'Giorno e notte'],
-  day: ['☀️', 'Sempre giorno'],
-  night: ['🌙', 'Sempre notte'],
+export const SKY_LABELS: Record<SkyMode, [string, MsgKey]> = {
+  cycle: ['🌗', 'sky.cycle'],
+  day: ['☀️', 'sky.day'],
+  night: ['🌙', 'sky.night'],
 };
 
 export function loadSky(): SkyMode {

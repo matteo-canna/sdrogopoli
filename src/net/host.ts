@@ -1,11 +1,17 @@
 // L'oste: raccoglie chi entra al tavolo, avvia la partita, controlla che ogni mossa arrivi da chi
 // deve giocare e manda lo stato a tutti. Muove il computer per i posti dei computer, per chi si è
 // scollegato e per chi ha lasciato scadere il tempo della mossa.
-import { actingPlayer, applyAction, BOT_STYLES, chooseBotAction, createGame, type Action, type Appearance, type GameContext, type GameRules, type GameState, type PlayerSetup } from '../engine';
+import { actingPlayer, applyAction, BOT_STYLES, chooseBotAction, createGame, RuleError, type Action, type Appearance, type GameContext, type GameRules, type GameState, type PlayerSetup } from '../engine';
 import { PROTOCOL_VERSION, type Member, type NetMessage } from './protocol';
 import { cleanLook, cleanName, uniqueColors } from './sanitize';
 import { SAY_GAP_MS, sayText } from './chat';
 import type { Transport } from './transport';
+import { format, t, type Message } from '../i18n';
+
+// Motivo di un rifiuto: testo italiano per chi ha una versione vecchia, chiave per tradurlo.
+function why(m: Message): { reason: string; key: Message['k']; p?: Message['p'] } {
+  return { reason: format('it', m.k, m.p), key: m.k, p: m.p };
+}
 
 export const MAX_SEATS = 8;
 
@@ -46,7 +52,7 @@ export class HostRoom {
     look: Appearance | null,
     private now: () => number = () => Date.now(),
   ) {
-    this.members = [{ id: 'oste', name: cleanName(name, 'Oste'), look, ready: true, host: true }];
+    this.members = [{ id: 'oste', name: cleanName(name, t('online.hostName')), look, ready: true, host: true }];
     transport.onMessage((msg, from) => this.receive(msg, from));
     transport.onPeerLeave((peer) => this.left(peer));
   }
@@ -61,7 +67,7 @@ export class HostRoom {
   }
 
   setHostProfile(name: string, look: Appearance | null): void {
-    this.members[0] = { ...this.members[0], name: cleanName(name, 'Oste'), look };
+    this.members[0] = { ...this.members[0], name: cleanName(name, t('online.hostName')), look };
     this.publishLobby();
   }
 
@@ -102,7 +108,7 @@ export class HostRoom {
   private receive(msg: NetMessage, from: string): void {
     if (msg.t === 'hello') {
       if (msg.v !== PROTOCOL_VERSION) {
-        this.transport.send({ t: 'bye', reason: 'Versione del gioco diversa: ricaricate la pagina tutti e due.' }, from);
+        this.transport.send({ t: 'bye', ...why({ k: 'net.version' }) }, from);
         return;
       }
       if (typeof msg.key === 'string' && msg.key) this.keyOfPeer.set(from, msg.key.slice(0, 40));
@@ -111,10 +117,10 @@ export class HostRoom {
         if (!known) {
           if (this.members.length + this.computers >= MAX_SEATS) this.computers = Math.max(0, this.computers - 1);
           if (this.members.length >= MAX_SEATS) {
-            this.transport.send({ t: 'bye', reason: 'Il tavolo è pieno.' }, from);
+            this.transport.send({ t: 'bye', ...why({ k: 'net.full' }) }, from);
             return;
           }
-          this.members.push({ id: from, name: cleanName(msg.name, `Ospite ${this.members.length}`), look: msg.look ? cleanLook(msg.look, this.members.length) : null, ready: false, host: false });
+          this.members.push({ id: from, name: cleanName(msg.name, `${t('online.guestName')} ${this.members.length}`), look: msg.look ? cleanLook(msg.look, this.members.length) : null, ready: false, host: false });
         }
         this.publishLobby();
         return;
@@ -143,8 +149,8 @@ export class HostRoom {
     }
     if (msg.t === 'action') {
       const seat = this.seats.get(from);
-      const result = seat === undefined ? 'Stai solo guardando.' : this.tryApply(seat, msg.action, true);
-      if (result) this.transport.send({ t: 'rejected', seq: msg.seq, reason: result }, from);
+      const result: Message | null = seat === undefined ? { k: 'net.watching' } : this.tryApply(seat, msg.action, true);
+      if (result) this.transport.send({ t: 'rejected', seq: msg.seq, ...why(result) }, from);
     }
   }
 
@@ -229,24 +235,24 @@ export class HostRoom {
   }
 
   // Mossa della persona che usa lo schermo dell'oste.
-  act(action: Action): string | null {
-    if (!this.state) return 'La partita non è iniziata.';
+  act(action: Action): Message | null {
+    if (!this.state) return { k: 'net.notStarted' };
     return this.tryApply(this.hostSeat, action, true);
   }
 
   // Applica la mossa se tocca a quel posto. Restituisce il motivo del rifiuto, o null.
   // "byPerson": la mossa l'ha fatta la persona del posto, che così torna a giocare da sé.
-  private tryApply(seat: number, action: Action, byPerson: boolean): string | null {
+  private tryApply(seat: number, action: Action, byPerson: boolean): Message | null {
     const prev = this.state;
-    if (!prev) return 'La partita non è iniziata.';
-    if (prev.phase === 'gameOver') return 'La partita è finita.';
-    if (actingPlayer(prev) !== seat) return 'Non è il tuo turno.';
+    if (!prev) return { k: 'net.notStarted' };
+    if (prev.phase === 'gameOver') return { k: 'err.gameOver' };
+    if (actingPlayer(prev) !== seat) return { k: 'net.notYourTurn' };
     let next: GameState;
     try {
       next = applyAction(prev, action, this.ctx);
     } catch (e) {
       // anche una mossa malformata arrivata dalla rete finisce qui, senza fermare la partita
-      return e instanceof Error ? e.message : 'Mossa non valida.';
+      return e instanceof RuleError ? { k: e.key, p: e.params } : { k: 'net.badMove' };
     }
     this.state = next;
     this.moves++;
@@ -304,7 +310,7 @@ export class HostRoom {
   }
 
   close(): void {
-    this.transport.send({ t: 'bye', reason: "Chi ha creato il tavolo l'ha chiuso." });
+    this.transport.send({ t: 'bye', ...why({ k: 'net.closed' }) });
     this.transport.leave();
   }
 }

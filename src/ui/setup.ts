@@ -10,7 +10,8 @@ import type { CharacterPreview } from './three/characters3d';
 import { renderIntro } from './intro';
 import { version } from '../../package.json';
 import { renderLeaderboard } from './summary';
-import { CHARACTERS, COLOR_CHOICES, COLOR_NAMES, characterDef, defaultAppearance } from './characters';
+import { CHARACTERS, COLOR_CHOICES, colorName, itemName, characterDef, defaultAppearance } from './characters';
+import { getLang, t, tn, type MsgKey } from '../i18n';
 import { KEYS, loadLeaderboard, readPref, saveLeaderboard, writePref } from './prefs';
 import { openSettings } from './settings';
 import { audio } from './audio';
@@ -55,7 +56,7 @@ function lookButton(i: number): string {
   const look = setupLooks[i];
   const def = characterDef(look.character);
   return `<button type="button" class="look-btn" data-look="${i}" style="--c:${look.color}" aria-expanded="${editingSeat === i}"
-    title="Scegli il personaggio" aria-label="Personaggio del giocatore ${i + 1}: ${def.label}">${def.emoji}</button>`;
+    title="${t('look.choose')}" aria-label="${t('look.seatLabel', { n: i + 1, name: def.label })}">${def.emoji}</button>`;
 }
 
 // Editor dell'aspetto: personaggio, colore, copricapo, mantello e oggetto in mano.
@@ -66,21 +67,21 @@ function lookEditorHtml(i: number): string {
     <div class="look-editor" style="--c:${look.color}">
       <div class="look-preview" id="look-preview">${webglAvailable() ? '' : `<span class="look-emoji">${def.emoji}</span>`}</div>
       <div class="look-controls">
-        <div class="look-group" role="radiogroup" aria-label="Personaggio">
+        <div class="look-group" role="radiogroup" aria-label="${t('look.character')}">
           ${CHARACTERS.map((c) => `<button type="button" class="chip-btn" role="radio" aria-checked="${c.id === look.character}" data-character="${c.id}">${c.emoji} ${c.label}</button>`).join('')}
         </div>
-        <div class="look-group swatches" role="radiogroup" aria-label="Colore">
-          ${COLOR_CHOICES.map((col) => `<button type="button" class="swatch" role="radio" aria-checked="${col === look.color}" data-color="${col}" style="background:${col}" title="${COLOR_NAMES[col]}" aria-label="${COLOR_NAMES[col]}"></button>`).join('')}
+        <div class="look-group swatches" role="radiogroup" aria-label="${t('look.color')}">
+          ${COLOR_CHOICES.map((col) => `<button type="button" class="swatch" role="radio" aria-checked="${col === look.color}" data-color="${col}" style="background:${col}" title="${colorName(col)}" aria-label="${colorName(col)}"></button>`).join('')}
         </div>
-        ${def.hat ? `<label class="check"><input type="checkbox" data-hat ${look.hat ? 'checked' : ''}> Copricapo</label>` : ''}
-        <label class="check"><input type="checkbox" data-cape ${look.cape ? 'checked' : ''}> Mantello del mio colore</label>
-        <label class="hold">In mano
+        ${def.hat ? `<label class="check"><input type="checkbox" data-hat ${look.hat ? 'checked' : ''}> ${t('look.hat')}</label>` : ''}
+        <label class="check"><input type="checkbox" data-cape ${look.cape ? 'checked' : ''}> ${t('look.cape')}</label>
+        <label class="hold">${t('look.inHand')}
           <select data-item>
-            <option value="">Niente</option>
-            ${Object.entries(def.items).map(([id, label]) => `<option value="${id}" ${id === look.item ? 'selected' : ''}>${label}</option>`).join('')}
+            <option value="">${t('look.nothing')}</option>
+            ${Object.keys(def.items).map((id) => `<option value="${id}" ${id === look.item ? 'selected' : ''}>${itemName(id)}</option>`).join('')}
           </select>
         </label>
-        <button type="button" class="primary" data-look-done>Fatto</button>
+        <button type="button" class="primary" data-look-done>${t('btn.done')}</button>
       </div>
     </div>`;
 }
@@ -153,17 +154,17 @@ function slotsHtml(list: Slot[]): string {
     .map(
       (sl) => `<li class="slot">
         <div class="slot-info"><strong>${escapeHtml(sl.name)}</strong>
-          <small>${escapeHtml(sl.summary)} · ${new Date(sl.date).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div>
+          <small>${escapeHtml(sl.summary)} · ${new Date(sl.date).toLocaleString(getLang() === 'it' ? 'it-IT' : 'en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div>
         <div class="slot-buttons">
-          <button type="button" data-slot-load="${sl.id}">▶ Gioca</button>
-          <button type="button" data-slot-export="${sl.id}" aria-label="Esporta ${escapeHtml(sl.name)}">⬇️</button>
-          <button type="button" data-slot-delete="${sl.id}" aria-label="Elimina ${escapeHtml(sl.name)}">🗑️</button>
+          <button type="button" data-slot-load="${sl.id}">▶ ${t('slots.play')}</button>
+          <button type="button" data-slot-export="${sl.id}" aria-label="${t('slots.export', { name: escapeHtml(sl.name) })}">⬇️</button>
+          <button type="button" data-slot-delete="${sl.id}" aria-label="${t('slots.delete', { name: escapeHtml(sl.name) })}">🗑️</button>
         </div>
       </li>`,
     )
     .join('');
-  return `${list.length ? `<h2 id="slots-title">Partite salvate <small>(${list.length} di ${MAX_SLOTS})</small></h2><ul class="slot-list">${items}</ul>` : '<h2 id="slots-title" class="visually-hidden">Partite salvate</h2>'}
-    <label class="import-file">📂 Apri una partita da un file ${FILE_EXT}<input type="file" accept="${FILE_EXT},.json,application/json" data-import></label>
+  return `${list.length ? `<h2 id="slots-title">${t('slots.title')} <small>(${t('slots.count', { n: list.length, max: MAX_SLOTS })})</small></h2><ul class="slot-list">${items}</ul>` : `<h2 id="slots-title" class="visually-hidden">${t('slots.title')}</h2>`}
+    <label class="import-file">📂 ${t('slots.import', { ext: FILE_EXT })}<input type="file" accept="${FILE_EXT},.json,application/json" data-import></label>
     <p class="slot-msg" role="status" aria-live="polite"></p>`;
 }
 
@@ -182,19 +183,19 @@ export interface OnlineOffer {
 
 function onlineHtml(): string {
   return `<section class="card online-card" aria-labelledby="online-title">
-        <h2 id="online-title">🌐 Gioca online con gli amici</h2>
-        <p>Ognuno dal suo telefono o computer, gratis e senza account. Chi crea il tavolo manda il link agli altri.</p>
+        <h2 id="online-title">🌐 ${t('setup.onlineTitle')}</h2>
+        <p>${t('setup.onlineText')}</p>
         <div class="online-buttons">
-          <button type="button" class="primary" data-online-create>Crea un tavolo</button>
+          <button type="button" class="primary" data-online-create>${t('setup.createTable')}</button>
           <form class="online-join" data-online-join>
-            <label for="online-code">Hai un codice?</label>
+            <label for="online-code">${t('setup.haveCode')}</label>
             <div class="slot-row">
               <input id="online-code" name="code" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC234">
-              <button type="submit">Entra</button>
+              <button type="submit">${t('setup.join')}</button>
             </div>
           </form>
         </div>
-        <p class="error" role="alert" data-online-error hidden>Il codice ha 6 caratteri, lettere e numeri. Controllalo e riprova.</p>
+        <p class="error" role="alert" data-online-error hidden>${t('setup.badCode')}</p>
       </section>`;
 }
 
@@ -218,86 +219,86 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       <header class="brand">
         <div class="brand-strip" aria-hidden="true">${board.groups.map((g) => `<span style="background:${g.color}"></span>`).join('')}</div>
         <h1>Sdrogopoli</h1>
-        <p>Compra le vie della città, costruisci case e manda in rovina gli amici. Da ${MIN_PLAYERS} a ${MAX_PLAYERS} giocatori sullo stesso dispositivo (fino a ${DEMO_MAX_PLAYERS} nella modalità demo) oppure online, ognuno dal suo.</p>
+        <p>${t('setup.tagline', { min: MIN_PLAYERS, max: MAX_PLAYERS, demo: DEMO_MAX_PLAYERS })}</p>
       </header>
       <div class="setup-grid">
       <div class="setup-main">
       ${resume ? `<section class="card resume" aria-labelledby="resume-title">
-        <h2 id="resume-title">Partita in corso</h2>
+        <h2 id="resume-title">${t('setup.resumeTitle')}</h2>
         ${resume.summary}
         <div class="resume-buttons">
-          <button type="button" class="primary" data-resume>▶ Continua la partita</button>
-          <button type="button" data-new-game>Nuova partita</button>
+          <button type="button" class="primary" data-resume>▶ ${t('setup.continue')}</button>
+          <button type="button" data-new-game>${t('btn.newGame')}</button>
         </div>
       </section>` : ''}
       ${slots ? `<section class="card saved-games" aria-labelledby="slots-title">${slotsHtml(slots.list)}</section>` : ''}
       <form id="setup-form" class="card" ${resume ? 'hidden' : ''}>
         <div class="form-head">
-          <h2>Chi gioca?</h2>
-          <p>Tocca il cerchio colorato per scegliere personaggio e colore. Lascia vuoto un nome per giocare in meno.</p>
+          <h2>${t('setup.whoPlays')}</h2>
+          <p>${t('setup.whoPlaysHint')}</p>
         </div>
         ${SEATS
           .map(
             (i) => `<div class="setup-row" ${i >= SEATS_SHOWN ? 'hidden' : ''}>${lookButton(i)}
-              <input name="p${i}" maxlength="16" aria-label="Nome giocatore ${i + 1}" placeholder="Giocatore ${i + 1}${i >= 2 ? ' (facoltativo)' : ''}" ${i < 2 ? `value="${i === 0 ? 'Giocatore 1' : 'Computer'}"` : ''}>
-              <select name="t${i}" aria-label="Chi controlla il giocatore ${i + 1}">
-                <option value="human" ${i === 0 ? 'selected' : ''}>👤 Persona</option>
-                ${BOT_LEVELS.map((l) => `<option value="${l.id}" ${i > 0 && l.id === 'normale' ? 'selected' : ''}>🤖 Computer ${l.label.toLowerCase()}</option>`).join('')}
+              <input name="p${i}" maxlength="16" aria-label="${t('setup.nameLabel', { n: i + 1 })}" placeholder="${t('setup.playerN', { n: i + 1 })}${i >= 2 ? ` ${t('setup.optional')}` : ''}" ${i < 2 ? `value="${i === 0 ? t('setup.playerN', { n: 1 }) : 'Computer'}"` : ''}>
+              <select name="t${i}" aria-label="${t('setup.controlLabel', { n: i + 1 })}">
+                <option value="human" ${i === 0 ? 'selected' : ''}>👤 ${t('setup.person')}</option>
+                ${BOT_LEVELS.map((l) => `<option value="${l.id}" ${i > 0 && l.id === 'normale' ? 'selected' : ''}>🤖 ${t(`setup.computer.${l.id}` as MsgKey)}</option>`).join('')}
               </select></div>`,
           )
           .join('')}
-        <button type="button" class="add-seat" data-add-seat>➕ Aggiungi giocatore <small>(fino a <span data-seat-max>${MAX_PLAYERS}</span>)</small></button>
+        <button type="button" class="add-seat" data-add-seat>➕ ${t('setup.addSeat')} <small>(${t('setup.upTo', { n: `<span data-seat-max>${MAX_PLAYERS}</span>` })})</small></button>
         <label class="check demo-toggle"><input type="checkbox" name="demo">
-          <span><strong>🧪 Modalità demo</strong> <span class="badge-demo">sperimentale</span><br>
-          <small>Fino a ${DEMO_MAX_PLAYERS} giocatori. Per non aspettare troppo il proprio turno la partita dura ${DEMO_ROUNDS} giri (vince il patrimonio più alto) e il bonus del posto scende a ${board.currency.symbol} ${DEMO_SEAT_BONUS}.</small></span></label>
+          <span><strong>🧪 ${t('setup.demo')}</strong> <span class="badge-demo">${t('setup.experimental')}</span><br>
+          <small>${t('setup.demoText', { n: DEMO_MAX_PLAYERS, rounds: DEMO_ROUNDS, bonus: `${board.currency.symbol} ${DEMO_SEAT_BONUS}` })}</small></span></label>
         <fieldset class="presets">
-          <legend>Tipo di partita</legend>
+          <legend>${t('setup.gameType')}</legend>
           <div class="preset-list" role="radiogroup">
-            ${PRESETS.map((p, i) => `<label class="preset"><input type="radio" name="preset" value="${p.id}" ${i === 0 ? 'checked' : ''}><span><strong>${p.label}</strong><small>${p.text}</small></span></label>`).join('')}
-            <label class="preset"><input type="radio" name="preset" value="custom"><span><strong>Personalizzata</strong><small>Scegli tu nelle regole della casa.</small></span></label>
+            ${PRESETS.map((p, i) => `<label class="preset"><input type="radio" name="preset" value="${p.id}" ${i === 0 ? 'checked' : ''}><span><strong>${t(`preset.${p.id}` as MsgKey)}</strong><small>${t(`presetText.${p.id}` as MsgKey)}</small></span></label>`).join('')}
+            <label class="preset"><input type="radio" name="preset" value="custom"><span><strong>${t('preset.custom')}</strong><small>${t('presetText.custom')}</small></span></label>
           </div>
           <p class="hint" data-duration aria-live="polite"></p>
         </fieldset>
         <div id="look-slot"></div>
         <details class="house-rules">
-          <summary>⚙️ Regole della casa</summary>
-          <label>Soldi iniziali
+          <summary>⚙️ ${t('rules.title')}</summary>
+          <label>${t('rules.money')}
             <select name="money">${[1000, 1500, 2000, 2500].map((m) => `<option value="${m}" ${m === board.startingMoney ? 'selected' : ''}>${board.currency.symbol} ${m}</option>`).join('')}</select>
           </label>
           <label>Durata
             <select name="rounds">
-              <option value="">Fino all'ultimo rimasto</option>
-              <option value="15">15 giri (partita breve)</option>
-              <option value="${DEMO_ROUNDS}">${DEMO_ROUNDS} giri</option>
-              <option value="25">25 giri</option>
-              <option value="40">40 giri</option>
+              <option value="">${t('rules.untilLast')}</option>
+              <option value="15">${t('rules.roundsShort', { n: 15 })}</option>
+              <option value="${DEMO_ROUNDS}">${t('rules.rounds', { n: DEMO_ROUNDS })}</option>
+              <option value="25">${t('rules.rounds', { n: 25 })}</option>
+              <option value="40">${t('rules.rounds', { n: 40 })}</option>
             </select>
           </label>
-          <label>Carattere dei computer
+          <label>${t('rules.styles')}
             <select name="styles">
-              <option value="mix">A sorpresa: ognuno il suo</option>
-              ${BOT_STYLES.map((x) => `<option value="${x.id}">Tutti ${x.label.toLowerCase()} (${x.text})</option>`).join('')}
+              <option value="mix">${t('rules.stylesMix')}</option>
+              ${BOT_STYLES.map((x) => `<option value="${x.id}">${t('rules.stylesAll', { style: t(`bot.style.${x.id}` as MsgKey).toLowerCase(), text: t(`bot.styleText.${x.id}` as MsgKey) })}</option>`).join('')}
             </select>
           </label>
-          <label class="check"><input type="checkbox" name="tips" ${tipsOn ? 'checked' : ''}> Consigli durante la partita (utile la prima volta)</label>
-          <label class="check"><input type="checkbox" name="quick"> Partita rapida: ognuno parte con ${QUICK_START_PROPERTIES} proprietà a caso (${QUICK_START_TWO_PLAYERS} se si è in due, meno se si è in tanti: le proprietà sono ${board.spaces.filter((sp) => sp.type === 'property').length})</label>
-          <label class="check"><input type="checkbox" name="bonus" checked> Chi gioca dopo parte con ${board.currency.symbol} <span data-bonus-amount>${SEAT_BONUS}</span> in più per ogni posto (compensa il vantaggio di chi inizia)</label>
-          <label class="check"><input type="checkbox" name="sprint"> 🎲 Dado Sprint: un terzo dado con passi in più, "Occasione" (si prosegue fino alla prossima proprietà in vendita) e "Affitto pieno" (affitto doppio)</label>
-          <label>Obiettivo per vincere prima
+          <label class="check"><input type="checkbox" name="tips" ${tipsOn ? 'checked' : ''}> ${t('rules.tips')}</label>
+          <label class="check"><input type="checkbox" name="quick"> ${t('rules.quick', { n: QUICK_START_PROPERTIES, two: QUICK_START_TWO_PLAYERS, total: board.spaces.filter((sp) => sp.type === 'property').length })}</label>
+          <label class="check"><input type="checkbox" name="bonus" checked> ${t('rules.bonus', { amount: `${board.currency.symbol} <span data-bonus-amount>${SEAT_BONUS}</span>` })}</label>
+          <label class="check"><input type="checkbox" name="sprint"> 🎲 ${t('rules.sprint')}</label>
+          <label>${t('rules.goal')}
             <select name="goal">
-              <option value="">Nessuno</option>
-              <option value="worth3000">Patrimonio di ${board.currency.symbol} 3000</option>
-              <option value="worth4000">Patrimonio di ${board.currency.symbol} 4000</option>
-              <option value="groups2">2 quartieri completi</option>
-              <option value="groups3">3 quartieri completi</option>
-              <option value="groups2worth4000">2 quartieri o ${board.currency.symbol} 4000</option>
-              <option value="side">Un lato intero del tabellone</option>
+              <option value="">${t('rules.goalNone')}</option>
+              <option value="worth3000">${t('rules.goalWorth', { amount: `${board.currency.symbol} 3000` })}</option>
+              <option value="worth4000">${t('rules.goalWorth', { amount: `${board.currency.symbol} 4000` })}</option>
+              <option value="groups2">${t('rules.goalGroups', { n: 2 })}</option>
+              <option value="groups3">${t('rules.goalGroups', { n: 3 })}</option>
+              <option value="groups2worth4000">${t('rules.goalBoth', { n: 2, amount: `${board.currency.symbol} 4000` })}</option>
+              <option value="side">${t('rules.goalSide')}</option>
             </select>
           </label>
-          <label class="check"><input type="checkbox" name="pot"> Montepremi: tasse e multe vanno sulla Panchina del Parco e chi ci arriva le incassa</label>
+          <label class="check"><input type="checkbox" name="pot"> ${t('rules.pot')}</label>
         </details>
-        <p class="hint" data-quick-note hidden>⚡ In due è attiva la partita rapida (${QUICK_START_TWO_PLAYERS} proprietà a testa): dura circa la metà. Si cambia nelle regole della casa.</p>
-        <button class="primary" type="submit">Inizia la partita</button>
+        <p class="hint" data-quick-note hidden>⚡ ${t('setup.quickNote', { n: QUICK_START_TWO_PLAYERS })}</p>
+        <button class="primary" type="submit">${t('setup.start')}</button>
       </form>
       ${online ? onlineHtml() : ''}
       <div id="leaderboard-slot">${renderLeaderboard(loadLeaderboard())}</div>
@@ -305,21 +306,21 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       <aside class="setup-info">${renderIntro()}</aside>
       </div>
       <footer class="credits">
-        <p>🆓 Gratis, senza pubblicità e senza account. Le partite restano su questo dispositivo.</p>
-        <p>Personaggi 3D: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit di Kay Lousberg</a> (CC0) · Versione ${version} · <button type="button" class="link" data-credits>Crediti e licenze</button> · <button type="button" class="link" data-settings>⚙️ Impostazioni</button> · <a href="${reportUrl(null, 'iniziale')}" target="_blank" rel="noopener">Segnala un problema</a></p>
+        <p>🆓 ${t('footer.free')}</p>
+        <p>${t('footer.characters')} <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit ${t('credits.by')} Kay Lousberg</a> (CC0) · ${t('footer.version', { v: version })} · <button type="button" class="link" data-credits>${t('footer.credits')}</button> · <button type="button" class="link" data-settings>⚙️ ${t('settings.title')}</button> · <a href="${reportUrl(null, 'iniziale')}" target="_blank" rel="noopener">${t('report.link')}</a></p>
       </footer>
       <dialog class="credits-dialog" aria-labelledby="credits-title">
-        <h2 id="credits-title">Crediti e licenze</h2>
-        <p>Sdrogopoli è un gioco originale e gratuito: niente pubblicità, niente acquisti, niente account. Le partite e le preferenze restano solo su questo dispositivo; online, la partita passa direttamente tra i dispositivi al tavolo.</p>
-        <h3>Cosa c'è dentro</h3>
+        <h2 id="credits-title">${t('footer.credits')}</h2>
+        <p>${t('credits.intro')}</p>
+        <h3>${t('credits.inside')}</h3>
         <ul>
-          <li><strong>Tabellone, nomi, carte, icone, suoni e musica</strong>: originali di Sdrogopoli. I suoni e la musica si generano al momento nel browser.</li>
-          <li><strong>Personaggi 3D</strong>: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit Adventurers di Kay Lousberg</a>, licenza CC0 (pubblico dominio).</li>
-          <li><strong>Grafica 3D</strong>: <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a>, licenza MIT.</li>
-          <li><strong>Gioco online</strong>: <a href="https://github.com/dmotz/trystero" target="_blank" rel="noopener">Trystero</a>, licenza MIT. I dispositivi si collegano direttamente tra loro; per trovarsi usano relay Nostr pubblici e gratuiti.</li>
+          <li><strong>${t('credits.originalTitle')}</strong>: ${t('credits.original')}</li>
+          <li><strong>${t('credits.charactersTitle')}</strong>: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit Adventurers ${t('credits.by')} Kay Lousberg</a>, ${t('credits.cc0')}</li>
+          <li><strong>${t('credits.graphicsTitle')}</strong>: <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a>, ${t('credits.mit')}</li>
+          <li><strong>${t('credits.onlineTitle')}</strong>: <a href="https://github.com/dmotz/trystero" target="_blank" rel="noopener">Trystero</a>, ${t('credits.mit')} ${t('credits.online')}</li>
         </ul>
-        <p><a href="${import.meta.env.BASE_URL}licenze.txt" target="_blank" rel="noopener">Testo completo delle licenze</a> · <a href="https://github.com/matteo-canna/sdrogopoli" target="_blank" rel="noopener">Codice sorgente</a></p>
-        <form method="dialog"><button class="primary">Chiudi</button></form>
+        <p><a href="${import.meta.env.BASE_URL}licenze.txt" target="_blank" rel="noopener">${t('credits.licenses')}</a> · <a href="https://github.com/matteo-canna/sdrogopoli" target="_blank" rel="noopener">${t('credits.source')}</a></p>
+        <form method="dialog"><button class="primary">${t('btn.close')}</button></form>
       </dialog>
     </main>`;
   document.querySelector('#leaderboard-slot')!.addEventListener('click', (e) => {
@@ -355,7 +356,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
         // eliminare non si annulla: il primo tocco chiede conferma
         if (b.dataset.confirm !== 'yes') {
           b.dataset.confirm = 'yes';
-          b.textContent = 'Elimina?';
+          b.textContent = t('slots.confirmDelete');
           return;
         }
         slots.onDelete(b.dataset.slotDelete);
@@ -367,7 +368,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       const input = e.target as HTMLInputElement;
       if (!input.matches('[data-import]') || !input.files?.[0]) return;
       const ok = await slots.onImport(input.files[0]);
-      if (!ok) savedBox.querySelector('.slot-msg')!.textContent = `Questo file non è una partita di Sdrogopoli (o è di una versione più nuova).`;
+      if (!ok) savedBox.querySelector('.slot-msg')!.textContent = t('slots.badFile');
       input.value = '';
     });
   }
@@ -376,7 +377,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     box.querySelector('[data-resume]')!.addEventListener('click', resume.onContinue);
     box.querySelector('[data-new-game]')!.addEventListener('click', () => {
       // la partita salvata resta finché non se ne inizia un'altra
-      box.querySelector('h2')!.textContent = 'Partita salvata';
+      box.querySelector('h2')!.textContent = t('setup.savedGame');
       box.querySelector('[data-new-game]')!.remove();
       box.querySelector<HTMLElement>('[data-resume]')!.classList.remove('primary');
       form.hidden = false;
@@ -433,14 +434,15 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     const p = PRESETS.find((x) => x.id === id);
     const out = form.querySelector<HTMLElement>('[data-duration]')!;
     if (!p) {
-      out.textContent = 'Durata: dipende dalle regole scelte.';
+      out.textContent = t('setup.durationCustom');
       return;
     }
     const rows = [...form.querySelectorAll<HTMLElement>('.setup-row:not([hidden])')];
     const named = rows.filter((r) => r.querySelector<HTMLInputElement>('input[name^=p]')!.value.trim());
     const bots = named.filter((r) => r.querySelector<HTMLSelectElement>('select')!.value !== 'human').length;
     const people = Math.max(1, named.length - bots);
-    out.textContent = `⏱ Circa ${p.rounds} giri: con ${people} ${people === 1 ? 'persona' : 'persone'}${bots ? ` e ${bots} ${bots === 1 ? 'computer' : 'computer'}` : ''} circa ${estimatedMinutes(p, people, bots)} minuti.`;
+    const who = tn('setup.people', people) + (bots ? ` ${t('setup.and')} ${tn('setup.computers', bots)}` : '');
+    out.textContent = `⏱ ${t('setup.duration', { rounds: p.rounds, who, minutes: estimatedMinutes(p, people, bots) })}`;
   };
   form.addEventListener('change', (e) => {
     const t = e.target as HTMLInputElement;
@@ -507,7 +509,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     if (players.length < MIN_PLAYERS) {
       const form = e.target as HTMLFormElement;
       form.querySelector('.error')?.remove();
-      form.insertAdjacentHTML('beforeend', `<p class="error">Servono almeno ${MIN_PLAYERS} giocatori.</p>`);
+      form.insertAdjacentHTML('beforeend', `<p class="error">${t('setup.minPlayers', { n: MIN_PLAYERS })}</p>`);
       return;
     }
     const rounds = Number(data.get('rounds')) || null;

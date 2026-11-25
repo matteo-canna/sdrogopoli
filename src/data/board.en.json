@@ -1,0 +1,20 @@
+{
+  "partenza": "Start",
+  "quartiere-1": "Local Gossip",
+  "quartiere-2": "Local Gossip",
+  "quartiere-3": "Local Gossip",
+  "sorte-1": "Stroke of Luck",
+  "sorte-2": "Stroke of Luck",
+  "sorte-3": "Stroke of Luck",
+  "tassa-1": "Daydream Tax",
+  "tassa-2": "Fine for Excessive Fun",
+  "fermata-nord": "North Terminus",
+  "fermata-est": "East Funicular",
+  "fermata-sud": "South Ferry",
+  "fermata-ovest": "West Tram",
+  "caserma": "Barracks (just visiting)",
+  "acquedotto": "Town Waterworks",
+  "centrale": "Pedal Power Station",
+  "panchina": "Park Bench",
+  "vai-in-caserma": "Stopped by the Wardens"
+}

@@ -4,6 +4,13 @@ import { PROTOCOL_VERSION, type Member, type NetMessage } from './protocol';
 import { cleanLook, cleanName } from './sanitize';
 import { sayText } from './chat';
 import type { Transport } from './transport';
+import { it as italian } from '../i18n/it';
+import { t, type MsgKey, type Params } from '../i18n';
+
+// Il motivo nella lingua di chi gioca (la chiave arriva dalla rete: si usa solo se è una frase nota).
+function reasonText(msg: { reason: string; key?: MsgKey; p?: Params }): string {
+  return msg.key && Object.hasOwn(italian, msg.key) ? t(msg.key, msg.p) : String(msg.reason ?? '');
+}
 
 export class GuestRoom {
   state: GameState | null = null;
@@ -81,7 +88,7 @@ export class GuestRoom {
     switch (msg.t) {
       case 'lobby':
         // anche quello che manda l'oste finisce nella pagina: nomi e colori si ripuliscono
-        this.members = msg.members.map((m, i) => ({ ...m, name: cleanName(m.name, `Giocatore ${i + 1}`), look: m.look ? cleanLook(m.look, i) : null }));
+        this.members = msg.members.map((m, i) => ({ ...m, name: cleanName(m.name, t('setup.playerN', { n: i + 1 })), look: m.look ? cleanLook(m.look, i) : null }));
         if (typeof msg.you === 'string') this.myId = msg.you;
         this.computers = msg.computers;
         this.onLobby?.(this.members);
@@ -99,7 +106,7 @@ export class GuestRoom {
         if (msg.n <= this.moves) return;
         const prev = this.state;
         msg.state.players.forEach((p, i) => {
-          p.name = cleanName(p.name, `Giocatore ${i + 1}`);
+          p.name = cleanName(p.name, t('setup.playerN', { n: i + 1 }));
           if (p.appearance) p.appearance = cleanLook(p.appearance, i);
         });
         this.moves = msg.n;
@@ -112,12 +119,12 @@ export class GuestRoom {
         if (Number.isInteger(msg.seat) && sayText(msg.id) && this.state && msg.seat >= 0 && msg.seat < this.state.players.length) this.onSaid?.(msg.seat, msg.id);
         return;
       case 'rejected':
-        this.lastError = msg.reason;
-        this.onError?.(msg.reason);
+        this.lastError = reasonText(msg);
+        this.onError?.(this.lastError);
         return;
       case 'bye':
-        this.closed = msg.reason;
-        this.onError?.(msg.reason);
+        this.closed = reasonText(msg);
+        this.onError?.(this.closed);
         return;
     }
   }

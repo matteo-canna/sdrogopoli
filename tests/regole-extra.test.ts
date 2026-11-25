@@ -16,7 +16,8 @@ describe('vittorie alternative', () => {
     const next = applyAction(s, { type: 'roll' }, ctxWith(4, 5));
     expect(next.phase).toBe('gameOver');
     expect(next.winner).toBe(1);
-    expect(next.winReason).toMatch(/2 quartieri/);
+    expect(next.winReason).toBe('groups');
+    expect(next.log.at(-1)).toMatchObject({ k: 'log.goalGroups', p: { n: 2 } });
   });
 
   it('chi arriva al patrimonio richiesto vince subito', () => {

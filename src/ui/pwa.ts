@@ -1,4 +1,5 @@
 // App installabile e offline: registra il service worker e avvisa quando c'è una versione nuova.
+import { t } from '../i18n';
 export function setupOffline(): void {
   if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
@@ -32,9 +33,9 @@ function offerUpdate(worker: ServiceWorker): void {
   const box = document.createElement('div');
   box.className = 'update-toast';
   box.setAttribute('role', 'status');
-  box.innerHTML = `<span>✨ C'è una versione nuova di Sdrogopoli.</span>
-    <button class="primary" data-update>Aggiorna</button>
-    <button class="link" data-later aria-label="Più tardi">Più tardi</button>`;
+  box.innerHTML = `<span>✨ ${t('pwa.newVersion')}</span>
+    <button class="primary" data-update>${t('pwa.update')}</button>
+    <button class="link" data-later>${t('pwa.later')}</button>`;
   box.querySelector('[data-update]')!.addEventListener('click', () => worker.postMessage('aggiorna'));
   box.querySelector('[data-later]')!.addEventListener('click', () => box.remove());
   document.body.append(box);
