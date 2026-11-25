@@ -15,7 +15,8 @@ export interface Member {
 
 // Da un ospite all'oste.
 export type ToHost =
-  | { t: 'hello'; v: number; name: string; look: Appearance | null }
+  // "key" resta uguale se la pagina si ricarica: serve a riprendere il proprio posto
+  | { t: 'hello'; v: number; name: string; look: Appearance | null; key?: string }
   | { t: 'ready'; ready: boolean; name: string; look: Appearance | null }
   | { t: 'action'; action: Action; seq: number };
 
@@ -29,6 +30,8 @@ export type ToGuest =
   | { t: 'state'; state: GameState; n: number; action: Action | null }
   // mossa rifiutata (non è il tuo turno, regola violata…)
   | { t: 'rejected'; seq: number; reason: string }
+  // posti scollegati, posti mossi dal computer perché il tempo è scaduto, tempo per ogni mossa
+  | { t: 'presence'; offline: number[]; away: number[]; limitMs: number | null }
   | { t: 'bye'; reason: string };
 
 export type NetMessage = ToHost | ToGuest;

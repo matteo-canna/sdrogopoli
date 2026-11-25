@@ -117,3 +117,6 @@
 .privacy-note p { margin: 0 0 8px; line-height: 1.45; }
 .lobby-wait { color: var(--muted); }
 .actions.waiting .wait { margin: 0; padding: 10px 12px; color: var(--muted); }
+.pill.clock { font-variant-numeric: tabular-nums; }
+.pill.clock.late { background: var(--danger); color: var(--on-danger); }
+.away-note { margin: 0 0 6px; padding: 8px 10px; border-radius: 8px; background: var(--space); border-left: 4px solid var(--info); font-size: 0.95em; }

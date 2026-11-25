@@ -78,3 +78,34 @@ test('un codice sbagliato si segnala subito', async ({ page }) => {
   await page.click('[data-online-join] button[type=submit]');
   await expect(page.locator('[data-online-error]')).toBeVisible();
 });
+
+test('chi ricarica la pagina, ospite o oste, torna al suo posto', async ({ context }) => {
+  await context.addInitScript(() => {
+    localStorage.setItem('sdrogopoli-tutorial', '{"on":false}');
+    localStorage.setItem('sdrogopoli-vista', '2d');
+  });
+  const oste = await context.newPage();
+  await oste.goto('./?rete=locale');
+  await oste.click('[data-online-create]');
+  const code = (await oste.locator('[data-table-code]').textContent())!.trim();
+  const ospite = await context.newPage();
+  await ospite.goto(`./?rete=locale#tavolo=${code}`);
+  await ospite.click('[data-ready]');
+  await expect(oste.locator('[data-lobby-start]')).toBeEnabled();
+  await oste.click('[data-lobby-start]');
+  await expect(ospite.locator('.game')).toBeVisible();
+
+  // l'ospite ricarica: per un attimo gioca il computer, poi riprende il suo posto
+  await ospite.reload();
+  await expect(ospite.locator('.game')).toBeVisible();
+  await expect(ospite.locator('.actions.waiting')).toBeVisible();
+  await expect(oste.locator('.actions [data-action=roll]')).toBeVisible();
+
+  // l'oste ricarica: il tavolo riparte con lo stesso codice e l'ospite resta seduto
+  await oste.reload();
+  await expect(oste.locator('.game')).toBeVisible();
+  await expect(oste.locator('.saved')).toContainText(code);
+  await expect(ospite.locator('.error')).toHaveCount(0);
+  await oste.click('.actions [data-action=roll]');
+  await expect(ospite.locator('.turn .roll')).toBeVisible();
+});
