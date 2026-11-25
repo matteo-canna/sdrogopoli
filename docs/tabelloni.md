@@ -69,7 +69,7 @@ le carte "vai a" che trovano la loro casella.
 - *nel browser*: "Salva e scegli" li mette in `sdrogopoli-tabelloni` (al massimo 12) e li rende
   sceglibili. L'id si calcola dal contenuto (`mio-…`), quindi lo stesso tabellone arrivato due
   volte non si doppia, e salvando una modifica la versione nuova prende il posto della vecchia;
-- *in un file*: "Esporta file" scarica un `.sdrogo-tabellone`
+- *in un file*: "Esporta file" scarica un `.folle-tabellone`
   (`{ kind: "sdrogopoli-tabellone", version: 1, board }`), "Importa un file" lo rilegge;
 - *in un link*: "Copia il link" dà un indirizzo `#tabellone=…` con il tabellone intero compresso
   (deflate e base64url, circa 2 KB per Valle Stretta). Chi lo apre se lo trova tra i suoi

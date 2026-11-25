@@ -1,9 +1,10 @@
-// Service worker di Sdrogopoli: tiene in memoria tutti i file del gioco, così si gioca anche offline.
+// Service worker di Gioco Folle!: tiene in memoria tutti i file del gioco, così si gioca anche offline.
 // L'elenco dei file e la versione li scrive la build (vite.config.ts).
 const VERSION = '__VERSIONE__';
 const FILES = [/* __FILE__ */];
 // la grafica 3D: si salva solo quando la pagina dice che serve
 const FILES_3D = [/* __FILE_3D__ */];
+// il prefisso "sdrogopoli-" resta quello di prima così le cache vecchie vengono ripulite
 const CACHE = `sdrogopoli-${VERSION}`;
 
 self.addEventListener('install', (event) => {

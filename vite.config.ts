@@ -15,7 +15,7 @@ function publicFiles(dir = 'public'): string[] {
 // e il file con le licenze delle librerie e dei contenuti inclusi.
 function offline(): Plugin {
   return {
-    name: 'sdrogopoli-offline',
+    name: 'gioco-folle-offline',
     apply: 'build',
     generateBundle(_options, bundle) {
       // subito in memoria: la pagina e il 2D. La grafica 3D (three.js e personaggi) si salva
@@ -47,10 +47,10 @@ function offline(): Plugin {
         .replace('[/* __FILE_3D__ */]', JSON.stringify(later));
       this.emitFile({ type: 'asset', fileName: 'sw.js', source: sw });
       const licenses = [
-        'Sdrogopoli: licenze dei contenuti e delle librerie incluse',
+        'Gioco Folle!: licenze dei contenuti e delle librerie incluse',
         '='.repeat(60),
         '',
-        'Sdrogopoli (codice e contenuti originali), licenza MIT:',
+        'Gioco Folle! (codice e contenuti originali), licenza MIT:',
         '',
         readFileSync('LICENSE', 'utf8').trim(),
         '',
@@ -80,7 +80,7 @@ function offline(): Plugin {
         '',
         '-'.repeat(60),
         '',
-        "Icone, tabellone, testi, suoni e musica sono originali di Sdrogopoli.",
+        "Icone, tabellone, testi, suoni e musica sono originali di Gioco Folle!",
         '',
       ].join('\n');
       this.emitFile({ type: 'asset', fileName: 'licenze.txt', source: licenses });

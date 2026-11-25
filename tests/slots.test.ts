@@ -63,7 +63,7 @@ describe('partite salvate', () => {
   });
 
   it('nome del file senza accenti né spazi', () => {
-    expect(fileName('Partita di Natale à 3!')).toBe('partita-di-natale-a-3.sdrogo');
-    expect(fileName('  ')).toBe('partita.sdrogo');
+    expect(fileName('Partita di Natale à 3!')).toBe('partita-di-natale-a-3.folle');
+    expect(fileName('  ')).toBe('partita.folle');
   });
 });

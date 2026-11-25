@@ -7,7 +7,8 @@ import { validateBoard, type BoardCheck, type BoardData } from '../engine';
 import { readPref, writePref } from './prefs';
 
 export const BOARDS_KEY = 'sdrogopoli-tabelloni';
-export const BOARD_FILE_EXT = '.sdrogo-tabellone';
+export const BOARD_FILE_EXT = '.folle-tabellone';
+export const OLD_BOARD_FILE_EXT = '.sdrogo-tabellone';
 export const LINK_PARAM = 'tabellone';
 // quanti tabelloni si tengono nel browser
 export const MAX_CUSTOM = 12;

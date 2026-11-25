@@ -152,7 +152,7 @@ export function renderLobby(app: HTMLElement, view: LobbyView, h: LobbyHandlers)
         msg.textContent = t('lobby.copyByHand');
       }
     } else if (b.hasAttribute('data-share')) {
-      void navigator.share({ title: 'Sdrogopoli', text: t('lobby.shareText', { code: view.code }), url: link }).catch(() => {});
+      void navigator.share({ title: 'Gioco Folle!', text: t('lobby.shareText', { code: view.code }), url: link }).catch(() => {});
     } else if (b.dataset.computers) h.onComputers(Number(b.dataset.computers));
     else if (b.hasAttribute('data-ready')) h.onReady(b.getAttribute('aria-pressed') !== 'true');
     else if (b.hasAttribute('data-lobby-start')) {

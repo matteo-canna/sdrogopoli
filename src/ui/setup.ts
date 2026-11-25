@@ -3,7 +3,7 @@ import { BOARDS, DEFAULT_BOARD, board, currentBoard, setBoard } from '../data';
 import { savedBoards } from './boardStore';
 import { BOT_LEVELS, BOT_STYLES, PRESETS, SHARE_CUT, SHARES_PER_GROUP, WHEEL_EVERY, estimatedMinutes, type BotStyle, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type GameRules, type PlayerSetup } from '../engine';
 import { reportUrl } from './report';
-import { FILE_EXT, MAX_SLOTS, type Slot } from './slots';
+import { FILE_EXT, MAX_SLOTS, OLD_FILE_EXT, type Slot } from './slots';
 import { escapeHtml } from './view';
 import { renderIntro } from './intro';
 import { buildLabel } from './build';
@@ -12,7 +12,7 @@ import { colorName, characterDef } from './characters';
 import { boardTitle, getLang, t, tn, type MsgKey } from '../i18n';
 import { KEYS, loadLeaderboard, loadProgress, parseProgress, readPref, saveLeaderboard, savePreset, saveProgress, writePref } from './prefs';
 import { ACHIEVEMENTS, achievementText, achievementTitle, EXTRA_COLORS, titleLabel, unlockedTitles } from './achievements';
-import { downloadProfile, parseProfileFile, mergeProgress, profileRows, PROFILE_EXT } from './profile';
+import { downloadProfile, parseProfileFile, mergeProgress, profileRows, OLD_PROFILE_EXT, PROFILE_EXT } from './profile';
 import { DAILY_ROUNDS, dailyPlayers, dailySeed, dailyText, dayId, parseDaily } from './daily';
 import { openSettings } from './settings';
 import { audio } from './audio';
@@ -102,7 +102,7 @@ export interface SlotsOffer {
   onLoad: (id: string) => void;
   onExport: (id: string) => void;
   onDelete: (id: string) => void;
-  // false se il file non è una partita di Sdrogopoli
+  // false se il file non è una partita di Gioco Folle!
   onImport: (file: File) => Promise<boolean>;
 }
 
@@ -122,7 +122,7 @@ function slotsHtml(list: Slot[]): string {
     .join('');
   return `<h2 id="slots-title">💾 ${t('slots.title')}${list.length ? ` <small>(${t('slots.count', { n: list.length, max: MAX_SLOTS })})</small>` : ''}</h2>
     ${list.length ? `<ul class="slot-list">${items}</ul>` : `<p class="hint">${t('slots.empty')}</p>`}
-    <label class="import-file">📂 ${t('slots.import', { ext: FILE_EXT })}<input type="file" accept="${FILE_EXT},.json,application/json" data-import></label>
+    <label class="import-file">📂 ${t('slots.import', { ext: FILE_EXT })}<input type="file" accept="${FILE_EXT},${OLD_FILE_EXT},.json,application/json" data-import></label>
     <p class="slot-msg" role="status" aria-live="polite"></p>`;
 }
 
@@ -214,7 +214,7 @@ export function renderGoals(): string {
       <ul class="profile-stats">${stats}</ul>
       <div class="profile-buttons">
         <button type="button" data-profile-export>${t('profile.export')}</button>
-        <label class="file-label">${t('profile.import')}<input type="file" accept="${PROFILE_EXT},application/json" data-profile-import hidden></label>
+        <label class="file-label">${t('profile.import')}<input type="file" accept="${PROFILE_EXT},${OLD_PROFILE_EXT},application/json" data-profile-import hidden></label>
       </div>
       <p class="hint">${t('profile.hint')}</p>
       <p class="profile-msg" data-profile-msg hidden></p>
@@ -232,7 +232,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     <main class="setup">
       <header class="brand">
         <div class="brand-strip" aria-hidden="true">${board.groups.map((g) => `<span style="background:${g.color}"></span>`).join('')}</div>
-        <h1>Sdrogopoli</h1>
+        <h1>Gioco Folle!</h1>
         <p>${t('setup.tagline', { min: MIN_PLAYERS, max: MAX_PLAYERS })}</p>
       </header>
       ${resume ? `<section class="card resume" aria-labelledby="resume-title">

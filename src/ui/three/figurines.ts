@@ -1,4 +1,4 @@
-// 10 Personaggi-Statuetta 3D Anatomici HD+ da collezione per Sdrogopoli (v5).
+// 10 Personaggi-Statuetta 3D Anatomici HD+ da collezione per Gioco Folle! (v5).
 // Corpi scolpiti con mesh organiche (buildLoft a sezione ellittica/anatomica, pieghe drappeggiate reali,
 // muscolatura/corazze stratificate, mani articolate con 5 dita, calzature scolpite e volti cesellati).
 import * as THREE from 'three';
@@ -1034,7 +1034,7 @@ function buildCharAstronaut(p: Palette, primaryHex: string, accentHex: string): 
     add(head, new THREE.SphereGeometry(0.018, 10, 10), p.glow, s * 0.232, 0.22, 0.075);
   }
 
-  // Bandiera missione SDROGO + capsula campione lunare luminoso
+  // Bandiera missione FOLLE! + capsula campione lunare luminoso
   const flagGrp = new THREE.Group();
   flagGrp.position.set(0.01, -0.02, 0.01);
   add(flagGrp, new THREE.CylinderGeometry(0.014, 0.016, 1.12, 10), p.chrome, 0, 0.36, 0);

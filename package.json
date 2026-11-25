@@ -1,5 +1,5 @@
 {
-  "name": "sdrogopoli",
+  "name": "gioco-folle",
   "private": true,
   "version": "0.2.0",
   "license": "MIT",
@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "build:itch": "tsc --noEmit && vite build --base ./ --outDir dist-itch && vite-node scripts/zip.ts dist-itch sdrogopoli-itch.zip",
+    "build:itch": "tsc --noEmit && vite build --base ./ --outDir dist-itch && vite-node scripts/zip.ts dist-itch gioco-folle-itch.zip",
     "test": "vitest run",
     "e2e": "playwright test",
     "test:watch": "vitest",
