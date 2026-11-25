@@ -1,6 +1,7 @@
 // Catalogo dei personaggi-pedina (modelli KayKit di Kay Lousberg, licenza CC0) e scelte di aspetto.
 import type { Appearance, Player } from '../engine';
 import { t, type MsgKey } from '../i18n';
+import { EXTRA_COLORS } from './achievements';
 
 export interface CharacterDef {
   id: string;
@@ -85,7 +86,10 @@ export const COLOR_CHOICES = ['#e4572e', '#2e86de', '#f4b400', '#8e44ad', '#27ae
 // Nome del colore nella lingua scelta (per chi non distingue i colori e per i lettori di schermo).
 export function colorName(hex: string): string {
   const i = COLOR_CHOICES.indexOf(hex);
-  return i >= 0 ? t(`color.${i}` as MsgKey) : hex;
+  if (i >= 0) return t(`color.${i}` as MsgKey);
+  // colori sbloccati con i traguardi
+  const extra = Object.entries(EXTRA_COLORS).find(([, h]) => h === hex);
+  return extra ? t(`color.${extra[0]}` as MsgKey) : hex;
 }
 
 // Nome dell'oggetto in mano nella lingua scelta.

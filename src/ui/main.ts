@@ -3,7 +3,7 @@
 // e "Annulla" (session.ts), turni del computer (bots.ts), suoni (sounds.ts), preferenze (prefs.ts).
 import './style.css';
 import { board, cards } from '../data';
-import { actingPlayer, applyAction, chooseBotAction, createGame, raiseMoney, RuleError, SEAT_BONUS, type SprintFace, type Action, type Appearance, type GameContext, type GameState, type SaveFile } from '../engine';
+import { actingPlayer, applyAction, chooseBotAction, createGame, emptyStats, raiseMoney, RuleError, SEAT_BONUS, type SprintFace, type Action, type Appearance, type GameContext, type GameState, type SaveFile } from '../engine';
 import { escapeHtml, money, playerBadge, renderBoard, spaceLabel, renderDice, renderPlayers, renderSpaceCard, renderTable, renderTradeEditor, renderTurnActions, tradeSummaryHtml, type TradeDraft } from './view';
 import type { Board3D } from './three/board3d';
 import type { CameraMode } from './three/camera';
@@ -13,9 +13,10 @@ import { load3d } from './lazy3d';
 import { runLoading, translateSplash } from './loading';
 import { tutorialTip } from './tutorial';
 import { addResult, renderSummary } from './summary';
-import { characterDef, playerColor } from './characters';
+import { achievementTitle, EXTRA_COLORS, newlyUnlocked, titleLabel, updateProfile } from './achievements';
+import { characterDef, colorName, playerColor } from './characters';
 import { audio } from './audio';
-import { KEYS, SKY_LABELS, SPEEDS, loadLeaderboard, loadSky, loadSpeed, loadTutorial, readPref, saveLeaderboard, saveTutorial, writePref, type Speed } from './prefs';
+import { KEYS, SKY_LABELS, SPEEDS, loadLeaderboard, loadPreset, loadProgress, loadSky, loadSpeed, loadTutorial, readPref, saveLeaderboard, saveProgress, saveTutorial, writePref, type Speed } from './prefs';
 import { GameSession, randomSeed } from './session';
 import { BotScheduler } from './bots';
 import { soundFor } from './sounds';
@@ -536,7 +537,7 @@ function infoHtml(s: GameState): string {
   const fresh = Math.min(Math.max((s.eventCount ?? 0) - newsFrom, 0), s.log.length, 8);
   const news = fresh ? s.log.slice(-fresh) : [];
   return `
-    ${s.phase === 'gameOver' ? renderSummary(s, ctx) : ''}
+    ${s.phase === 'gameOver' ? renderSummary(s, ctx, { titles: myTitles(s), unlocked: newGoals }) : ''}
     ${news.length ? `<div class="news"><h4>${t('news.title')}</h4><ul>${news.map((l) => `<li>${escapeHtml(text(l))}</li>`).join('')}</ul></div>` : ''}
     ${selected ? '' : `<p class="hint">${t('hint.tapSpace')}</p>`}
     <details class="log-box"><summary>${t('log.title')}</summary>
@@ -848,6 +849,41 @@ function soleHuman(s: GameState): number | null {
   return people.length === 1 ? people[0].id : null;
 }
 
+// I posti giocati da una persona su questo dispositivo (online è solo il proprio).
+function mySeats(s: GameState): number[] {
+  if (online) {
+    const seat = mySeat();
+    return seat === null ? [] : [seat];
+  }
+  return s.players.filter((p) => !p.isBot).map((p) => p.id);
+}
+
+// Traguardi appena raggiunti (si mostrano nel riepilogo) e profilo aggiornato.
+let newGoals: { icon: string; title: string; prize: string }[] = [];
+function checkGoals(state: GameState): void {
+  newGoals = [];
+  const presetId = loadPreset();
+  for (const seat of mySeats(state)) {
+    const progress = loadProgress();
+    const base = { state, ctx, seat, stats: state.stats?.[seat] ?? emptyStats(), online: !!online };
+    const profile = updateProfile(progress.profile, base, presetId);
+    const fresh = newlyUnlocked({ ...base, profile }, progress.unlocked);
+    saveProgress({ ...progress, profile, unlocked: [...progress.unlocked, ...fresh.map((a) => a.id)] });
+    for (const a of fresh) {
+      const prize = a.unlock.kind === 'color' ? t('goals.prizeColor', { name: colorName(EXTRA_COLORS[a.unlock.id]) }) : t('goals.prizeTitle', { name: titleLabel(a.unlock.id) });
+      newGoals.push({ icon: a.icon, title: achievementTitle(a.id), prize });
+    }
+  }
+  if (newGoals.length) audio.play('win');
+}
+
+// Il titolo scelto, accanto al proprio nome nel riepilogo.
+function myTitles(s: GameState): Record<number, string> {
+  const title = loadProgress().title;
+  if (!title) return {};
+  return Object.fromEntries(mySeats(s).map((seat) => [seat, titleLabel(title)]));
+}
+
 // Suoni, dadi, classifica e carta della casella dopo una mossa (fatta qui o arrivata dal tavolo).
 function afterMove(prev: GameState, state: GameState, action: Action, mine: boolean): void {
   announce(...moveAnnouncement(prev, state, online ? mySeat() : soleHuman(state)));
@@ -868,7 +904,10 @@ function afterMove(prev: GameState, state: GameState, action: Action, mine: bool
     if (state.lastRoll) board3d?.showDice(state.lastRoll, prev.current);
   }
   // partita appena finita: il risultato entra nella classifica tra amici
-  if (prev.phase !== 'gameOver' && state.phase === 'gameOver') saveLeaderboard(addResult(loadLeaderboard(), state, ctx));
+  if (prev.phase !== 'gameOver' && state.phase === 'gameOver') {
+    saveLeaderboard(addResult(loadLeaderboard(), state, ctx));
+    checkGoals(state);
+  }
   const sfx = soundFor(prev, state, action);
   // il suono del lancio c'è già: dopo un attimo quello del risultato
   if (sfx && sfx !== 'dice') setTimeout(() => audio.play(sfx), action.type === 'roll' ? 450 / speed.factor : 0);

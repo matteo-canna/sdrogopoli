@@ -87,7 +87,8 @@ function chartSvg(state: GameState): string {
     </figure>`;
 }
 
-export function renderSummary(state: GameState, ctx: GameContext): string {
+// `extra`: il titolo scelto da chi gioca qui (per posto) e i traguardi appena raggiunti.
+export function renderSummary(state: GameState, ctx: GameContext, extra?: { titles?: Record<number, string>; unlocked?: { icon: string; title: string; prize: string }[] }): string {
   // medaglie per i primi tre, poi la posizione (fino all'8°)
   const medals = ['🥇', '🥈', '🥉'];
   const order = standings(state, ctx);
@@ -97,7 +98,7 @@ export function renderSummary(state: GameState, ctx: GameContext): string {
       const st = statsOf(state, id);
       const what = p.bankrupt ? t('summary.bankruptAt', { n: st.bankruptRound ?? '?' }) : t('summary.worth', { amount: `${SYMBOL} ${netWorth(state, ctx, id)}` });
       return `<li><span class="medal">${medals[rank] ?? `${rank + 1}°`}</span><span class="token" style="background:${playerColor(p)}"></span>
-        <strong>${p.isBot ? '🤖 ' : ''}${esc(p.name)}</strong><span class="what">${what}</span></li>`;
+        <strong>${p.isBot ? '🤖 ' : ''}${esc(p.name)}</strong>${extra?.titles?.[id] ? `<span class="player-title">${esc(extra.titles[id])}</span>` : ''}<span class="what">${what}</span></li>`;
     })
     .join('');
   const prizes = awards(state)
@@ -108,6 +109,13 @@ export function renderSummary(state: GameState, ctx: GameContext): string {
       <ol class="standings">${rows}</ol>
       ${chartSvg(state)}
       ${prizes ? `<h4>${t('summary.awards')}</h4><ul class="awards">${prizes}</ul>` : ''}
+      ${
+        extra?.unlocked?.length
+          ? `<h4>🎖️ ${t(extra.unlocked.length === 1 ? 'goals.new' : 'goals.newMany')}</h4><ul class="awards new-goals">${extra.unlocked
+              .map((u) => `<li><span class="award-emoji">${u.icon}</span><div><strong>${esc(u.title)}</strong><br><small>${esc(u.prize)}</small></div></li>`)
+              .join('')}</ul>`
+          : ''
+      }
     </section>`;
 }
 

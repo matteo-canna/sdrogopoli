@@ -216,3 +216,20 @@
 }
 .view3d-reset:hover { background: var(--accent-soft); }
 .view3d-reset[hidden], .space-tag[hidden] { display: none; }
+
+/* ---------- traguardi ---------- */
+.goals { margin-top: 12px; padding: 12px 14px; background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow-s); text-align: left; }
+.goals > summary { font-weight: 700; cursor: pointer; }
+.goal-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.goal { display: flex; gap: 10px; align-items: flex-start; padding: 6px 8px; border-radius: 10px; background: var(--space); opacity: 0.6; }
+.goal.done { opacity: 1; background: var(--accent-soft); }
+.goal-icon { font-size: 1.3em; line-height: 1.2; }
+.goal small { color: var(--muted); }
+.player-title { font-size: 0.85em; color: var(--muted); font-style: italic; }
+.new-goals li { background: var(--accent-soft); border-radius: 10px; padding: 6px 8px; }
+.goals h4 { margin: 10px 0 4px; font-size: 1em; }
+.profile-stats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 2px 14px; }
+.profile-stats li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--line); }
+.profile-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.file-label { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--space); cursor: pointer; }
+.profile-msg { margin: 6px 0 0; font-weight: 600; color: var(--accent); }
