@@ -129,3 +129,11 @@
 .said span { font-size: 1.1em; }
 @keyframes said-in { from { opacity: 0; transform: translateY(-8px); } }
 @media (prefers-reduced-motion: reduce) { .said { animation: none; } }
+
+/* ---------- scambi ---------- */
+.offer-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0; }
+.offer-cols > div { background: var(--space); border-radius: 8px; padding: 6px 8px; border: 1px solid var(--line); }
+.offer-label { display: block; font-size: 0.8em; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+.trade-note { margin: 6px 0 0; font-size: 0.9em; color: var(--muted); }
+.trade-note.complete { color: var(--ink); padding: 6px 8px; border-radius: 8px; background: var(--space); border-left: 5px solid var(--g); }
+@media (max-width: 420px) { .offer-cols { grid-template-columns: 1fr; } }

@@ -1,7 +1,7 @@
 // Giocatore controllato dal computer: sceglie sempre un'azione valida in base allo stato.
 // Il livello (facile, normale, difficile) e il carattere (costruttore, collezionista…) cambiano
 // alcune manopole: riserva di soldi, voglia di comprare e costruire, offerte e scambi.
-import { actingPlayer, computeRent, interestOn, ownsWholeGroup, unmortgageCost, HOTEL, MIN_BID, type Action } from './rules';
+import { actingPlayer, computeRent, interestOn, ownsWholeGroup, unmortgageCost, HOTEL, MAX_COUNTERS, MIN_BID, type Action } from './rules';
 import type { BotLevel, BotProfile, BotStyle, GameContext, GameState, Player, TradeSide } from './state';
 import { JAIL_FINE } from './state';
 import type { PropertySpace, Space } from './types';
@@ -47,6 +47,8 @@ interface Knobs {
   // valore in più per fermate e servizi
   stationBonus: number;
   payJail: boolean;
+  // risponde alle offerte troppo basse con una controproposta
+  counters: boolean;
 }
 
 export function botKnobs(profile: BotProfile = DEFAULT_BOT): Knobs {
@@ -63,6 +65,7 @@ export function botKnobs(profile: BotProfile = DEFAULT_BOT): Knobs {
     buyOnlyUseful: false,
     stationBonus: 0,
     payJail: true,
+    counters: true,
   };
   if (profile.level === 'facile') {
     Object.assign(k, {
@@ -73,6 +76,7 @@ export function botKnobs(profile: BotProfile = DEFAULT_BOT): Knobs {
       acceptMargin: 0.85,
       proposeTrades: false,
       payJail: false,
+      counters: false,
     });
   } else if (profile.level === 'difficile') {
     Object.assign(k, {
@@ -310,7 +314,15 @@ function chooseTradeResponse(state: GameState, ctx: GameContext): Action {
       const price = 'price' in space ? space.price : 0;
       return sum + (wouldComplete(state, ctx, t.from, id) ? price * 2 : price) + (wouldCompleteMine(id) ? price * 1.5 : 0);
     }, 0);
-  return received >= lost * k.acceptMargin && received > 0 ? { type: 'acceptTrade' } : { type: 'rejectTrade' };
+  if (received >= lost * k.acceptMargin && received > 0) return { type: 'acceptTrade' };
+  // offerta di soldi per le mie vie, non troppo lontana: chiedo quanto mi serve per accettare
+  if (k.counters && (t.counters ?? 0) < MAX_COUNTERS && !t.give.spaces.length && t.get.spaces.length && !t.get.money && received >= lost * 0.6) {
+    const ask = Math.ceil((lost * k.acceptMargin + interest) / 10) * 10;
+    if (ask <= Math.max(state.players[t.from].money, 0)) {
+      return { type: 'counterTrade', offer: { give: { money: 0, spaces: [...t.get.spaces] }, get: { money: ask, spaces: [] } } };
+    }
+  }
+  return { type: 'rejectTrade' };
 
   // vero se la casella fa parte di un quartiere che possiedo già tutto
   function wouldCompleteMine(id: string): boolean {

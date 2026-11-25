@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { board, cards } from '../src/data';
-import { applyAction, chooseBotAction, createGame, seededRng, type GameContext } from '../src/engine';
+import { actingPlayer, applyAction, chooseBotAction, tradeCompletions, createGame, seededRng, type GameContext } from '../src/engine';
 import { ctxWith, newGame, own } from './helpers';
 
 describe('giocatore computer', () => {
@@ -97,6 +97,41 @@ describe('computer: aste e scambi', () => {
     own(t, 'periferia-1', 0);
     own(t, 'periferia-2', 1);
     t = applyAction(t, { type: 'proposeTrade', offer: { to: 1, give: { money: 80, spaces: [] }, get: { money: 0, spaces: ['periferia-2'] } } }, ctxWith());
-    expect(chooseBotAction(t, ctxWith())).toEqual({ type: 'rejectTrade' });
+    // non regala il quartiere: risponde chiedendo di più
+    const answer = chooseBotAction(t, ctxWith());
+    expect(answer.type).toBe('counterTrade');
+    if (answer.type === 'counterTrade') {
+      expect(answer.offer.give.spaces).toEqual(['periferia-2']);
+      expect(answer.offer.get.money).toBeGreaterThan(80);
+    }
+    // un'offerta ridicola si rifiuta e basta
+    let u = applyAction(newGame(), { type: 'roll' }, ctxWith(1, 3));
+    own(u, 'periferia-1', 0);
+    own(u, 'periferia-2', 1);
+    u = applyAction(u, { type: 'proposeTrade', offer: { to: 1, give: { money: 10, spaces: [] }, get: { money: 0, spaces: ['periferia-2'] } } }, ctxWith());
+    expect(chooseBotAction(u, ctxWith())).toEqual({ type: 'rejectTrade' });
+  });
+
+  it('controproposta: si scambiano i ruoli, al massimo due volte', () => {
+    let s = applyAction(newGame(), { type: 'roll' }, ctxWith(1, 3));
+    own(s, 'borgo-1', 1);
+    s = applyAction(s, { type: 'proposeTrade', offer: { to: 1, give: { money: 100, spaces: [] }, get: { money: 0, spaces: ['borgo-1'] } } }, ctxWith());
+    expect(actingPlayer(s)).toBe(1);
+    s = applyAction(s, { type: 'counterTrade', offer: { give: { money: 0, spaces: ['borgo-1'] }, get: { money: 250, spaces: [] } } }, ctxWith());
+    expect(s.trade).toMatchObject({ from: 1, to: 0, get: { money: 250 }, counters: 1 });
+    expect(actingPlayer(s)).toBe(0);
+    s = applyAction(s, { type: 'counterTrade', offer: { give: { money: 180, spaces: [] }, get: { money: 0, spaces: ['borgo-1'] } } }, ctxWith());
+    expect(s.trade).toMatchObject({ from: 0, to: 1, counters: 2 });
+    expect(() => applyAction(s, { type: 'counterTrade', offer: { give: { money: 0, spaces: ['borgo-1'] }, get: { money: 200, spaces: [] } } }, ctxWith())).toThrow(/Basta controproposte/);
+    // chi non possiede le vie non può offrirle
+    expect(() => applyAction(s, { type: 'acceptTrade' }, ctxWith())).not.toThrow();
+  });
+
+  it('dice chi completa quale quartiere', () => {
+    const s = applyAction(newGame(), { type: 'roll' }, ctxWith(1, 3));
+    own(s, 'periferia-1', 0);
+    own(s, 'periferia-2', 1);
+    expect(tradeCompletions(s, ctxWith(), { from: 0, to: 1, give: { money: 100, spaces: [] }, get: { money: 0, spaces: ['periferia-2'] } })).toEqual([{ player: 0, group: 'periferia' }]);
+    expect(tradeCompletions(s, ctxWith(), { from: 0, to: 1, give: { money: 100, spaces: [] }, get: { money: 0, spaces: [] } })).toEqual([]);
   });
 });
