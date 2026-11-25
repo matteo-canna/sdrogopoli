@@ -65,9 +65,9 @@ export interface GameRules {
 }
 
 // Facce del Dado Sprint: passi in più, "Occasione" (si prosegue fino alla prossima proprietà
-// in vendita) e "Affitto pieno" (l'affitto pagato con questo lancio aumenta del 50%).
+// in vendita) e "Affitto pieno" (l'affitto pagato con questo lancio raddoppia).
 export type SprintFace = 1 | 2 | 3 | 'occasione' | 'pieno';
-export const SPRINT_FACES: SprintFace[] = [1, 2, 3, 'occasione', 'occasione', 'pieno'];
+export const SPRINT_FACES: SprintFace[] = [1, 2, 3, 'occasione', 'pieno', 'pieno'];
 
 // Bonus consigliato per chi gioca dopo: con 4 giocatori il primo vince circa quanto gli altri.
 export const SEAT_BONUS = 30;
@@ -109,7 +109,8 @@ export interface Ownership {
 //  - 'buy': è finito su una proprietà libera e deve decidere se comprarla
 //  - 'endTurn': ha finito di muoversi e può gestire le proprietà o passare il turno
 //  - 'auction': la casella rifiutata va all'asta tra tutti i giocatori
-export type Phase = 'roll' | 'buy' | 'auction' | 'endTurn' | 'gameOver';
+// cardChoice: chi ha pescato una carta con scelta deve decidere
+export type Phase = 'roll' | 'buy' | 'auction' | 'cardChoice' | 'endTurn' | 'gameOver';
 
 // Asta in corso: i giocatori rilanciano a turno, chi passa esce dall'asta.
 export interface Auction {
@@ -150,6 +151,8 @@ export interface GameState {
   lastRoll: [number, number] | null;
   // faccia del Dado Sprint all'ultimo lancio (solo con la regola attiva)
   lastSprint?: SprintFace | null;
+  // carta con scelta in attesa di risposta (fase cardChoice)
+  pendingCard?: string | null;
   // "Affitto pieno" attivo per l'arrivo di questo lancio
   sprintRent?: boolean;
   // perché la partita è finita (per il riepilogo)

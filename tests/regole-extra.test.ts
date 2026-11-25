@@ -63,12 +63,12 @@ describe('Dado Sprint', () => {
     expect(next.phase).toBe('buy');
   });
 
-  it('"Affitto pieno" fa pagare il 50% in più', () => {
+  it('"Affitto pieno" fa pagare il doppio', () => {
     const s = withRules(newGame(), { sprintDie: true });
     own(s, 'borgo-1', 1);
     const next = applyAction(s, { type: 'roll' }, ctxWith(2, 4, 6));
     expect(next.lastSprint).toBe('pieno');
-    expect(next.players[1].money - s.players[1].money).toBe(9);
+    expect(next.players[1].money - s.players[1].money).toBe(12);
   });
 
   it('accorcia le partite tra computer', () => {
@@ -95,5 +95,39 @@ describe('tipi di partita', () => {
     }
     expect(estimatedMinutes({ rounds: 30 }, 4, 0)).toBe(50);
     expect(estimatedMinutes({ rounds: 30 }, 1, 3)).toBeLessThan(estimatedMinutes({ rounds: 30 }, 4, 0));
+  });
+});
+
+describe('carte con scelta', () => {
+  function drawing(cardId: string, deck: 'sorte' | 'quartiere'): GameState {
+    const s = newGame();
+    s.decks[deck] = [cardId, ...s.decks[deck].filter((id) => id !== cardId)];
+    s.players[0].position = deck === 'quartiere' ? 0 : 5;
+    return s;
+  }
+
+  it('chi pesca sceglie, e il turno prosegue', () => {
+    const s = applyAction(drawing('sorte-15', 'sorte'), { type: 'roll' }, ctxWith(1, 1));
+    expect(s.phase).toBe('cardChoice');
+    expect(s.pendingCard).toBe('sorte-15');
+    // con una scelta in sospeso non si fa altro
+    expect(() => applyAction(s, { type: 'endTurn' }, ctxWith())).toThrow();
+    const a = applyAction(s, { type: 'chooseCard', option: 0 }, ctxWith());
+    expect(a.players[0].money).toBe(s.players[0].money + 70);
+    // era un doppio: si rilancia
+    expect(a.phase).toBe('roll');
+    const b = applyAction(s, { type: 'chooseCard', option: 1 }, ctxWith());
+    expect(b.players[0].position).toBe(10);
+    expect(() => applyAction(s, { type: 'chooseCard', option: 5 }, ctxWith())).toThrow(/Scelta non valida/);
+  });
+
+  it('il computer sceglie l\'opzione che conviene', () => {
+    const s = applyAction(drawing('quartiere-14', 'quartiere'), { type: 'roll' }, ctxWith(1, 1));
+    s.players[0].isBot = true;
+    // tornare alla Partenza (stipendio) vale più di 40
+    expect(chooseBotAction(s, { board, cards })).toEqual({ type: 'chooseCard', option: 0 });
+    const f = structuredClone(s);
+    f.players[0].bot = { level: 'facile', style: 'equilibrato' };
+    expect(chooseBotAction(f, { board, cards })).toEqual({ type: 'chooseCard', option: 0 });
   });
 });

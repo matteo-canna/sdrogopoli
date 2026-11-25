@@ -17,17 +17,27 @@
     { "id": "sorte-11", "deck": "sorte", "text": "Tegole volate via col vento. Paga 30 per ogni casa e 90 per ogni palazzo.", "effect": { "kind": "repairs", "perHouse": 30, "perHotel": 90 } },
     { "id": "sorte-12", "deck": "sorte", "text": "Trovi un biglietto vincente nella giacca dell'anno scorso. Incassa 60.", "effect": { "kind": "gain", "amount": 60 } },
 
-    { "id": "quartiere-01", "deck": "quartiere", "text": "La portinaia ti restituisce il resto dimenticato. Incassa 180.", "effect": { "kind": "gain", "amount": 180 } },
-    { "id": "quartiere-02", "deck": "quartiere", "text": "Visita dal dentista. Paga 80.", "effect": { "kind": "pay", "amount": 80 } },
+    { "id": "quartiere-01", "deck": "quartiere", "text": "La portinaia ti restituisce il resto dimenticato. Incassa 110.", "effect": { "kind": "gain", "amount": 110 } },
+    { "id": "quartiere-02", "deck": "quartiere", "text": "Visita dal dentista. Paga 110.", "effect": { "kind": "pay", "amount": 110 } },
     { "id": "quartiere-03", "deck": "quartiere", "text": "È il tuo compleanno! Ogni giocatore ti regala 15.", "effect": { "kind": "collectFromEachPlayer", "amount": 15 } },
     { "id": "quartiere-04", "deck": "quartiere", "text": "Rimborso della bolletta pagata due volte. Incassa 30.", "effect": { "kind": "gain", "amount": 30 } },
-    { "id": "quartiere-05", "deck": "quartiere", "text": "Iscrizione alla palestra che non userai mai. Paga 60.", "effect": { "kind": "pay", "amount": 60 } },
+    { "id": "quartiere-05", "deck": "quartiere", "text": "Iscrizione alla palestra che non userai mai. Paga 90.", "effect": { "kind": "pay", "amount": 90 } },
     { "id": "quartiere-06", "deck": "quartiere", "text": "Vendi la bici vecchia al mercatino. Incassa 35.", "effect": { "kind": "gain", "amount": 35 } },
     { "id": "quartiere-07", "deck": "quartiere", "text": "Si va al mare! Torna alla Partenza e ritira lo stipendio.", "effect": { "kind": "moveTo", "space": "partenza" } },
     { "id": "quartiere-08", "deck": "quartiere", "text": "Hai parcheggiato sul marciapiede. Vai in Caserma.", "effect": { "kind": "goToJail" } },
     { "id": "quartiere-09", "deck": "quartiere", "text": "La nonna ti lascia una busta nel cappotto. Esci gratis dalla Caserma (conserva la carta).", "effect": { "kind": "getOutOfJailFree" } },
     { "id": "quartiere-10", "deck": "quartiere", "text": "L'assemblea di condominio vota i lavori. Paga 35 per ogni casa e 110 per ogni palazzo.", "effect": { "kind": "repairs", "perHouse": 35, "perHotel": 110 } },
     { "id": "quartiere-11", "deck": "quartiere", "text": "Il tuo cane vince il premio simpatia alla sagra. Incassa 15.", "effect": { "kind": "gain", "amount": 15 } },
-    { "id": "quartiere-12", "deck": "quartiere", "text": "Gli interessi del libretto postale maturano. Incassa 90.", "effect": { "kind": "gain", "amount": 90 } }
+    { "id": "quartiere-12", "deck": "quartiere", "text": "Gli interessi del libretto postale maturano. Incassa 40.", "effect": { "kind": "gain", "amount": 40 } },
+
+    { "id": "sorte-13", "deck": "sorte", "text": "Un turista ti chiede la strada e ti offre un passaggio.", "effect": { "kind": "choice", "options": [{ "label": "Accetti il passaggio fino alla fermata più vicina", "effect": { "kind": "moveToNearest", "spaceType": "station" } }, { "label": "Rifiuti e accetti la mancia: incassi 40", "effect": { "kind": "gain", "amount": 40 } }] } },
+    { "id": "sorte-14", "deck": "sorte", "text": "Multa per la musica troppo alta dopo mezzanotte.", "effect": { "kind": "choice", "options": [{ "label": "Paghi subito 55", "effect": { "kind": "pay", "amount": 55 } }, { "label": "Fai storie con i Vigili: vai in Caserma", "effect": { "kind": "goToJail" } }] } },
+    { "id": "sorte-15", "deck": "sorte", "text": "Ti offrono un lavoretto al mercato rionale.", "effect": { "kind": "choice", "options": [{ "label": "Accetti: incassi 70", "effect": { "kind": "gain", "amount": 70 } }, { "label": "Preferisci la scorciatoia: avanzi di 3 caselle", "effect": { "kind": "moveBy", "steps": 3 } }] } },
+    { "id": "sorte-16", "deck": "sorte", "text": "Il motorino ti lascia a piedi in salita. Riparazione: paga 110.", "effect": { "kind": "pay", "amount": 110 } },
+
+    { "id": "quartiere-13", "deck": "quartiere", "text": "Festa di quartiere: chi offre il rinfresco?", "effect": { "kind": "choice", "options": [{ "label": "Offri tu: paghi 20 a ogni giocatore", "effect": { "kind": "payEachPlayer", "amount": 20 } }, { "label": "Chiami il catering: paghi 70 alla banca", "effect": { "kind": "pay", "amount": 70 } }] } },
+    { "id": "quartiere-14", "deck": "quartiere", "text": "Il vicino vende il suo vecchio scooter a poco.", "effect": { "kind": "choice", "options": [{ "label": "Lo provi subito: vai alla Partenza e ritiri lo stipendio", "effect": { "kind": "moveTo", "space": "partenza" } }, { "label": "Lo rivendi al volo: incassi 40", "effect": { "kind": "gain", "amount": 40 } }] } },
+    { "id": "quartiere-15", "deck": "quartiere", "text": "Infiltrazioni dal tetto: bisogna sistemare.", "effect": { "kind": "choice", "options": [{ "label": "Fai da te: paghi 15 per ogni casa e 45 per ogni palazzo", "effect": { "kind": "repairs", "perHouse": 15, "perHotel": 45 } }, { "label": "Chiami la ditta: paghi 60", "effect": { "kind": "pay", "amount": 60 } }] } },
+    { "id": "quartiere-16", "deck": "quartiere", "text": "Sbagli la raccolta differenziata per tutto il mese. Paga 140.", "effect": { "kind": "pay", "amount": 140 } }
   ]
 }

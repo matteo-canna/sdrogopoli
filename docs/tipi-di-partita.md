@@ -5,8 +5,8 @@ I minuti sono una stima per 4 persone, con 25 secondi a turno.
 
 | Tipo | Regole | Finite | Giri (mediana) | 90° percentile | Minuti in 4 persone | Nel gioco |
 |---|---|---|---|---|---|---|
-| Classica | `{}` | 299 | 46 | 71 | 75 | 47 |
-| Rapida | `{"quickStart":true}` | 298 | 31 | 55 | 50 | 31 |
-| Sprint | `{"quickStart":true,"sprintDie":true}` | 298 | 28 | 58 | 45 | 28 |
-| Obiettivo | `{"goalGroups":2,"goalWorth":4000}` | 300 | 21 | 34 | 35 | 20 |
+| Classica | `{}` | 299 | 46 | 77 | 75 | 46 |
+| Rapida | `{"quickStart":true}` | 299 | 28 | 51 | 45 | 31 |
+| Sprint | `{"quickStart":true,"sprintDie":true}` | 300 | 26 | 48 | 45 | 28 |
+| Obiettivo | `{"goalGroups":2,"goalWorth":4000}` | 300 | 21 | 36 | 35 | 21 |
 | Breve | `{"quickStart":true,"maxRounds":15}` | 300 | 15 | 15 | 25 | 15 |

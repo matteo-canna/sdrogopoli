@@ -829,6 +829,8 @@ app.addEventListener('click', (e) => {
       return render();
     case 'bid':
       return act({ type: 'bid', amount: Number(target.dataset.amount) });
+    case 'chooseCard':
+      return act({ type: 'chooseCard', option: Number(target.dataset.option) });
     case 'pass':
     case 'acceptTrade':
     case 'rejectTrade':

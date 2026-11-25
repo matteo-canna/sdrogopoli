@@ -242,6 +242,14 @@ export function renderTurnActions(state: GameState): string {
     b.push(`<button data-action="pass">Passa</button>`);
     return b.join('');
   }
+  if (state.phase === 'cardChoice') {
+    const card = cards.cards.find((c) => c.id === state.pendingCard);
+    if (card?.effect.kind === 'choice') {
+      b.push(`<div class="offer card-choice"><h4>🃏 ${escapeHtml(cards.decks[card.deck].name)}</h4><p>${escapeHtml(card.text)}</p><p class="hint">Scegli:</p></div>`);
+      card.effect.options.forEach((o, i) => b.push(`<button class="${i === 0 ? 'primary' : ''}" data-action="chooseCard" data-option="${i}">${escapeHtml(o.label)}</button>`));
+      return b.join('');
+    }
+  }
   if (state.phase === 'roll') {
     if (p.inJail) {
       b.push(`<button data-action="payJailFine" ${p.money < 50 ? 'disabled' : ''}>Paga ${money(50)} ed esci</button>`);

@@ -280,7 +280,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
           <label class="check"><input type="checkbox" name="tips" ${tipsOn ? 'checked' : ''}> Consigli durante la partita (utile la prima volta)</label>
           <label class="check"><input type="checkbox" name="quick"> Partita rapida: ognuno parte con ${QUICK_START_PROPERTIES} proprietà a caso (${QUICK_START_TWO_PLAYERS} se si è in due, meno se si è in tanti: le proprietà sono ${board.spaces.filter((sp) => sp.type === 'property').length})</label>
           <label class="check"><input type="checkbox" name="bonus" checked> Chi gioca dopo parte con ${board.currency.symbol} <span data-bonus-amount>${SEAT_BONUS}</span> in più per ogni posto (compensa il vantaggio di chi inizia)</label>
-          <label class="check"><input type="checkbox" name="sprint"> 🎲 Dado Sprint: un terzo dado con passi in più, "Occasione" (si prosegue fino alla prossima proprietà in vendita) e "Affitto pieno" (+50%)</label>
+          <label class="check"><input type="checkbox" name="sprint"> 🎲 Dado Sprint: un terzo dado con passi in più, "Occasione" (si prosegue fino alla prossima proprietà in vendita) e "Affitto pieno" (affitto doppio)</label>
           <label>Obiettivo per vincere prima
             <select name="goal">
               <option value="">Nessuno</option>
