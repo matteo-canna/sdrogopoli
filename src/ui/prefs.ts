@@ -3,6 +3,7 @@
 import type { SkyMode } from './three/city';
 import type { MsgKey } from '../i18n';
 import { sortLeaderboard, type LeaderEntry } from './summary';
+import { ACHIEVEMENTS, emptyProfile, unlockedTitles, type Profile } from './achievements';
 
 export const KEYS = {
   save: 'sdrogopoli-partita',
@@ -15,6 +16,8 @@ export const KEYS = {
   slots: 'sdrogopoli-salvataggi',
   onlineName: 'sdrogopoli-nome-online',
   settings: 'sdrogopoli-impostazioni',
+  profile: 'sdrogopoli-profilo',
+  preset: 'sdrogopoli-tipo-partita',
 } as const;
 
 export function readPref(key: string): string | null {
@@ -94,4 +97,62 @@ export function loadTutorial(): TutorialPrefs {
 
 export function saveTutorial(t: TutorialPrefs): void {
   writePref(KEYS.tutorial, JSON.stringify({ on: t.on, seen: [...t.seen] }));
+}
+
+// ---------- traguardi e profilo ----------
+
+export interface Progress {
+  profile: Profile;
+  // id dei traguardi raggiunti, nell'ordine in cui sono arrivati
+  unlocked: string[];
+  // titolo scelto da mettere accanto al proprio nome ('' = nessuno)
+  title: string;
+}
+
+export function emptyProgress(): Progress {
+  return { profile: emptyProfile(), unlocked: [], title: '' };
+}
+
+// Legge i traguardi scartando quello che non si riconosce (file vecchi o modificati a mano).
+export function parseProgress(raw: string | null): Progress {
+  const base = emptyProgress();
+  try {
+    const o = JSON.parse(raw ?? '{}') ?? {};
+    const ids = new Set(ACHIEVEMENTS.map((a) => a.id));
+    const unlocked = Array.isArray(o.unlocked) ? [...new Set(o.unlocked.filter((x: unknown) => typeof x === 'string' && ids.has(x)))] : [];
+    const p = o.profile ?? {};
+    const num = (v: unknown) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.floor(Number(v)) : 0);
+    const profile: Profile = {
+      games: num(p.games),
+      wins: num(p.wins),
+      bestWorth: num(p.bestWorth),
+      rentReceived: num(p.rentReceived),
+      built: num(p.built),
+      trades: num(p.trades),
+      cleanGames: num(p.cleanGames),
+      winsByPreset: Object.fromEntries(Object.entries(p.winsByPreset ?? {}).map(([k, v]) => [String(k), num(v)])),
+      onlineWins: num(p.onlineWins),
+    };
+    const titles = unlockedTitles(unlocked as string[]);
+    return { profile, unlocked: unlocked as string[], title: titles.includes(o.title) ? o.title : base.title };
+  } catch {
+    return base;
+  }
+}
+
+export function loadProgress(): Progress {
+  return parseProgress(readPref(KEYS.profile));
+}
+
+export function saveProgress(p: Progress): void {
+  writePref(KEYS.profile, JSON.stringify(p));
+}
+
+// Tipo di partita scelto l'ultima volta (serve ai traguardi).
+export function loadPreset(): string {
+  return readPref(KEYS.preset) ?? 'classica';
+}
+
+export function savePreset(id: string): void {
+  writePref(KEYS.preset, id);
 }

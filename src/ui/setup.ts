@@ -12,7 +12,9 @@ import { version } from '../../package.json';
 import { renderLeaderboard } from './summary';
 import { CHARACTERS, COLOR_CHOICES, colorName, itemName, characterDef, defaultAppearance } from './characters';
 import { getLang, t, tn, type MsgKey } from '../i18n';
-import { KEYS, loadLeaderboard, readPref, saveLeaderboard, writePref } from './prefs';
+import { KEYS, loadLeaderboard, loadProgress, parseProgress, readPref, saveLeaderboard, savePreset, saveProgress, writePref } from './prefs';
+import { ACHIEVEMENTS, achievementText, achievementTitle, EXTRA_COLORS, titleLabel, unlockedColors, unlockedTitles } from './achievements';
+import { downloadProfile, parseProfileFile, mergeProgress, profileRows, PROFILE_EXT } from './profile';
 import { openSettings } from './settings';
 import { audio } from './audio';
 
@@ -71,7 +73,9 @@ function lookEditorHtml(i: number): string {
           ${CHARACTERS.map((c) => `<button type="button" class="chip-btn" role="radio" aria-checked="${c.id === look.character}" data-character="${c.id}">${c.emoji} ${c.label}</button>`).join('')}
         </div>
         <div class="look-group swatches" role="radiogroup" aria-label="${t('look.color')}">
-          ${COLOR_CHOICES.map((col) => `<button type="button" class="swatch" role="radio" aria-checked="${col === look.color}" data-color="${col}" style="background:${col}" title="${colorName(col)}" aria-label="${colorName(col)}"></button>`).join('')}
+          ${[...COLOR_CHOICES, ...unlockedColors(loadProgress().unlocked).map((c) => c.hex)]
+            .map((col) => `<button type="button" class="swatch" role="radio" aria-checked="${col === look.color}" data-color="${col}" style="background:${col}" title="${colorName(col)}" aria-label="${colorName(col)}"></button>`)
+            .join('')}
         </div>
         ${def.hat ? `<label class="check"><input type="checkbox" data-hat ${look.hat ? 'checked' : ''}> ${t('look.hat')}</label>` : ''}
         <label class="check"><input type="checkbox" data-cape ${look.cape ? 'checked' : ''}> ${t('look.cape')}</label>
@@ -211,6 +215,43 @@ function goalValue(r: Partial<GameRules>): string {
   return `${r.goalGroups ? `groups${r.goalGroups}` : ''}${r.goalWorth ? `worth${r.goalWorth}` : ''}`;
 }
 
+// Pannello dei traguardi: quelli raggiunti, quelli da raggiungere e il titolo da indossare.
+export function renderGoals(): string {
+  const p = loadProgress();
+  const have = new Set(p.unlocked);
+  const rows = ACHIEVEMENTS.map((a) => {
+    const done = have.has(a.id);
+    const prize = a.unlock.kind === 'color' ? t('goals.prizeColor', { name: colorName(EXTRA_COLORS[a.unlock.id]) }) : t('goals.prizeTitle', { name: titleLabel(a.unlock.id) });
+    return `<li class="goal ${done ? 'done' : ''}"><span class="goal-icon">${done ? a.icon : '🔒'}</span>
+      <div><strong>${escapeHtml(achievementTitle(a.id))}</strong><br><small>${escapeHtml(achievementText(a.id))} · ${escapeHtml(prize)}</small></div></li>`;
+  }).join('');
+  const titles = unlockedTitles(p.unlocked);
+  const chooser = titles.length
+    ? `<label class="hold">${t('goals.title')}
+        <select data-title>
+          <option value="">${t('goals.noTitle')}</option>
+          ${titles.map((id) => `<option value="${id}" ${id === p.title ? 'selected' : ''}>${escapeHtml(titleLabel(id))}</option>`).join('')}
+        </select>
+      </label>`
+    : `<p class="hint">${t('goals.none')}</p>`;
+  const stats = profileRows(p.profile, (n) => `${board.currency.symbol} ${n}`)
+    .map((r) => `<li><span>${escapeHtml(r.label)}</span><strong>${escapeHtml(r.value)}</strong></li>`)
+    .join('');
+  return `<details class="goals">
+      <summary>🎖️ ${t('goals.title2', { done: have.size, all: ACHIEVEMENTS.length })}</summary>
+      <h4>${t('profile.title')}</h4>
+      <ul class="profile-stats">${stats}</ul>
+      <div class="profile-buttons">
+        <button type="button" data-profile-export>${t('profile.export')}</button>
+        <label class="file-label">${t('profile.import')}<input type="file" accept="${PROFILE_EXT},application/json" data-profile-import hidden></label>
+      </div>
+      <p class="hint">${t('profile.hint')}</p>
+      <p class="profile-msg" data-profile-msg hidden></p>
+      ${chooser}
+      <ul class="goal-list">${rows}</ul>
+    </details>`;
+}
+
 export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice: SetupChoice) => void, resume?: ResumeOffer, slots?: SlotsOffer, online?: OnlineOffer): void {
   destroyPreview();
   editingSeat = null;
@@ -302,6 +343,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       </form>
       ${online ? onlineHtml() : ''}
       <div id="leaderboard-slot">${renderLeaderboard(loadLeaderboard())}</div>
+      <div id="goals-slot">${renderGoals()}</div>
       </div>
       <aside class="setup-info">${renderIntro()}</aside>
       </div>
@@ -327,6 +369,37 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     if (!(e.target as HTMLElement).closest('[data-reset-leaderboard]')) return;
     saveLeaderboard([]);
     document.querySelector('#leaderboard-slot')!.innerHTML = '';
+  });
+  const goalsBox = document.querySelector<HTMLElement>('#goals-slot')!;
+  goalsBox.addEventListener('change', async (e) => {
+    const target = e.target as HTMLElement;
+    const sel = target.closest<HTMLSelectElement>('[data-title]');
+    if (sel) {
+      const p = loadProgress();
+      saveProgress({ ...p, title: unlockedTitles(p.unlocked).includes(sel.value) ? sel.value : '' });
+      return;
+    }
+    const file = target.closest<HTMLInputElement>('[data-profile-import]')?.files?.[0];
+    if (!file) return;
+    const other = parseProfileFile(await file.text(), parseProgress);
+    const msg = goalsBox.querySelector<HTMLElement>('[data-profile-msg]')!;
+    if (!other) {
+      msg.textContent = t('profile.badFile');
+      msg.hidden = false;
+      return;
+    }
+    const merged = mergeProgress(loadProgress(), other);
+    saveProgress(merged);
+    // il pannello si riscrive con i numeri nuovi, e si lascia aperto
+    goalsBox.innerHTML = renderGoals();
+    const box = goalsBox.querySelector<HTMLDetailsElement>('.goals')!;
+    box.open = true;
+    const after = box.querySelector<HTMLElement>('[data-profile-msg]')!;
+    after.textContent = t('profile.imported', { done: merged.unlocked.length, all: ACHIEVEMENTS.length });
+    after.hidden = false;
+  });
+  goalsBox.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('[data-profile-export]')) downloadProfile(loadProgress());
   });
   document.querySelector('[data-credits]')!.addEventListener('click', () => document.querySelector<HTMLDialogElement>('.credits-dialog')!.showModal());
   document.querySelector('[data-settings]')!.addEventListener('click', () => openSettings((next) => audio.setVolumes(next.sfxVolume, next.musicVolume)));
@@ -513,6 +586,8 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       return;
     }
     const rounds = Number(data.get('rounds')) || null;
+    // il tipo di partita serve ai traguardi ("vinci con tre tipi diversi")
+    savePreset(String(data.get('preset') ?? 'custom'));
     destroyPreview();
     editingSeat = null;
     onStart({

@@ -12,6 +12,7 @@ import { TIP_IDS } from '../src/ui/tutorial';
 import { CHARACTERS } from '../src/ui/characters';
 import { QUICK_SAYS } from '../src/net/chat';
 import { TEXT_SIZES, MOTIONS } from '../src/ui/settings';
+import { ACHIEVEMENTS, EXTRA_COLORS } from '../src/ui/achievements';
 
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
@@ -39,6 +40,8 @@ describe('frasi in italiano e in inglese', () => {
       ...TEXT_SIZES.map((x) => `settings.text.${x.id}`),
       ...MOTIONS.map((x) => `settings.motion.${x.id}`),
       ...QUICK_SAYS.filter((q) => /\p{L}/u.test(q.text)).map((q) => `say.${q.id}`),
+      ...ACHIEVEMENTS.flatMap((a) => [`goal.${a.id}`, `goalText.${a.id}`, ...(a.unlock.kind === 'title' ? [`title.${a.unlock.id}`] : [])]),
+      ...Object.keys(EXTRA_COLORS).map((c) => `color.${c}`),
     ];
     const missing = keys.filter((k) => !Object.hasOwn(itMsgs, k));
     expect(missing).toEqual([]);
