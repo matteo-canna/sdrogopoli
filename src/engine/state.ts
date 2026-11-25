@@ -22,6 +22,8 @@ export interface Player {
   appearance?: Appearance;
   // livello e carattere del computer (assente = normale ed equilibrato)
   bot?: BotProfile;
+  // squadra (solo con la regola "squadre"): 0 o 1, i compagni vincono e perdono insieme
+  team?: number;
 }
 
 export type BotLevel = 'facile' | 'normale' | 'difficile';
@@ -65,6 +67,8 @@ export interface GameRules {
   goalWorth?: number | null;
   goalGroups?: number | null;
   goalSide?: boolean;
+  // squadre: i giocatori pari contro i dispari (2 contro 2, o 3 contro 3)
+  teams?: boolean;
 }
 
 // Facce del Dado Sprint: passi in più, "Occasione" (si prosegue fino alla prossima proprietà
@@ -291,6 +295,8 @@ export function createGame(players: (string | PlayerSetup)[], gameCtx: GameConte
       isBot: setup.isBot ?? false,
       ...(setup.appearance ? { appearance: { ...setup.appearance } } : {}),
       ...(setup.isBot && setup.bot ? { bot: { ...setup.bot } } : {}),
+      // squadre: i posti si alternano, così chi gioca accanto non è mai compagno
+      ...(fullRules.teams ? { team: id % 2 } : {}),
       money: fullRules.startingMoney + id * fullRules.seatBonus,
       position: 0,
       inJail: false,

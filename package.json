@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "simula": "vite-node scripts/simula.ts",
     "livelli": "vite-node scripts/livelli.ts",
-    "preset": "vite-node scripts/preset.ts"
+    "preset": "vite-node scripts/preset.ts",
+    "squadre": "vite-node scripts/squadre.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",

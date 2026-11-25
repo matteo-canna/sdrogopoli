@@ -254,3 +254,4 @@
 .daily-card p { margin: 4px 0; }
 .daily-result { font-weight: 700; color: var(--accent); }
 .daily-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.badge.team { background: var(--space); color: var(--muted); }
