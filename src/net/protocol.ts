@@ -18,7 +18,9 @@ export type ToHost =
   // "key" resta uguale se la pagina si ricarica: serve a riprendere il proprio posto
   | { t: 'hello'; v: number; name: string; look: Appearance | null; key?: string }
   | { t: 'ready'; ready: boolean; name: string; look: Appearance | null }
-  | { t: 'action'; action: Action; seq: number };
+  | { t: 'action'; action: Action; seq: number }
+  // reazione o frase pronta (solo l'id, vedi chat.ts)
+  | { t: 'say'; id: string };
 
 // Dall'oste agli ospiti.
 export type ToGuest =
@@ -32,6 +34,7 @@ export type ToGuest =
   | { t: 'rejected'; seq: number; reason: string }
   // posti scollegati, posti mossi dal computer perché il tempo è scaduto, tempo per ogni mossa
   | { t: 'presence'; offline: number[]; away: number[]; limitMs: number | null }
+  | { t: 'said'; seat: number; id: string }
   | { t: 'bye'; reason: string };
 
 export type NetMessage = ToHost | ToGuest;

@@ -109,3 +109,68 @@ test('chi ricarica la pagina, ospite o oste, torna al suo posto', async ({ conte
   await oste.click('.actions [data-action=roll]');
   await expect(ospite.locator('.turn .roll')).toBeVisible();
 });
+
+test('le reazioni arrivano agli altri al tavolo', async ({ context }) => {
+  await context.addInitScript(() => {
+    localStorage.setItem('sdrogopoli-tutorial', '{"on":false}');
+    localStorage.setItem('sdrogopoli-vista', '2d');
+  });
+  const oste = await context.newPage();
+  await oste.goto('./?rete=locale');
+  await oste.click('[data-online-create]');
+  const code = (await oste.locator('[data-table-code]').textContent())!.trim();
+  const ospite = await context.newPage();
+  await ospite.goto(`./?rete=locale#tavolo=${code}`);
+  await ospite.click('[data-ready]');
+  await expect(oste.locator('[data-lobby-start]')).toBeEnabled();
+  await oste.click('[data-lobby-start]');
+  await expect(ospite.locator('.game')).toBeVisible();
+  await ospite.click('[data-action=toggleSays]');
+  await ospite.click('[data-say=bella]');
+  await expect(oste.locator('#says .said')).toContainText('Bella mossa!');
+  await expect(ospite.locator('#says .said')).toContainText('Bella mossa!');
+});
+
+test('quattro dispositivi giocano insieme fino al giro 5 e vedono la stessa partita', async ({ context }) => {
+  await context.addInitScript(() => {
+    if (sessionStorage.getItem('e2e')) return;
+    sessionStorage.setItem('e2e', '1');
+    localStorage.setItem('sdrogopoli-tutorial', '{"on":false}');
+    localStorage.setItem('sdrogopoli-vista', '2d');
+    localStorage.setItem('sdrogopoli-velocita', 'istantanea');
+  });
+  const errori: string[] = [];
+  const oste = await context.newPage();
+  oste.on('pageerror', (e) => errori.push(e.message));
+  await oste.goto('./?rete=locale');
+  await oste.click('[data-online-create]');
+  const code = (await oste.locator('[data-table-code]').textContent())!.trim();
+  const ospiti: Page[] = [];
+  for (const nome of ['Bruno', 'Carla', 'Dario']) {
+    const p = await context.newPage();
+    p.on('pageerror', (e) => errori.push(e.message));
+    await p.goto(`./?rete=locale#tavolo=${code}`);
+    await p.locator('[data-ready]').waitFor();
+    await p.fill('[data-lobby-name]', nome);
+    await p.locator('[data-lobby-name]').blur();
+    await p.click('[data-ready]');
+    ospiti.push(p);
+  }
+  await expect(oste.locator('.lobby-members li')).toHaveCount(4);
+  await expect(oste.locator('[data-lobby-start]')).toBeEnabled();
+  await oste.click('[data-lobby-start]');
+  const tutti = [oste, ...ospiti];
+  for (const p of tutti) await expect(p.locator('.game')).toBeVisible();
+  await expect
+    .poll(
+      async () => {
+        for (const p of tutti) await giocaUnPasso(p);
+        return (await giro(oste)) >= 5 || (await oste.locator('.summary').count()) > 0;
+      },
+      { timeout: 200_000, intervals: [100] },
+    )
+    .toBe(true);
+  const elenco = await oste.locator('.players-list').textContent();
+  for (const p of ospiti) await expect.poll(() => p.locator('.players-list').textContent()).toBe(elenco);
+  expect(errori).toEqual([]);
+});

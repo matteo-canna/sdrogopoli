@@ -120,3 +120,12 @@
 .pill.clock { font-variant-numeric: tabular-nums; }
 .pill.clock.late { background: var(--danger); color: var(--on-danger); }
 .away-note { margin: 0 0 6px; padding: 8px 10px; border-radius: 8px; background: var(--space); border-left: 4px solid var(--info); font-size: 0.95em; }
+.quick-says { width: 100%; margin-top: 6px; }
+.quick-says .says-toggle { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); min-height: 44px; }
+.says-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.says-list button { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--space); color: var(--ink); min-height: 44px; font-size: 0.95em; }
+#says { position: fixed; z-index: 150; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: grid; gap: 6px; width: min(calc(100% - 24px), 420px); pointer-events: none; }
+.said { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: var(--panel); color: var(--ink); box-shadow: var(--shadow); border-left: 5px solid var(--c); animation: said-in 0.25s ease-out; }
+.said span { font-size: 1.1em; }
+@keyframes said-in { from { opacity: 0; transform: translateY(-8px); } }
+@media (prefers-reduced-motion: reduce) { .said { animation: none; } }

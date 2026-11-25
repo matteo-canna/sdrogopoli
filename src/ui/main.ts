@@ -25,6 +25,8 @@ import { reportUrl } from './report';
 import { defaultSlotName, deleteSlot, downloadSave, FILE_EXT, listSlots, parseSaveText, saveSlot } from './slots';
 import { cleanCode, codeFromHash, openTransport, renderLobby, tableCode, updateLobby, type LobbyView } from './online';
 import { HostRoom, type HostSnapshot } from '../net/host';
+import { QUICK_SAYS, sayText } from '../net/chat';
+import { turnServers } from '../net/turn';
 import { GuestRoom } from '../net/guest';
 
 // senza "rng": i dadi vengono dal generatore della partita, che parte da un seme casuale
@@ -201,6 +203,38 @@ function seatNote(seat: number): string {
   return '';
 }
 
+// Reazioni e frasi pronte: pulsanti sotto quelli del turno e fumetti in alto, per tutti al tavolo.
+let saysOpen = false;
+function saysHtml(): string {
+  if (!online || mySeat() === null) return '';
+  return `<div class="quick-says">
+    <button class="says-toggle" data-action="toggleSays" aria-expanded="${saysOpen}">💬 Reazioni</button>
+    ${saysOpen ? `<div class="says-list">${QUICK_SAYS.map((q) => `<button data-action="say" data-say="${q.id}">${escapeHtml(q.text)}</button>`).join('')}</div>` : ''}
+  </div>`;
+}
+
+function showSaid(seat: number, id: string): void {
+  const s = session.state;
+  const text = sayText(id);
+  if (!s || !text || !s.players[seat]) return;
+  let box = document.querySelector<HTMLElement>('#says');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'says';
+    box.setAttribute('aria-live', 'polite');
+    document.body.append(box);
+  }
+  const p = s.players[seat];
+  const el = document.createElement('div');
+  el.className = 'said';
+  el.style.setProperty('--c', playerColor(p));
+  el.innerHTML = `${playerBadge(s, seat, 'token')} <strong>${escapeHtml(p.name)}</strong> <span>${escapeHtml(text)}</span>`;
+  box.append(el);
+  // al massimo quattro fumetti insieme
+  while (box.children.length > 4) box.firstElementChild!.remove();
+  setTimeout(() => el.remove(), 4000);
+}
+
 function iAmAway(): boolean {
   const seat = mySeat();
   if (!online || seat === null) return false;
@@ -258,6 +292,7 @@ async function enterTable(role: 'host' | 'guest', code: string, restore?: HostSn
     online = { role, room, code };
     room.onLobby = () => render();
     room.onChange = onTableChange;
+    room.onSaid = showSaid;
     if (restore) {
       room.restore(restore);
       return;
@@ -287,10 +322,12 @@ async function enterTable(role: 'host' | 'guest', code: string, restore?: HostSn
       render();
     };
     room.onPresence = () => render();
+    room.onSaid = showSaid;
     // se dopo un po' nessuno risponde, lo si dice
     setTimeout(() => {
       if (online?.room === room && !room.connected && !room.closed) {
-        lobbyStatus = 'Ancora nessuna risposta. Controlla il codice, o chiedi a chi ha creato il tavolo di tenere aperta la pagina.';
+        lobbyStatus = 'Ancora nessuna risposta. Controlla il codice, o chiedi a chi ha creato il tavolo di tenere aperta la pagina.'
+          + (turnServers(import.meta.env).length ? '' : ' Se siete su reti diverse (per esempio uno con i dati del telefono) a volte il collegamento diretto non riesce: provate tutti sulla stessa Wi-Fi.');
         render();
       }
     }, 15000);
@@ -467,6 +504,7 @@ function controlsHtml(s: GameState): string {
     : `${iAmAway() ? '<p class="away-note" role="status">🤖 Il tempo è scaduto e il computer sta giocando per te. Fai una mossa per riprendere.</p>' : ''}<div class="actions">${renderTurnActions(s)}${undoButton()}</div>`;
   return `
     ${tradeDraft && !waiting ? renderTradeEditor(s, tradeDraft) : actions}
+    ${saysHtml()}
     ${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}
     ${tipHtml(s)}`;
 }
@@ -756,6 +794,15 @@ app.addEventListener('click', (e) => {
       error = '';
       return render();
     }
+    case 'toggleSays':
+      saysOpen = !saysOpen;
+      return render();
+    case 'say':
+      if (!online) return;
+      if (online.role === 'host') online.room.say(online.room.hostSeat, target.dataset.say);
+      else online.room.say(target.dataset.say ?? '');
+      saysOpen = false;
+      return render();
     case 'closeTrade':
       tradeDraft = null;
       return render();

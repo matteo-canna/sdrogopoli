@@ -29,6 +29,12 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        # server TURN di riserva per il gioco online (facoltativo): variabili del repository
+        # TURN_URLS, TURN_USER, TURN_PASS in Settings > Secrets and variables > Actions > Variables
+        env:
+          VITE_TURN_URLS: ${{ vars.TURN_URLS }}
+          VITE_TURN_USER: ${{ vars.TURN_USER }}
+          VITE_TURN_PASS: ${{ vars.TURN_PASS }}
       # prove nel browser: partita completa, accessibilità (axe), telefono, memoria del 3D, offline
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e
