@@ -56,7 +56,18 @@ export interface GameRules {
   quickStart: boolean;
   // modalità demo sperimentale: si può giocare fino a DEMO_MAX_PLAYERS
   demo: boolean;
+  // terzo dado (vedi SPRINT_FACES): partite più movimentate e più corte
+  sprintDie?: boolean;
+  // vittorie alternative: patrimonio da raggiungere, quartieri completi, un lato intero del tabellone
+  goalWorth?: number | null;
+  goalGroups?: number | null;
+  goalSide?: boolean;
 }
+
+// Facce del Dado Sprint: passi in più, "Occasione" (si prosegue fino alla prossima proprietà
+// in vendita) e "Affitto pieno" (l'affitto pagato con questo lancio aumenta del 50%).
+export type SprintFace = 1 | 2 | 3 | 'occasione' | 'pieno';
+export const SPRINT_FACES: SprintFace[] = [1, 2, 3, 'occasione', 'occasione', 'pieno'];
 
 // Bonus consigliato per chi gioca dopo: con 4 giocatori il primo vince circa quanto gli altri.
 export const SEAT_BONUS = 30;
@@ -137,6 +148,12 @@ export interface GameState {
   // numero di doppi consecutivi nel turno corrente
   doublesInRow: number;
   lastRoll: [number, number] | null;
+  // faccia del Dado Sprint all'ultimo lancio (solo con la regola attiva)
+  lastSprint?: SprintFace | null;
+  // "Affitto pieno" attivo per l'arrivo di questo lancio
+  sprintRent?: boolean;
+  // perché la partita è finita (per il riepilogo)
+  winReason?: string;
   // true se il giocatore ha fatto un doppio e deve rilanciare dopo aver risolto la casella
   extraRoll: boolean;
   // mazzi: id delle carte in ordine di pesca

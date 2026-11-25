@@ -137,3 +137,16 @@
 .trade-note { margin: 6px 0 0; font-size: 0.9em; color: var(--muted); }
 .trade-note.complete { color: var(--ink); padding: 6px 8px; border-radius: 8px; background: var(--space); border-left: 5px solid var(--g); }
 @media (max-width: 420px) { .offer-cols { grid-template-columns: 1fr; } }
+
+/* ---------- tipi di partita ---------- */
+.presets { border: none; padding: 0; margin: 12px 0; }
+.presets legend { font-weight: 700; margin-bottom: 6px; }
+.preset-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.preset { display: flex; gap: 6px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--space); cursor: pointer; min-height: 44px; }
+.preset:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.preset span { display: grid; gap: 2px; }
+.preset small { color: var(--muted); font-size: 0.8em; line-height: 1.3; }
+.presets [data-duration] { margin: 6px 0 0; }
+.sprint-die { display: inline-grid; place-items: center; min-width: 1.6em; height: 1.6em; padding: 0 3px; border-radius: 5px; background: var(--gold); color: #1f2421; font-weight: 800; font-size: 0.85em; margin-left: 3px; }
+.setup .preset input { flex: none; width: 18px; height: 18px; min-height: 0; padding: 0; margin: 2px 0 0; accent-color: var(--accent); }
+.preset strong { overflow-wrap: anywhere; }

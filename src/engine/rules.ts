@@ -1,6 +1,6 @@
 // Regole di gioco: ogni azione produce un nuovo stato senza modificare quello precedente.
 import { rollDice } from './dice';
-import { defaultRules, emptyStats, withRng, JAIL_FINE, MAX_JAIL_ATTEMPTS, type GameContext, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
+import { defaultRules, emptyStats, withRng, JAIL_FINE, MAX_JAIL_ATTEMPTS, SPRINT_FACES, type GameContext, type SprintFace, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
 import type { Card, CardEffect, DeckId, PropertySpace, Space } from './types';
 
 export type Action =
@@ -192,7 +192,9 @@ function resolveLanding(state: GameState, ctx: GameContext): void {
       return;
     }
     if (own.owner !== p.id) {
-      const rent = computeRent(state, ctx, space.id, diceTotal(state));
+      const base = computeRent(state, ctx, space.id, diceTotal(state));
+      // Dado Sprint "Affitto pieno": vale solo per l'arrivo di questo lancio
+      const rent = state.sprintRent ? Math.ceil(base * 1.5) : base;
       if (rent > 0) {
         pay(state, p.id, rent, own.owner);
         stat(state, p.id).rentPaid += rent;
@@ -355,8 +357,32 @@ function doRoll(state: GameState, ctx: GameContext): void {
     }
   }
   state.extraRoll = roll.isDouble;
-  moveBy(state, ctx, roll.total);
+  const sprint = state.rules?.sprintDie ? SPRINT_FACES[Math.floor(ctx.rng!() * SPRINT_FACES.length)] : null;
+  state.lastSprint = sprint;
+  state.sprintRent = sprint === 'pieno';
+  moveBy(state, ctx, roll.total + (typeof sprint === 'number' ? sprint : 0));
+  if (sprint) log(state, sprintText(p.name, sprint));
+  // Occasione: se la casella non è in vendita si prosegue fino alla prossima proprietà libera
+  if (sprint === 'occasione') {
+    const here = ctx.board.spaces[p.position];
+    if (!(isBuyable(here) && !state.ownership[here.id])) {
+      const size = boardSize(ctx);
+      for (let k = 1; k < size; k++) {
+        const i = (p.position + k) % size;
+        const sp = ctx.board.spaces[i];
+        if (isBuyable(sp) && !state.ownership[sp.id]) {
+          moveForwardTo(state, ctx, i);
+          break;
+        }
+      }
+    }
+  }
   resolveLanding(state, ctx);
+}
+
+function sprintText(name: string, face: SprintFace): string {
+  if (typeof face === 'number') return `Dado Sprint: ${name} avanza di ${face} in più.`;
+  return face === 'occasione' ? `Dado Sprint: Occasione! ${name} prosegue fino alla prossima proprietà in vendita.` : `Dado Sprint: Affitto pieno! Se ${name} paga un affitto, paga il 50% in più.`;
 }
 
 function doBuy(state: GameState, ctx: GameContext): void {
@@ -687,6 +713,51 @@ function doEndTurn(state: GameState, ctx: GameContext): void {
   nextPlayer(state, ctx);
 }
 
+// Lati del tabellone: le caselle tra due angoli (per 40 caselle: 1-9, 11-19, 21-29, 31-39).
+export function boardSides(ctx: GameContext): string[][] {
+  const size = ctx.board.spaces.length;
+  const side = size / 4;
+  return [0, 1, 2, 3].map((k) =>
+    ctx.board.spaces.slice(k * side + 1, (k + 1) * side).filter((sp) => isBuyable(sp)).map((sp) => sp.id),
+  );
+}
+
+// Quartieri completi di un giocatore.
+export function completeGroups(state: GameState, ctx: GameContext, playerId: number): number {
+  return ctx.board.groups.filter((g) => ownsWholeGroup(state, ctx, playerId, g.id)).length;
+}
+
+// A che punto è ciascuno con gli obiettivi (per il pannello e per i test).
+export function goalProgress(state: GameState, ctx: GameContext, playerId: number): { worth: number; groups: number; side: number } {
+  const sides = boardSides(ctx);
+  const side = Math.max(...sides.map((ids) => ids.filter((id) => state.ownership[id]?.owner === playerId).length / ids.length));
+  return { worth: netWorth(state, ctx, playerId), groups: completeGroups(state, ctx, playerId), side };
+}
+
+// Vittorie alternative: il primo che raggiunge un obiettivo (a partire da chi è di turno) vince subito.
+function checkGoals(state: GameState, ctx: GameContext): void {
+  const r = state.rules;
+  if (!r || (!r.goalWorth && !r.goalGroups && !r.goalSide)) return;
+  const n = state.players.length;
+  for (let k = 0; k < n; k++) {
+    const p = state.players[(state.current + k) % n];
+    if (p.bankrupt || p.money < 0) continue;
+    const g = goalProgress(state, ctx, p.id);
+    let reason = '';
+    if (r.goalWorth && g.worth >= r.goalWorth) reason = `raggiunge un patrimonio di ${g.worth}`;
+    else if (r.goalGroups && g.groups >= r.goalGroups) reason = `completa ${g.groups} quartieri`;
+    else if (r.goalSide && g.side >= 1) reason = 'possiede un lato intero del tabellone';
+    if (!reason) continue;
+    state.winner = p.id;
+    state.phase = 'gameOver';
+    state.winReason = reason;
+    state.auction = null;
+    recordHistory(state, ctx);
+    log(state, `${p.name} ${reason} e vince la partita!`);
+    return;
+  }
+}
+
 // Fine della partita a tempo: vince chi ha il patrimonio più alto.
 function endByNetWorth(state: GameState, ctx: GameContext): void {
   const alive = state.players.filter((p) => !p.bankrupt);
@@ -813,6 +884,8 @@ export function applyAction(state: GameState, action: Action, gameCtx: GameConte
   next.round ??= 1;
   next.pot ??= 0;
   const ctx = withRng(gameCtx, next);
+  // l'"Affitto pieno" vale solo per l'arrivo del lancio: dopo qualunque altra mossa non conta più
+  if (action.type !== 'roll') next.sprintRent = false;
   switch (action.type) {
     case 'roll': doRoll(next, ctx); break;
     case 'buy': doBuy(next, ctx); break;
@@ -832,6 +905,8 @@ export function applyAction(state: GameState, action: Action, gameCtx: GameConte
     case 'rejectTrade': doRejectTrade(next); break;
     case 'counterTrade': doCounterTrade(next, ctx, action.offer); break;
   }
+  // obiettivi della partita: si controllano dopo ogni mossa, ma non a metà di un'asta o di uno scambio
+  if (next.phase !== 'gameOver' && next.phase !== 'auction' && !next.trade) checkGoals(next, ctx);
   // si tengono solo gli ultimi eventi: lo stato resta piccolo da copiare e salvare
   if (next.log.length > MAX_LOG) next.log.splice(0, next.log.length - MAX_LOG);
   return next;
