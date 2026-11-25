@@ -450,7 +450,7 @@ export const en: Record<MsgKey, string> = {
   'credits.onlineTitle': 'Online play',
   'credits.online': 'Devices connect directly to each other; to find each other they use free public Nostr relays.',
   'credits.licenses': 'Full licence text',
-  'credits.source': 'Source code',
+  'credits.source': 'Source code (MIT licence)',
   'credits.by': 'by',
 
   // ---------- online waiting room ----------

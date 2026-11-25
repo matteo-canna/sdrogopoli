@@ -443,7 +443,7 @@ export const it = {
   'credits.onlineTitle': 'Gioco online',
   'credits.online': 'I dispositivi si collegano direttamente tra loro; per trovarsi usano relay Nostr pubblici e gratuiti.',
   'credits.licenses': 'Testo completo delle licenze',
-  'credits.source': 'Codice sorgente',
+  'credits.source': 'Codice sorgente (licenza MIT)',
   // ---------- sala d'attesa online ----------
   'lobby.noLimit': 'Nessun limite',
   'lobby.seconds': '{n} secondi',
