@@ -111,11 +111,10 @@ export class Board3D {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    // colori da pellicola e riflessi da studio: servono ai materiali metallici e lucidi
+    // colori da pellicola
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
     container.appendChild(this.renderer.domElement);
-    this.scene.environment = getStudioEnvMap(this.renderer);
 
     this.buildScene();
     this.applyQuality();
@@ -282,6 +281,13 @@ export class Board3D {
           return;
         }
         mesh.remove(fallback);
+        // riflessi da studio solo sulle pedine (oro, cromo…): su tutta la città costerebbero troppo
+        // ai dispositivi deboli, sulle pedine sono pochi pixel
+        const env = getStudioEnvMap(this.renderer);
+        character.root.traverse((o) => {
+          const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | THREE.MeshStandardMaterial[] | undefined;
+          for (const mt of m ? (Array.isArray(m) ? m : [m]) : []) if (mt.isMeshStandardMaterial && !mt.envMap) mt.envMap = env;
+        });
         mesh.add(character.root);
         view.character = character;
       })

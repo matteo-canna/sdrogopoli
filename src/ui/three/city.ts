@@ -3,6 +3,7 @@
 // Grand Hotel a 3 livelli con colonnato e insegna luminosa, Campanile 2.55u con orologio HD,
 // palazzi storici, torre Art Déco, borgo con botteghe e panni stesi, darsena, faro e scritta fluttuante "Gioco FOLLE!").
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   cardDeckTexture,
   clockTowerTex,
@@ -306,6 +307,8 @@ export function makeHouse(variant = 0, ownerColor?: string): THREE.Group {
     crest.position.set(0, 0.114, 0.122);
     g.add(crest);
   }
+  // tanti pezzi piccoli: uniti per materiale si disegnano molto più in fretta
+  mergeStatic(g);
   return g;
 }
 
@@ -419,6 +422,8 @@ export function makeHotel(ownerColor?: string): THREE.Group {
     m.receiveShadow = true;
     g.add(m);
   }
+  // tanti pezzi piccoli: uniti per materiale si disegnano molto più in fretta
+  mergeStatic(g);
   return g;
 }
 
@@ -441,6 +446,87 @@ interface RoadCar {
   t: number;
   speed: number;
   lane: number;
+}
+
+// Chiave di un materiale: due materiali con gli stessi valori (creati uguali in punti diversi) si disegnano insieme.
+function matKey(mat: THREE.Material, keep: Set<THREE.Material>): string {
+  const m = mat as THREE.MeshPhysicalMaterial;
+  if (keep.has(mat) || !(m.isMeshStandardMaterial || (mat as THREE.MeshBasicMaterial).isMeshBasicMaterial)) return mat.uuid;
+  const tex = (t: THREE.Texture | null | undefined) => t?.uuid ?? '';
+  return [
+    m.type, m.color?.getHex(), m.emissive?.getHex(), m.emissiveIntensity, m.roughness, m.metalness, m.clearcoat, m.clearcoatRoughness,
+    m.transparent, m.opacity, m.side, m.depthWrite, m.flatShading, tex(m.map), tex(m.bumpMap), m.bumpScale, tex(m.emissiveMap),
+    tex(m.normalMap), tex(m.roughnessMap), tex(m.alphaMap), m.envMapIntensity, m.toneMapped,
+  ].join(',');
+}
+
+// Unisce i pezzi fermi di un gruppo in una geometria per materiale (stessa resa, molte meno chiamate
+// di disegno). Gli oggetti in "moving" (e quello che contengono) restano come sono; i materiali in
+// "keep" e quelli che si accendono di notte non vengono scambiati con altri dagli stessi valori.
+export function mergeStatic(root: THREE.Object3D, moving = new Set<THREE.Object3D>(), keep = new Set<THREE.Material>()): void {
+  for (const m of nightMaterials) keep.add(m);
+  root.updateMatrixWorld(true);
+  const inv = root.matrixWorld.clone().invert();
+  const buckets = new Map<string, { mat: THREE.Material; cast: boolean; geos: THREE.BufferGeometry[] }>();
+  const baked: THREE.Mesh[] = [];
+  const visit = (o: THREE.Object3D): void => {
+    if (moving.has(o)) return;
+    const m = o as THREE.Mesh;
+    if (m.isMesh && !(m as unknown as THREE.InstancedMesh).isInstancedMesh && !Array.isArray(m.material) && m.visible) {
+      const src = m.geometry;
+      let g = src.index ? src.toNonIndexed() : src.clone();
+      for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
+      if (!g.attributes.normal) g.computeVertexNormals();
+      if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+      g.morphAttributes = {};
+      g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));
+      if (m.matrixWorld.determinant() < 0) g = flipWinding(g);
+      const key = `${matKey(m.material, keep)}|${m.castShadow}`;
+      let b = buckets.get(key);
+      if (!b) buckets.set(key, (b = { mat: m.material, cast: m.castShadow, geos: [] }));
+      b.geos.push(g);
+      baked.push(m);
+    }
+    for (const c of [...o.children]) visit(c);
+  };
+  visit(root);
+  for (const m of baked) {
+    m.removeFromParent();
+    m.geometry.dispose();
+  }
+  for (const b of buckets.values()) {
+    const merged = mergeGeometries(b.geos, false);
+    for (const g of b.geos) g.dispose();
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, b.mat);
+    mesh.castShadow = b.cast;
+    mesh.receiveShadow = true;
+    root.add(mesh);
+  }
+  // i gruppi rimasti vuoti si tolgono
+  const empty: THREE.Object3D[] = [];
+  root.traverse((o) => {
+    if (o !== root && o.type === 'Group' && o.children.length === 0 && !moving.has(o)) empty.push(o);
+  });
+  for (const o of empty) o.removeFromParent();
+}
+
+// Inverte l'ordine dei vertici dei triangoli (serve quando un pezzo era specchiato con una scala negativa).
+function flipWinding(g: THREE.BufferGeometry): THREE.BufferGeometry {
+  for (const name of Object.keys(g.attributes)) {
+    const attr = g.attributes[name] as THREE.BufferAttribute;
+    const n = attr.itemSize;
+    const arr = attr.array as Float32Array;
+    for (let i = 0; i < attr.count; i += 3) {
+      for (let k = 0; k < n; k++) {
+        const a = arr[(i + 1) * n + k];
+        arr[(i + 1) * n + k] = arr[(i + 2) * n + k];
+        arr[(i + 2) * n + k] = a;
+      }
+    }
+    attr.needsUpdate = true;
+  }
+  return g;
 }
 
 export class City {
@@ -516,7 +602,30 @@ export class City {
     starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
     this.starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.22, transparent: true, opacity: 0, depthWrite: false });
     this.group.add(new THREE.Points(starGeo, this.starsMat));
+    this.bakeStatic();
   }
+
+  // La città ha centinaia di pezzi fermi: disegnarli uno per uno rallenta molto i dispositivi deboli.
+  // Si uniscono in una sola geometria per materiale; restano a parte le cose che si muovono.
+  private bakeStatic(): void {
+    const moving = new Set<THREE.Object3D>([
+      this.signGroup,
+      this.sunMesh,
+      this.moonMesh,
+      ...this.boats,
+      ...this.lamps,
+      ...this.cars.map((c) => c.mesh),
+      ...this.fountainDrops.map((d) => d.mesh),
+      ...(this.lighthouseBeam ? [this.lighthouseBeam] : []),
+      ...(this.towerBeacon ? [this.towerBeacon] : []),
+    ]);
+    // materiali che cambiano da soli (lampeggianti, semafori…): non si scambiano con altri uguali
+    const keep = new Set<THREE.Material>([this.lampMat, this.haloMat, this.waterMat, this.signBeamMat, this.carLightsMat]);
+    if (this.policeBeacons) keep.add(this.policeBeacons.blue).add(this.policeBeacons.red);
+    if (this.trafficLights) keep.add(this.trafficLights.red).add(this.trafficLights.amber).add(this.trafficLights.green);
+    mergeStatic(this.group, moving, keep);
+  }
+
 
   // ---------- 1. PARCO MONUMENTALE (NW: x < 0, z < 0) ----------
   private buildPark(rnd: () => number): void {
@@ -1403,10 +1512,13 @@ export class City {
     for (const m of nightMaterials) m.emissiveIntensity = glow * 1.4;
     this.lampMat.emissiveIntensity = 0.15 + glow * 2.6;
     this.haloMat.opacity = glow * 0.28;
+    // di giorno aloni e stelle sono invisibili: non si disegnano proprio
+    this.haloMat.visible = this.haloMat.opacity > 0.005;
     this.carLightsMat.emissiveIntensity = 0.2 + glow * 2.2;
     this.signBeamMat.opacity = 0.03 + glow * 0.14;
     this.waterMat.color.setHex(0x2f88c2).lerp(new THREE.Color(0x0f2544), n);
     this.starsMat.opacity = THREE.MathUtils.smoothstep(n, 0.45, 0.95) * 0.9;
+    this.starsMat.visible = this.starsMat.opacity > 0.005;
 
     const R = 28;
     const sy = Math.cos(sunAngle) * R * 0.65;
