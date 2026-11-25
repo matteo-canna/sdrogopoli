@@ -165,7 +165,7 @@ export function renderTable(state: GameState): string {
   const p = state.players[state.current];
   const last = state.log.slice(-3).reverse();
   return `
-    <h1 class="title">Sdrogopoli</h1>
+    <h1 class="title">Gioco Folle!</h1>
     ${renderEvents(state)}
     ${state.phase === 'gameOver' ? '' : `<p class="table-turn">${playerBadge(state, p.id)} <span>${t('turn.of', { name: `<strong>${escapeHtml(p.name)}</strong>` })}</span></p>`}
     ${state.lastRoll ? `<span class="center-dice">${renderDice(state)}</span>` : ''}

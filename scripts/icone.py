@@ -27,7 +27,7 @@ def icon(size, maskable=False):
     safe = s * (0.2 if maskable else 0.16)  # le icone "maskable" vanno tenute nel cerchio centrale
     inner = s - 2 * safe
     font = ImageFont.truetype(FONT, int(inner * 0.62))
-    d.text((s / 2, safe + inner * 0.36), 'S', font=font, fill=CREAM, anchor='mm')
+    d.text((s / 2, safe + inner * 0.36), 'G', font=font, fill=CREAM, anchor='mm')
     skyline(d, safe, safe + inner * 0.98, inner, inner * 0.32)
     return im.resize((size, size), Image.LANCZOS)
 
@@ -36,7 +36,7 @@ def og():
     w, h = 1200, 630
     im = Image.new('RGB', (w * 2, h * 2), BG); d = ImageDraw.Draw(im)
     d.rounded_rectangle([60, 60, w * 2 - 60, h * 2 - 60], radius=80, fill=BOARD)
-    d.text((w, 420), 'Sdrogopoli', font=ImageFont.truetype(FONT, 250), fill=ACCENT, anchor='mm')
+    d.text((w, 420), 'Gioco Folle!', font=ImageFont.truetype(FONT, 250), fill=ACCENT, anchor='mm')
     d.text((w, 640), 'Il gioco dei quartieri, gratis nel browser', font=ImageFont.truetype(FONT.replace('Black', 'Bold'), 76), fill='#1f2421', anchor='mm')
     skyline(d, 360, h * 2 - 130, w * 2 - 720, 380)
     im.resize((w, h), Image.LANCZOS).save('public/icone/anteprima.png', optimize=True)

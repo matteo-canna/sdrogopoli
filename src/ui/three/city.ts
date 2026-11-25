@@ -1,4 +1,4 @@
-// Diorama urbano realistico HD+ (v2) per Sdrogopoli:
+// Diorama urbano realistico HD+ (v2) per Gioco Folle!:
 // edifici monumentali molto più grandi e dettagliati (case con abbaini/balconi/portici/tegole 3D,
 // Grand Hotel a 3 livelli con colonnato e insegna luminosa, Campanile 2.55u con orologio HD,
 // palazzi storici, torre Art Déco, borgo con botteghe e panni stesi, darsena, faro e scritta fluttuante "Gioco FOLLE!").
@@ -1144,7 +1144,7 @@ export class City {
       this.group.add(b);
     });
 
-    // Dettaglio iconico di Sdrogopoli ("Via dei Panni Stesi"): 2 fili di panni colorati tesi tra le palazzine del Borgo!
+    // Dettaglio iconico di Gioco Folle! ("Via dei Panni Stesi"): 2 fili di panni colorati tesi tra le palazzine del Borgo!
     const laundryCols = [0xef4444, 0xfef08a, 0x38bdf8, 0xffffff, 0x4ade80, 0xf472b6];
     for (const [yLine, zOff] of [[0.78, 0], [0.98, 0.08]]) {
       const lineGeo = new THREE.BufferGeometry().setFromPoints([

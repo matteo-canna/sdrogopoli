@@ -5,6 +5,8 @@ import type { MsgKey } from '../i18n';
 import { sortLeaderboard, type LeaderEntry } from './summary';
 import { ACHIEVEMENTS, emptyProfile, unlockedTitles, type Profile } from './achievements';
 
+// Le chiavi tengono il prefisso del vecchio nome ("sdrogopoli-"): cambiarle farebbe perdere
+// partite e preferenze già salvate.
 export const KEYS = {
   save: 'sdrogopoli-partita',
   view: 'sdrogopoli-vista',

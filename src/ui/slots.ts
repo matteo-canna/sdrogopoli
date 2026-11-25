@@ -1,4 +1,4 @@
-// Partite salvate con un nome (fino a cinque) ed esportate in un file .sdrogo da reimportare.
+// Partite salvate con un nome (fino a cinque) ed esportate in un file .folle da reimportare.
 // La partita in corso si salva comunque da sola: questi sono salvataggi in più, scelti da chi gioca.
 import { fileBoard, fileBoardData, readSave, type GameContext, type GameState, type SaveFile } from '../engine';
 import { setBoard } from '../data';
@@ -7,7 +7,9 @@ import { KEYS, readPref } from './prefs';
 import { getLang, t } from '../i18n';
 
 export const MAX_SLOTS = 5;
-export const FILE_EXT = '.sdrogo';
+export const FILE_EXT = '.folle';
+// estensione usata prima del cambio di nome: i file vecchi si aprono ancora
+export const OLD_FILE_EXT = '.sdrogo';
 
 export interface Slot {
   id: string;
@@ -64,7 +66,7 @@ export function deleteSlot(id: string): void {
   store(listSlots().filter((s) => s.id !== id));
 }
 
-// Legge un file esportato (o un vecchio salvataggio): null se non è una partita di Sdrogopoli.
+// Legge un file esportato (o un vecchio salvataggio): null se non è una partita di Gioco Folle!
 // Il tabellone del file va scelto prima di leggere lo stato, perché i suoi dati servono già qui.
 export function parseSaveText(text: string, ctx: GameContext, seed: number): SaveFile | null {
   try {
@@ -81,7 +83,7 @@ export function fileName(name: string): string {
   return `${base || 'partita'}${FILE_EXT}`;
 }
 
-// Scarica la partita come file .sdrogo.
+// Scarica la partita come file .folle.
 export function downloadSave(name: string, file: SaveFile): void {
   const blob = new Blob([JSON.stringify(file)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);

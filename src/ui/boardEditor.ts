@@ -7,7 +7,7 @@ import { BOARDS, boardChoice, cards, customBoards } from '../data';
 import { validateBoard, withPrice, type BoardData, type BoardIssue, type Space } from '../engine';
 import { boardTitle, spaceName, t, type MsgKey } from '../i18n';
 import { escapeHtml } from './view';
-import { BOARD_FILE_EXT, boardFileText, deleteCustomBoard, readBoardText, saveCustomBoard, savedBoards, shareLink } from './boardStore';
+import { BOARD_FILE_EXT, OLD_BOARD_FILE_EXT, boardFileText, deleteCustomBoard, readBoardText, saveCustomBoard, savedBoards, shareLink } from './boardStore';
 import { MAX_NAME, MAX_TITLE } from '../engine';
 
 const ICON: Record<Space['type'], string> = {
@@ -96,7 +96,7 @@ export function openBoardEditor(startId: string, onChange: (chosen: string | nul
         <button type="button" class="primary" data-be-save>💾 ${t('editor.save')}</button>
         <button type="button" data-be-export>⬇️ ${t('editor.export')}</button>
         <button type="button" data-be-share>🔗 ${t('editor.link')}</button>
-        <label class="import-file">📂 ${t('editor.import')}<input type="file" accept="${BOARD_FILE_EXT},.json,application/json" data-be-import></label>
+        <label class="import-file">📂 ${t('editor.import')}<input type="file" accept="${BOARD_FILE_EXT},${OLD_BOARD_FILE_EXT},.json,application/json" data-be-import></label>
         ${editing ? `<button type="button" class="danger" data-be-delete>🗑️ ${t('editor.delete')}</button>` : ''}
       </div>
       <form method="dialog" class="be-close"><button>${t('btn.close')}</button></form>`;

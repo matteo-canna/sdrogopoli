@@ -1,4 +1,4 @@
-// Texture procedurali HD (512px-2048px) v2 per il Diorama Urbano Realistico di Sdrogopoli.
+// Texture procedurali HD (512px-2048px) v2 per il Diorama Urbano Realistico di Gioco Folle!
 // Include tessere architettoniche 512px, mappa suolo 2048px, facciate realistiche 512px con bugnato/vetrine/persiane,
 // texture + bump tegole (cotto/ardesia), orologio campanile, insegna Grand Hotel e scritta aerea "Gioco FOLLE!".
 import * as THREE from 'three';
@@ -437,7 +437,7 @@ export function floatingSignTextures(): { map: THREE.CanvasTexture; emissive: TH
 
       ctx.font = '800 26px system-ui, sans-serif';
       ctx.fillStyle = '#7dd3fc';
-      ctx.fillText('★  SDROGOPOLI  ·  EDIZIONE 3D  ★', w / 2, h - 54);
+      ctx.fillText('★  IL GIOCO DEI QUARTIERI  ·  EDIZIONE 3D  ★', w / 2, h - 54);
     }
     const tex = new THREE.CanvasTexture(c);
     if (!emissiveOnly) tex.colorSpace = THREE.SRGBColorSpace;

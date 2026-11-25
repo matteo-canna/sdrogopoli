@@ -104,7 +104,7 @@ describe('tabelloni', () => {
 
 describe('identità propria', () => {
   // Effetti e importi delle carte del gioco classico (edizioni inglese e americana):
-  // nessuna carta di Sdrogopoli deve avere lo stesso effetto con lo stesso importo.
+  // nessuna carta di Gioco Folle! deve avere lo stesso effetto con lo stesso importo.
   const CLASSIC: Record<string, number[]> = {
     gain: [10, 20, 25, 45, 50, 100, 150, 200],
     pay: [15, 50, 100, 150],

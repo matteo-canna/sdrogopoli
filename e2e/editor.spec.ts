@@ -34,7 +34,7 @@ test('crea, gioca e condividi un tabellone', async ({ page, browser }, info) => 
 
   // il file esportato contiene il tabellone
   const [download] = await Promise.all([page.waitForEvent('download'), ed.locator('[data-be-export]').click()]);
-  expect(download.suggestedFilename()).toBe('paese-di-prova.sdrogo-tabellone');
+  expect(download.suggestedFilename()).toBe('paese-di-prova.folle-tabellone');
   const file = JSON.parse(readFileSync((await download.path())!, 'utf8'));
   expect(file.kind).toBe('sdrogopoli-tabellone');
   expect(file.board.spaces[1]).toMatchObject({ name: 'Via dei Ciliegi', price: 100, mortgage: 50 });

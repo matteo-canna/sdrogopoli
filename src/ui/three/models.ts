@@ -1,4 +1,4 @@
-// 20 modelli 3D realistici ad alto dettaglio per le pedine di Sdrogopoli.
+// 20 modelli 3D realistici ad alto dettaglio per le pedine di Gioco Folle!
 // Ogni modello usa geometrie scolpite (LatheGeometry, ExtrudeGeometry smussate, TubeGeometry) e materiali PBR.
 import * as THREE from 'three';
 import type { BaseStyleId } from '../../engine';
@@ -874,7 +874,7 @@ function buildCamera(p: Palette): BuiltModel {
   add(g, new THREE.CylinderGeometry(0.024, 0.024, 0.03, 14), p.chrome, 0.34, 0.42, 0.135, Math.PI / 2);
   add(g, new THREE.BoxGeometry(0.026, 0.11, 0.022), p.chrome, 0.355, 0.36, 0.148, 0, 0, 0.24);
 
-  // Pentaprisma scolpito ad alta definizione + targhetta frontale "SDROGO" + slitta hot-shoe multi-pezzo
+  // Pentaprisma scolpito ad alta definizione + targhetta frontale "FOLLE!" + slitta hot-shoe multi-pezzo
   extrude(g, [
     [-0.23, 0], [0.23, 0], [0.155, 0.225], [-0.155, 0.225],
   ], 0.33, 0.022, p.paint, 0.02, 0.69, -0.04);
@@ -1966,7 +1966,7 @@ function buildArcade(p: Palette, primaryHex: string, accentHex: string): BuiltMo
     tube(g, trimPts, 0.014, p.paint, 28, 8);
   }
 
-  // Marquee retroilluminato "SDROGO SUPER ARCADE 1984" con modanature cromate + griglia altoparlanti sotto
+  // Marquee retroilluminato "FOLLE! SUPER ARCADE 1984" con modanature cromate + griglia altoparlanti sotto
   const marqueeMat = new THREE.MeshStandardMaterial({
     map: arcadeMarqueeTex(primaryHex),
     emissiveMap: arcadeMarqueeTex(primaryHex),

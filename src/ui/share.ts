@@ -66,7 +66,7 @@ export function drawResultCard(c: Ctx2D, state: GameState, ctx: GameContext): vo
   c.textAlign = 'left';
   c.fillStyle = '#ffffff';
   c.font = 'bold 72px system-ui, sans-serif';
-  c.fillText('Sdrogopoli', 60, 80);
+  c.fillText('Gioco Folle!', 60, 80);
   c.font = '38px system-ui, sans-serif';
   c.fillText(`${t('share.title')} · ${tn('summary.rounds', state.round)}`, 60, 140);
 
@@ -114,7 +114,7 @@ async function toBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
 export async function shareResult(state: GameState, ctx: GameContext): Promise<'shared' | 'downloaded' | 'cancelled'> {
   const blob = await toBlob(canvasOf(state, ctx));
   if (!blob) return 'cancelled';
-  const file = new File([blob], 'sdrogopoli.png', { type: 'image/png' });
+  const file = new File([blob], 'gioco-folle.png', { type: 'image/png' });
   const data = { files: [file], text: resultText(state, ctx) };
   if (navigator.canShare?.(data)) {
     try {
@@ -128,7 +128,7 @@ export async function shareResult(state: GameState, ctx: GameContext): Promise<'
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'sdrogopoli.png';
+  a.download = 'gioco-folle.png';
   document.body.append(a);
   a.click();
   a.remove();
