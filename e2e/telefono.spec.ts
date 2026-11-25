@@ -19,3 +19,30 @@ for (const vista of ['2d', '3d']) {
     expect(piccoli).toEqual([]);
   });
 }
+
+test('la scelta della pedina si apre sopra la pagina ed è comoda da toccare', async ({ page }) => {
+  await apri(page, { 'sdrogopoli-vista': '2d' });
+  // il pulsante per iniziare è sempre a portata, in fondo allo schermo
+  await expect(page.locator('#setup-form button[type=submit]')).toBeInViewport({ ratio: 1 });
+  await page.click('[data-look="0"]');
+  const finestra = page.locator('.look-dialog');
+  await expect(finestra).toBeVisible();
+  await expect(finestra.locator('[data-look-done]')).toBeInViewport({ ratio: 1 });
+  // una pedina di un altro reparto, scelta toccando la tessera
+  await finestra.locator('[data-look-family=veicoli]').click();
+  await finestra.locator('[data-character=vespa]').click();
+  await expect(finestra.locator('[data-character=vespa]')).toHaveAttribute('aria-checked', 'true');
+  const piccoli = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('.look-dialog button')]
+      .filter((el) => el.offsetParent !== null)
+      .map((el) => ({ el: (el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 30), r: el.getBoundingClientRect() }))
+      .filter(({ r }) => r.width < 44 || r.height < 44)
+      .map(({ el, r }) => `${el} ${Math.round(r.width)}×${Math.round(r.height)}`),
+  );
+  expect(piccoli).toEqual([]);
+  await finestra.locator('[data-look-done]').click();
+  await expect(finestra).toBeHidden();
+  // il posto mostra la pedina nuova e il focus torna lì
+  await expect(page.locator('[data-look="0"]')).toContainText('🛵');
+  await expect(page.locator('[data-look="0"]')).toBeFocused();
+});

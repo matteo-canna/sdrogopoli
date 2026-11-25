@@ -29,8 +29,6 @@
 .house-rules input[type=checkbox] { flex: 0 0 20px; width: 20px; height: 20px; min-height: 0; padding: 0; margin-top: 2px; }
 .house-rules select { width: 100%; }
 .pill { background: var(--panel); border-radius: 999px; padding: 1px 9px; font-size: 0.85em; }
-.setup-row select { flex: 0 1 auto; max-width: 45%; }
-.setup-row input { flex: 1 1 0; }
 .setup-row[hidden], .add-seat[hidden] { display: none !important; }
 .setup button.add-seat { justify-self: start; background: none; border: 1.5px dashed var(--line-strong); color: inherit; font-weight: 600; box-shadow: none; }
 .add-seat small { color: var(--muted); font-weight: 400; }
@@ -38,6 +36,4 @@
 .demo-toggle input { flex: 0 0 20px; width: 20px; height: 20px; min-height: 0; padding: 0; margin-top: 2px; }
 .demo-toggle small { color: var(--muted); }
 .badge-demo, .pill.demo { background: var(--gold); color: #1d1d1b; border-radius: 999px; padding: 1px 8px; font-size: 0.8em; font-weight: 700; }
-.setup form { min-width: 0; }
-.setup form { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 600px) { .view-buttons .lbl { display: none; } .view-buttons.overlay button { min-width: 44px; font-size: 1.1rem; } }

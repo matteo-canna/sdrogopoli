@@ -68,13 +68,14 @@ test('le pedine da collezione si scelgono per reparto e arrivano solo se scelte'
   await editor.locator('[data-look-family=personaggi]').click();
   await editor.locator('[data-character=char_knight]').click();
   await expect(editor.locator('[data-character=char_knight]')).toHaveAttribute('aria-checked', 'true');
-  await editor.locator('[data-finish]').selectOption('gold');
-  await editor.locator('[data-base-style]').selectOption('marble');
+  await editor.locator('[data-finish=gold]').click();
+  await editor.locator('[data-base-style=marble]').click();
   await editor.locator('[data-accent="#ffffff"]').click();
   await expect.poll(() => scaricati.length, { timeout: 30_000 }).toBeGreaterThan(0);
 
-  // un oggetto per il secondo
-  await page.click('[data-look="1"]');
+  // un oggetto per il secondo: si passa a lui senza chiudere la finestra
+  await editor.locator('[data-look-seat="1"]').click();
+  await expect(editor.locator('[data-look-seat="1"]')).toHaveAttribute('aria-pressed', 'true');
   await editor.locator('[data-look-family=icone]').click();
   await editor.locator('[data-character=moka]').click();
   await editor.locator('[data-look-done]').click();

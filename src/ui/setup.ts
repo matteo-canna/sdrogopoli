@@ -1,20 +1,17 @@
 // Schermata iniziale: chi gioca, personaggi, regole della casa e classifica tra amici.
 import { BOARDS, DEFAULT_BOARD, board, currentBoard, setBoard } from '../data';
 import { savedBoards } from './boardStore';
-import { BOT_LEVELS, BOT_STYLES, PRESETS, SHARE_CUT, SHARES_PER_GROUP, WHEEL_EVERY, estimatedMinutes, type BotStyle, type BaseStyleId, type FinishId, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
-import { webglAvailable } from './webgl';
-import { load3d } from './lazy3d';
+import { BOT_LEVELS, BOT_STYLES, PRESETS, SHARE_CUT, SHARES_PER_GROUP, WHEEL_EVERY, estimatedMinutes, type BotStyle, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type GameRules, type PlayerSetup } from '../engine';
 import { reportUrl } from './report';
 import { FILE_EXT, MAX_SLOTS, type Slot } from './slots';
 import { escapeHtml } from './view';
-import type { CharacterPreview } from './three/characters3d';
 import { renderIntro } from './intro';
 import { buildLabel } from './build';
 import { renderLeaderboard } from './summary';
-import { ACCENT_CHOICES, BASE_STYLES, CHARACTERS, COLLECTION_GROUPS, COLOR_CHOICES, FINISHES, collectionLook, colorName, itemName, characterDef, defaultAppearance, type CollectionGroup } from './characters';
+import { colorName, characterDef } from './characters';
 import { boardTitle, getLang, t, tn, type MsgKey } from '../i18n';
 import { KEYS, loadLeaderboard, loadProgress, parseProgress, readPref, saveLeaderboard, savePreset, saveProgress, writePref } from './prefs';
-import { ACHIEVEMENTS, achievementText, achievementTitle, EXTRA_COLORS, titleLabel, unlockedColors, unlockedTitles } from './achievements';
+import { ACHIEVEMENTS, achievementText, achievementTitle, EXTRA_COLORS, titleLabel, unlockedTitles } from './achievements';
 import { downloadProfile, parseProfileFile, mergeProgress, profileRows, PROFILE_EXT } from './profile';
 import { DAILY_ROUNDS, dailyPlayers, dailySeed, dailyText, dayId, parseDaily } from './daily';
 import { openSettings } from './settings';
@@ -37,33 +34,8 @@ export interface SetupChoice {
   boardId?: string;
 }
 
-// aspetto scelto per ciascuno dei posti nella schermata iniziale (ricordato per la prossima partita)
-export const setupLooks: Appearance[] = loadLooks();
-// posto di cui si sta modificando l'aspetto (null = editor chiuso)
-let editingSeat: number | null = null;
-// reparto di personaggi mostrato nell'editor: quelli classici o un reparto delle pedine da collezione
-type LookFamily = 'classic' | CollectionGroup;
-let editingFamily: LookFamily = 'classic';
-function familyOf(characterId: string): LookFamily {
-  return characterDef(characterId).collection ?? 'classic';
-}
-let preview: CharacterPreview | null = null;
-
-function loadLooks(): Appearance[] {
-  let saved: Partial<Appearance>[] = [];
-  try {
-    saved = JSON.parse(readPref(KEYS.looks) ?? '[]');
-  } catch {
-    /* preferenza rovinata: si riparte da quelle predefinite */
-  }
-  return SEATS.map((i) => {
-    const look = { ...defaultAppearance(i), ...(Array.isArray(saved) ? saved[i] : {}) };
-    // un personaggio sconosciuto torna a quello predefinito
-    if (!CHARACTERS.some((c) => c.id === look.character)) return defaultAppearance(i);
-    if (look.item && !(look.item in characterDef(look.character).items)) look.item = '';
-    return look;
-  });
-}
+import { avatarHtml, closePicker, destroyPreview, initPicker, openPicker, pickerDialogHtml, setupLooks } from './lookPicker';
+export { setupLooks, destroyPreview };
 
 // I tabelloni da scegliere: quelli del gioco e quelli fatti con l'editor in questo browser.
 function boardListHtml(checked = currentBoard()): string {
@@ -96,119 +68,32 @@ function propertyCount(): number {
   return board.spaces.filter((sp) => sp.type === 'property').length;
 }
 
-// ---------- schermata iniziale ----------
 
-function lookButton(i: number): string {
+// Pedina del posto i: tocco grande e rotondo (con la matita) che apre la finestra di scelta.
+function lookButton(i: number, name: string): string {
   const look = setupLooks[i];
   const def = characterDef(look.character);
-  return `<button type="button" class="look-btn" data-look="${i}" style="--c:${look.color}" aria-expanded="${editingSeat === i}"
-    title="${t('look.choose')}" aria-label="${t('look.seatLabel', { n: i + 1, name: def.label })}">${def.emoji}</button>`;
+  return `<button type="button" class="look-btn" data-look="${i}" style="--c:${look.color}" aria-haspopup="dialog"
+    title="${t('look.choose')}" aria-label="${escapeHtml(t('look.seatLabel', { player: name, name: def.label, color: colorName(look.color) }))}"><span class="look-btn-emoji" aria-hidden="true">${def.emoji}</span><span class="look-btn-edit" aria-hidden="true">✏️</span></button>`;
 }
 
-// Editor dell'aspetto: personaggio, colore, copricapo, mantello e oggetto in mano.
-function lookEditorHtml(i: number): string {
+// Nome mostrato del posto i: quello scritto o quello proposto.
+function seatName(i: number): string {
+  const input = document.querySelector<HTMLInputElement>(`#setup-form input[name=p${i}]`);
+  return input?.value.trim() || t('setup.playerN', { n: i + 1 });
+}
+
+// Aggiorna pedina e colore di un posto senza ridisegnare la riga (il focus resta dov'è).
+function refreshSeat(i: number): void {
+  const row = document.querySelectorAll<HTMLElement>('#setup-form .setup-row')[i];
+  if (!row) return;
   const look = setupLooks[i];
   const def = characterDef(look.character);
-  const families: LookFamily[] = ['classic', ...COLLECTION_GROUPS];
-  const shown = CHARACTERS.filter((c) => familyOf(c.id) === editingFamily);
-  const extra = def.collection ? collectionLook(look) : null;
-  return `
-    <div class="look-editor" style="--c:${look.color}">
-      <div class="look-preview" id="look-preview">${webglAvailable() ? '' : `<span class="look-emoji">${def.emoji}</span>`}</div>
-      <div class="look-controls">
-        <div class="look-group look-families" role="group" aria-label="${t('look.character')}">
-          ${families.map((f) => `<button type="button" class="chip-btn family-btn" aria-pressed="${f === editingFamily}" data-look-family="${f}">${t(`look.family.${f}` as MsgKey)}</button>`).join('')}
-        </div>
-        <div class="look-group" role="radiogroup" aria-label="${t('look.character')}">
-          ${shown.map((c) => `<button type="button" class="chip-btn" role="radio" aria-checked="${c.id === look.character}" data-character="${c.id}">${c.emoji} ${c.label}</button>`).join('')}
-        </div>
-        <div class="look-group swatches" role="radiogroup" aria-label="${t('look.color')}">
-          ${[...COLOR_CHOICES, ...unlockedColors(loadProgress().unlocked).map((c) => c.hex)]
-            .map((col) => `<button type="button" class="swatch" role="radio" aria-checked="${col === look.color}" data-color="${col}" style="background:${col}" title="${colorName(col)}" aria-label="${colorName(col)}"></button>`)
-            .join('')}
-        </div>
-        ${def.hat ? `<label class="check"><input type="checkbox" data-hat ${look.hat ? 'checked' : ''}> ${t('look.hat')}</label>` : ''}
-        ${def.cape ? `<label class="check"><input type="checkbox" data-cape ${look.cape ? 'checked' : ''}> ${t('look.cape')}</label>` : ''}
-        ${Object.keys(def.items).length === 0 ? '' : `<label class="hold">${t('look.inHand')}
-          <select data-item>
-            <option value="">${t('look.nothing')}</option>
-            ${Object.keys(def.items).map((id) => `<option value="${id}" ${id === look.item ? 'selected' : ''}>${itemName(id)}</option>`).join('')}
-          </select>
-        </label>`}
-        ${
-          extra
-            ? `<div class="look-selects">
-          <label class="hold">${t('look.finish')}
-            <select data-finish>${FINISHES.map((f) => `<option value="${f}" ${f === extra.finish ? 'selected' : ''}>${t(`finish.${f}` as MsgKey)}</option>`).join('')}</select>
-          </label>
-          <label class="hold">${t('look.base')}
-            <select data-base-style>${BASE_STYLES.map((b) => `<option value="${b}" ${b === extra.baseStyle ? 'selected' : ''}>${t(`base.${b}` as MsgKey)}</option>`).join('')}</select>
-          </label>
-        </div>
-        <div class="look-group swatches" role="radiogroup" aria-label="${t('look.accent')}">
-          ${ACCENT_CHOICES.map((col, k) => `<button type="button" class="swatch" role="radio" aria-checked="${col === extra.accentColor}" data-accent="${col}" style="background:${col}" title="${t(`accent.${k}` as MsgKey)}" aria-label="${t(`accent.${k}` as MsgKey)}"></button>`).join('')}
-        </div>`
-            : ''
-        }
-        <button type="button" class="primary" data-look-done>${t('btn.done')}</button>
-      </div>
-    </div>`;
-}
-
-export function destroyPreview(): void {
-  preview?.dispose();
-  preview = null;
-}
-
-// Ridisegna solo i pulsanti dei personaggi e l'editor, senza toccare i nomi già scritti.
-function refreshLooks(): void {
-  writePref(KEYS.looks, JSON.stringify(setupLooks));
-  document.querySelectorAll<HTMLElement>('.setup-row').forEach((row, i) => {
-    row.querySelector('.look-btn')!.outerHTML = lookButton(i);
-  });
-  const slot = document.querySelector<HTMLElement>('#look-slot');
-  if (!slot) return;
-  if (editingSeat === null) {
-    destroyPreview();
-    slot.innerHTML = '';
-    return;
-  }
-  slot.innerHTML = lookEditorHtml(editingSeat);
-  const box = slot.querySelector<HTMLElement>('#look-preview')!;
-  if (webglAvailable()) {
-    const seat = editingSeat;
-    // three.js si scarica la prima volta che si apre l'anteprima
-    void load3d()
-      .then((m) => {
-        // nel frattempo l'editor potrebbe essere stato chiuso o cambiato
-        if (editingSeat !== seat || !box.isConnected) return;
-        // l'anteprima 3D resta la stessa: si sposta nel nuovo editor
-        if (preview) preview.moveTo(box);
-        else preview = new m.CharacterPreview(box);
-        void preview.show(setupLooks[seat]);
-      })
-      .catch(() => {
-        box.innerHTML = `<span class="look-emoji">${characterDef(setupLooks[seat].character).emoji}</span>`;
-      });
-  }
-}
-
-function setLook(change: Partial<Appearance>): void {
-  if (editingSeat === null) return;
-  const look = { ...setupLooks[editingSeat], ...change };
-  if (change.character) {
-    const def = characterDef(change.character);
-    look.item = def.defaultItem;
-    // pedina da collezione: si parte dai suoi dettagli proposti
-    if (def.collection) Object.assign(look, collectionLook({ ...look, accentColor: def.defaultAccent }));
-  }
-  // colore già usato da un altro: i due giocatori se lo scambiano
-  if (change.color) {
-    const other = setupLooks.findIndex((l, j) => j !== editingSeat && l.color === change.color);
-    if (other >= 0) setupLooks[other] = { ...setupLooks[other], color: setupLooks[editingSeat].color };
-  }
-  setupLooks[editingSeat] = look;
-  refreshLooks();
+  row.style.setProperty('--c', look.color);
+  const btn = row.querySelector<HTMLElement>('.look-btn')!;
+  btn.style.setProperty('--c', look.color);
+  btn.setAttribute('aria-label', t('look.seatLabel', { player: seatName(i), name: def.label, color: colorName(look.color) }));
+  btn.querySelector('.look-btn-emoji')!.textContent = def.emoji;
 }
 
 // Partite salvate con un nome e file da importare.
@@ -235,7 +120,8 @@ function slotsHtml(list: Slot[]): string {
       </li>`,
     )
     .join('');
-  return `${list.length ? `<h2 id="slots-title">${t('slots.title')} <small>(${t('slots.count', { n: list.length, max: MAX_SLOTS })})</small></h2><ul class="slot-list">${items}</ul>` : `<h2 id="slots-title" class="visually-hidden">${t('slots.title')}</h2>`}
+  return `<h2 id="slots-title">💾 ${t('slots.title')}${list.length ? ` <small>(${t('slots.count', { n: list.length, max: MAX_SLOTS })})</small>` : ''}</h2>
+    ${list.length ? `<ul class="slot-list">${items}</ul>` : `<p class="hint">${t('slots.empty')}</p>`}
     <label class="import-file">📂 ${t('slots.import', { ext: FILE_EXT })}<input type="file" accept="${FILE_EXT},.json,application/json" data-import></label>
     <p class="slot-msg" role="status" aria-live="polite"></p>`;
 }
@@ -338,17 +224,17 @@ export function renderGoals(): string {
 }
 
 export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice: SetupChoice) => void, resume?: ResumeOffer, slots?: SlotsOffer, online?: OnlineOffer): void {
-  destroyPreview();
-  editingSeat = null;
+  closePicker();
+  const money = board.currency.symbol;
+  // Ordine della pagina: 1) la partita da preparare (con il riepilogo e il pulsante sempre a portata),
+  // 2) gli altri modi di giocare, 3) le informazioni sul gioco e i traguardi.
   app.innerHTML = `
     <main class="setup">
       <header class="brand">
         <div class="brand-strip" aria-hidden="true">${board.groups.map((g) => `<span style="background:${g.color}"></span>`).join('')}</div>
         <h1>Sdrogopoli</h1>
-        <p>${t('setup.tagline', { min: MIN_PLAYERS, max: MAX_PLAYERS, demo: DEMO_MAX_PLAYERS })}</p>
+        <p>${t('setup.tagline', { min: MIN_PLAYERS, max: MAX_PLAYERS })}</p>
       </header>
-      <div class="setup-grid">
-      <div class="setup-main">
       ${resume ? `<section class="card resume" aria-labelledby="resume-title">
         <h2 id="resume-title">${t('setup.resumeTitle')}</h2>
         ${resume.summary}
@@ -357,93 +243,130 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
           <button type="button" data-new-game>${t('btn.newGame')}</button>
         </div>
       </section>` : ''}
-      ${slots ? `<section class="card saved-games" aria-labelledby="slots-title">${slotsHtml(slots.list)}</section>` : ''}
-      <form id="setup-form" class="card" ${resume ? 'hidden' : ''}>
-        <div class="form-head">
-          <h2>${t('setup.whoPlays')}</h2>
-          <p>${t('setup.whoPlaysHint')}</p>
+      <form id="setup-form" class="setup-form" ${resume ? 'hidden' : ''}>
+        <div class="setup-steps">
+          <section class="card step" aria-labelledby="who-title">
+            <div class="form-head">
+              <h2 id="who-title"><span class="step-n" aria-hidden="true">1</span>${t('setup.whoPlays')}</h2>
+              <p>${t('setup.whoPlaysHint')}</p>
+            </div>
+            <div class="seat-list">
+            ${SEATS.map((i) => {
+              const name = i === 0 ? t('setup.playerN', { n: 1 }) : i === 1 ? 'Computer' : t('setup.playerN', { n: i + 1 });
+              return `<div class="setup-row" style="--c:${setupLooks[i].color}" ${i >= SEATS_SHOWN ? 'hidden' : ''}>${lookButton(i, name)}
+                <div class="seat-fields">
+                  <input name="p${i}" maxlength="16" aria-label="${t('setup.nameLabel', { n: i + 1 })}" placeholder="${t('setup.playerN', { n: i + 1 })}${i >= 2 ? ` ${t('setup.optional')}` : ''}" ${i < 2 ? `value="${name}"` : ''}>
+                  <div class="seat-meta">
+                    <select name="t${i}" aria-label="${t('setup.controlLabel', { n: i + 1 })}">
+                      <option value="human" ${i === 0 ? 'selected' : ''}>👤 ${t('setup.person')}</option>
+                      ${BOT_LEVELS.map((l) => `<option value="${l.id}" ${i > 0 && l.id === 'normale' ? 'selected' : ''}>🤖 ${t(`setup.computer.${l.id}` as MsgKey)}</option>`).join('')}
+                    </select>
+                  </div>
+                </div></div>`;
+            }).join('')}
+            </div>
+            <button type="button" class="add-seat" data-add-seat>➕ ${t('setup.addSeat')} <small>(${t('setup.upTo', { n: `<span data-seat-max>${MAX_PLAYERS}</span>` })})</small></button>
+            <p class="hint" data-demo-hint hidden>🧪 ${t('setup.demoMax', { n: MAX_PLAYERS })}</p>
+          </section>
+          <section class="card step" aria-labelledby="board-title">
+            <h2 id="board-title"><span class="step-n" aria-hidden="true">2</span>${t('setup.board')}</h2>
+            <fieldset class="presets boards">
+              <legend class="visually-hidden">${t('setup.board')}</legend>
+              <div class="preset-list" role="radiogroup">${boardListHtml()}</div>
+            </fieldset>
+            <button type="button" class="link" data-board-editor>✏️ ${t('editor.open')}</button>
+          </section>
+          <section class="card step" aria-labelledby="type-title">
+            <h2 id="type-title"><span class="step-n" aria-hidden="true">3</span>${t('setup.gameType')}</h2>
+            <fieldset class="presets types">
+              <legend class="visually-hidden">${t('setup.gameType')}</legend>
+              <div class="preset-list" role="radiogroup">
+                ${PRESETS.map((p, i) => `<label class="preset"><input type="radio" name="preset" value="${p.id}" ${i === 0 ? 'checked' : ''}><span><strong>${t(`preset.${p.id}` as MsgKey)}</strong></span></label>`).join('')}
+                <label class="preset"><input type="radio" name="preset" value="custom"><span><strong>${t('preset.custom')}</strong></span></label>
+              </div>
+              <p class="preset-text" data-preset-text aria-live="polite"></p>
+            </fieldset>
+            <details class="house-rules">
+              <summary>⚙️ ${t('rules.title')}</summary>
+              <div class="rules-grid">
+              <label class="check demo-toggle"><input type="checkbox" name="demo">
+                <span><strong>🧪 ${t('setup.demo')}</strong> <span class="badge-demo">${t('setup.experimental')}</span><br>
+                <small>${t('setup.demoText', { n: DEMO_MAX_PLAYERS, rounds: DEMO_ROUNDS, bonus: `${money} ${DEMO_SEAT_BONUS}` })}</small></span></label>
+              <label>${t('rules.money')}
+                <select name="money">${[1000, 1500, 2000, 2500].map((m) => `<option value="${m}" ${m === board.startingMoney ? 'selected' : ''}>${money} ${m}</option>`).join('')}</select>
+              </label>
+              <label>${t('lobby.duration')}
+                <select name="rounds">
+                  <option value="">${t('rules.untilLast')}</option>
+                  <option value="15">${t('rules.roundsShort', { n: 15 })}</option>
+                  <option value="${DEMO_ROUNDS}">${t('rules.rounds', { n: DEMO_ROUNDS })}</option>
+                  <option value="25">${t('rules.rounds', { n: 25 })}</option>
+                  <option value="40">${t('rules.rounds', { n: 40 })}</option>
+                </select>
+              </label>
+              <label>${t('rules.styles')}
+                <select name="styles">
+                  <option value="mix">${t('rules.stylesMix')}</option>
+                  ${BOT_STYLES.map((x) => `<option value="${x.id}">${t('rules.stylesAll', { style: t(`bot.style.${x.id}` as MsgKey).toLowerCase(), text: t(`bot.styleText.${x.id}` as MsgKey) })}</option>`).join('')}
+                </select>
+              </label>
+              <label>${t('rules.goal')}
+                <select name="goal">
+                  <option value="">${t('rules.goalNone')}</option>
+                  <option value="worth3000">${t('rules.goalWorth', { amount: `${money} 3000` })}</option>
+                  <option value="worth4000">${t('rules.goalWorth', { amount: `${money} 4000` })}</option>
+                  <option value="groups2">${t('rules.goalGroups', { n: 2 })}</option>
+                  <option value="groups3">${t('rules.goalGroups', { n: 3 })}</option>
+                  <option value="groups2worth4000">${t('rules.goalBoth', { n: 2, amount: `${money} 4000` })}</option>
+                  <option value="side">${t('rules.goalSide')}</option>
+                </select>
+              </label>
+              <label class="check"><input type="checkbox" name="tips" ${tipsOn ? 'checked' : ''}> ${t('rules.tips')}</label>
+              <label class="check"><input type="checkbox" name="quick"> ${t('rules.quick', { n: QUICK_START_PROPERTIES, two: QUICK_START_TWO_PLAYERS, total: `<span data-board-props>${propertyCount()}</span>` })}</label>
+              <label class="check"><input type="checkbox" name="bonus" checked> ${t('rules.bonus', { amount: `${money} <span data-bonus-amount>${SEAT_BONUS}</span>` })}</label>
+              <label class="check"><input type="checkbox" name="sprint"> 🎲 ${t('rules.sprint')}</label>
+              <label class="check"><input type="checkbox" name="pot"> ${t('rules.pot')}</label>
+              <label class="check"><input type="checkbox" name="events"> 🎪 ${t('rules.events')}</label>
+              <label class="check"><input type="checkbox" name="wheel"> 🎡 ${t('rules.wheel', { n: WHEEL_EVERY })}</label>
+              <label class="check"><input type="checkbox" name="shares"> 📈 ${t('rules.shares', { n: SHARES_PER_GROUP, pct: Math.round(SHARE_CUT * 100) })}</label>
+              <label class="check"><input type="checkbox" name="landmarks"> 🏛️ ${t('rules.landmarks')}</label>
+              <label class="check"><input type="checkbox" name="teams"> ${t('rules.teams')}</label>
+              <p class="hint">${t('rules.teamsHint')}</p>
+              </div>
+            </details>
+          </section>
         </div>
-        ${SEATS
-          .map(
-            (i) => `<div class="setup-row" ${i >= SEATS_SHOWN ? 'hidden' : ''}>${lookButton(i)}
-              <input name="p${i}" maxlength="16" aria-label="${t('setup.nameLabel', { n: i + 1 })}" placeholder="${t('setup.playerN', { n: i + 1 })}${i >= 2 ? ` ${t('setup.optional')}` : ''}" ${i < 2 ? `value="${i === 0 ? t('setup.playerN', { n: 1 }) : 'Computer'}"` : ''}>
-              <select name="t${i}" aria-label="${t('setup.controlLabel', { n: i + 1 })}">
-                <option value="human" ${i === 0 ? 'selected' : ''}>👤 ${t('setup.person')}</option>
-                ${BOT_LEVELS.map((l) => `<option value="${l.id}" ${i > 0 && l.id === 'normale' ? 'selected' : ''}>🤖 ${t(`setup.computer.${l.id}` as MsgKey)}</option>`).join('')}
-              </select></div>`,
-          )
-          .join('')}
-        <button type="button" class="add-seat" data-add-seat>➕ ${t('setup.addSeat')} <small>(${t('setup.upTo', { n: `<span data-seat-max>${MAX_PLAYERS}</span>` })})</small></button>
-        <label class="check demo-toggle"><input type="checkbox" name="demo">
-          <span><strong>🧪 ${t('setup.demo')}</strong> <span class="badge-demo">${t('setup.experimental')}</span><br>
-          <small>${t('setup.demoText', { n: DEMO_MAX_PLAYERS, rounds: DEMO_ROUNDS, bonus: `${board.currency.symbol} ${DEMO_SEAT_BONUS}` })}</small></span></label>
-        <fieldset class="presets boards">
-          <legend>${t('setup.board')}</legend>
-          <div class="preset-list" role="radiogroup">${boardListHtml()}</div>
-          <button type="button" class="link" data-board-editor>✏️ ${t('editor.open')}</button>
-        </fieldset>
-        <fieldset class="presets">
-          <legend>${t('setup.gameType')}</legend>
-          <div class="preset-list" role="radiogroup">
-            ${PRESETS.map((p, i) => `<label class="preset"><input type="radio" name="preset" value="${p.id}" ${i === 0 ? 'checked' : ''}><span><strong>${t(`preset.${p.id}` as MsgKey)}</strong><small>${t(`presetText.${p.id}` as MsgKey)}</small></span></label>`).join('')}
-            <label class="preset"><input type="radio" name="preset" value="custom"><span><strong>${t('preset.custom')}</strong><small>${t('presetText.custom')}</small></span></label>
-          </div>
-          <p class="hint" data-duration aria-live="polite"></p>
-        </fieldset>
-        <div id="look-slot"></div>
-        <details class="house-rules">
-          <summary>⚙️ ${t('rules.title')}</summary>
-          <label>${t('rules.money')}
-            <select name="money">${[1000, 1500, 2000, 2500].map((m) => `<option value="${m}" ${m === board.startingMoney ? 'selected' : ''}>${board.currency.symbol} ${m}</option>`).join('')}</select>
-          </label>
-          <label>Durata
-            <select name="rounds">
-              <option value="">${t('rules.untilLast')}</option>
-              <option value="15">${t('rules.roundsShort', { n: 15 })}</option>
-              <option value="${DEMO_ROUNDS}">${t('rules.rounds', { n: DEMO_ROUNDS })}</option>
-              <option value="25">${t('rules.rounds', { n: 25 })}</option>
-              <option value="40">${t('rules.rounds', { n: 40 })}</option>
-            </select>
-          </label>
-          <label>${t('rules.styles')}
-            <select name="styles">
-              <option value="mix">${t('rules.stylesMix')}</option>
-              ${BOT_STYLES.map((x) => `<option value="${x.id}">${t('rules.stylesAll', { style: t(`bot.style.${x.id}` as MsgKey).toLowerCase(), text: t(`bot.styleText.${x.id}` as MsgKey) })}</option>`).join('')}
-            </select>
-          </label>
-          <label class="check"><input type="checkbox" name="tips" ${tipsOn ? 'checked' : ''}> ${t('rules.tips')}</label>
-          <label class="check"><input type="checkbox" name="quick"> ${t('rules.quick', { n: QUICK_START_PROPERTIES, two: QUICK_START_TWO_PLAYERS, total: `<span data-board-props>${propertyCount()}</span>` })}</label>
-          <label class="check"><input type="checkbox" name="bonus" checked> ${t('rules.bonus', { amount: `${board.currency.symbol} <span data-bonus-amount>${SEAT_BONUS}</span>` })}</label>
-          <label class="check"><input type="checkbox" name="sprint"> 🎲 ${t('rules.sprint')}</label>
-          <label>${t('rules.goal')}
-            <select name="goal">
-              <option value="">${t('rules.goalNone')}</option>
-              <option value="worth3000">${t('rules.goalWorth', { amount: `${board.currency.symbol} 3000` })}</option>
-              <option value="worth4000">${t('rules.goalWorth', { amount: `${board.currency.symbol} 4000` })}</option>
-              <option value="groups2">${t('rules.goalGroups', { n: 2 })}</option>
-              <option value="groups3">${t('rules.goalGroups', { n: 3 })}</option>
-              <option value="groups2worth4000">${t('rules.goalBoth', { n: 2, amount: `${board.currency.symbol} 4000` })}</option>
-              <option value="side">${t('rules.goalSide')}</option>
-            </select>
-          </label>
-          <label class="check"><input type="checkbox" name="pot"> ${t('rules.pot')}</label>
-          <label class="check"><input type="checkbox" name="events"> 🎪 ${t('rules.events')}</label>
-          <label class="check"><input type="checkbox" name="wheel"> 🎡 ${t('rules.wheel', { n: WHEEL_EVERY })}</label>
-          <label class="check"><input type="checkbox" name="shares"> 📈 ${t('rules.shares', { n: SHARES_PER_GROUP, pct: Math.round(SHARE_CUT * 100) })}</label>
-          <label class="check"><input type="checkbox" name="landmarks"> 🏛️ ${t('rules.landmarks')}</label>
-          <label class="check"><input type="checkbox" name="teams"> ${t('rules.teams')}</label>
-          <p class="hint">${t('rules.teamsHint')}</p>
-        </details>
-        <p class="hint" data-quick-note hidden>⚡ ${t('setup.quickNote', { n: QUICK_START_TWO_PLAYERS })}</p>
-        <button class="primary" type="submit">${t('setup.start')}</button>
+        <aside class="setup-summary card" aria-labelledby="summary-title">
+          <h2 id="summary-title">${t('setup.summary')}</h2>
+          <ul class="summary-seats" data-summary-seats></ul>
+          <dl class="summary-lines">
+            <div><dt>${t('setup.board')}</dt><dd data-summary-board></dd></div>
+            <div><dt>${t('setup.gameType')}</dt><dd data-summary-preset></dd></div>
+          </dl>
+          <p class="summary-duration" data-duration aria-live="polite"></p>
+          <p class="hint" data-quick-note hidden>⚡ ${t('setup.quickNote', { n: QUICK_START_TWO_PLAYERS })}</p>
+          <div data-setup-error role="alert"></div>
+          <button class="primary" type="submit">${t('setup.start')}</button>
+        </aside>
       </form>
-      ${online ? onlineHtml() : ''}
-      <div id="leaderboard-slot">${renderLeaderboard(loadLeaderboard())}</div>
-      <div id="daily-slot">${renderDaily()}</div>
-      <div id="goals-slot">${renderGoals()}</div>
-      </div>
-      <aside class="setup-info">${renderIntro()}</aside>
-      </div>
+      <section class="more-modes" aria-labelledby="modes-title">
+        <h2 id="modes-title" class="section-title">${t('setup.moreModes')}</h2>
+        <div class="modes-grid">
+          ${online ? onlineHtml() : ''}
+          <div id="daily-slot">${renderDaily()}</div>
+          ${slots ? `<section class="card saved-games" aria-labelledby="slots-title">${slotsHtml(slots.list)}</section>` : ''}
+        </div>
+      </section>
+      <section class="about" aria-labelledby="about-title">
+        <h2 id="about-title" class="section-title">${t('setup.aboutGame')}</h2>
+        <div class="about-grid">
+          <div class="setup-info">${renderIntro()}</div>
+          <div class="about-side">
+            <div id="leaderboard-slot">${renderLeaderboard(loadLeaderboard())}</div>
+            <div id="goals-slot">${renderGoals()}</div>
+          </div>
+        </div>
+      </section>
       <footer class="credits">
         <p>🆓 ${t('footer.free')}</p>
         <p>${t('footer.characters')} <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit ${t('credits.by')} Kay Lousberg</a> (CC0) · ${t('footer.version', { v: buildLabel() })} · <button type="button" class="link" data-credits>${t('footer.credits')}</button> · <button type="button" class="link" data-settings>⚙️ ${t('settings.title')}</button> · <a href="${reportUrl(null, 'iniziale')}" target="_blank" rel="noopener">${t('report.link')}</a></p>
@@ -461,6 +384,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
         <p><a href="${import.meta.env.BASE_URL}licenze.txt" target="_blank" rel="noopener">${t('credits.licenses')}</a> · <a href="https://github.com/matteo-canna/sdrogopoli" target="_blank" rel="noopener">${t('credits.source')}</a></p>
         <form method="dialog"><button class="primary">${t('btn.close')}</button></form>
       </dialog>
+      ${pickerDialogHtml()}
     </main>`;
   document.querySelector('#leaderboard-slot')!.addEventListener('click', (e) => {
     if (!(e.target as HTMLElement).closest('[data-reset-leaderboard]')) return;
@@ -473,7 +397,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     if (el.closest('[data-daily-play]')) {
       const name = form.querySelector<HTMLInputElement>('input[name=p0]')?.value.trim() || t('setup.playerN', { n: 1 });
       const day = dayId();
-      destroyPreview();
+      closePicker();
       onStart({ players: dailyPlayers(name), rules: { maxRounds: DAILY_ROUNDS }, tipsOn: form.querySelector<HTMLInputElement>('input[name=tips]')?.checked ?? tipsOn, seed: dailySeed(day), daily: day, boardId: DEFAULT_BOARD });
       return;
     }
@@ -527,13 +451,13 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
   const onlineBox = document.querySelector<HTMLElement>('.online-card');
   if (online && onlineBox) {
     onlineBox.querySelector('[data-online-create]')!.addEventListener('click', () => {
-      destroyPreview();
+      closePicker();
       online.onCreate();
     });
     onlineBox.querySelector('[data-online-join]')!.addEventListener('submit', (e) => {
       e.preventDefault();
       const code = String(new FormData(e.target as HTMLFormElement).get('code') ?? '');
-      destroyPreview();
+      closePicker();
       onlineBox.querySelector<HTMLElement>('[data-online-error]')!.hidden = online.onJoin(code);
     });
   }
@@ -579,6 +503,33 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     (box.querySelector('[data-resume]') as HTMLElement).focus();
   }
   const isDemo = () => form.querySelector<HTMLInputElement>('input[name=demo]')!.checked;
+  const visibleSeats = () => [...form.querySelectorAll<HTMLElement>('.setup-row')].flatMap((row, i) => (row.hidden ? [] : [i]));
+  // Riepilogo a fianco (in basso sul telefono): chi gioca, tabellone e tipo di partita.
+  const syncSummary = () => {
+    const seats = visibleSeats().filter((i) => form.querySelector<HTMLInputElement>(`input[name=p${i}]`)!.value.trim());
+    const box = form.querySelector<HTMLElement>('[data-summary-seats]')!;
+    box.innerHTML = seats
+      .map((i) => {
+        const bot = form.querySelector<HTMLSelectElement>(`select[name=t${i}]`)!.value !== 'human';
+        return `<li>${avatarHtml(setupLooks[i])}<span>${bot ? '🤖 ' : ''}${escapeHtml(seatName(i))}</span></li>`;
+      })
+      .join('');
+    box.setAttribute('aria-label', tn('setup.seats', seats.length));
+    const boardInput = form.querySelector<HTMLInputElement>('input[name=board]:checked');
+    form.querySelector('[data-summary-board]')!.textContent = boardInput?.closest('label')?.querySelector('strong')?.textContent ?? '';
+    const preset = form.querySelector<HTMLInputElement>('input[name=preset]:checked');
+    form.querySelector('[data-summary-preset]')!.textContent = preset?.closest('label')?.querySelector('strong')?.textContent ?? '';
+    const text = preset ? (preset.value === 'custom' ? t('presetText.custom') : t(`presetText.${preset.value}` as MsgKey)) : '';
+    form.querySelector('[data-preset-text]')!.textContent = text;
+  };
+  initPicker({
+    seats: visibleSeats,
+    nameOf: seatName,
+    onChange: (i) => {
+      refreshSeat(i);
+      syncSummary();
+    },
+  });
   // posti visibili e pulsante "Aggiungi giocatore" in base al limite (8, o 12 in demo)
   const syncSeats = () => {
     const max = isDemo() ? DEMO_MAX_PLAYERS : MAX_PLAYERS;
@@ -586,10 +537,14 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     rows.forEach((row, i) => {
       if (i >= max) row.hidden = true;
     });
-    form.querySelector<HTMLElement>('[data-add-seat]')!.hidden = !rows.some((row, i) => i < max && row.hidden);
+    const full = !rows.some((row, i) => i < max && row.hidden);
+    form.querySelector<HTMLElement>('[data-add-seat]')!.hidden = full;
+    // tutti gli 8 posti in uso: si ricorda che la modalità demo ne aggiunge altri
+    form.querySelector<HTMLElement>('[data-demo-hint]')!.hidden = !full || isDemo();
     form.querySelector('[data-seat-max]')!.textContent = String(max);
     form.querySelector('[data-bonus-amount]')!.textContent = String(isDemo() ? DEMO_SEAT_BONUS : SEAT_BONUS);
     syncQuick();
+    syncSummary();
   };
   // In due si propone la partita rapida (finché la persona non sceglie da sé)
   const quick = form.querySelector<HTMLInputElement>('input[name=quick]')!;
@@ -604,9 +559,6 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     const preset = form.querySelector<HTMLInputElement>('input[name=preset]:checked')?.value;
     if (preset === 'classica' || preset === 'rapida') form.querySelector<HTMLInputElement>(`input[name=preset][value=${named === 2 ? 'rapida' : 'classica'}]`)!.checked = true;
   };
-  form.addEventListener('input', (e) => {
-    if ((e.target as HTMLElement).matches('input[name^=p]')) syncQuick();
-  });
   syncQuick();
   // Tipo di partita: imposta le regole della casa; cambiandole a mano diventa "Personalizzata"
   const field = <T extends HTMLElement>(name: string) => form.querySelector<T>(`[name=${name}]`)!;
@@ -627,6 +579,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     showDuration();
   };
   const showDuration = () => {
+    syncSummary();
     const id = form.querySelector<HTMLInputElement>('input[name=preset]:checked')?.value;
     const p = PRESETS.find((x) => x.id === id);
     const out = form.querySelector<HTMLElement>('[data-duration]')!;
@@ -641,26 +594,41 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     const who = tn('setup.people', people) + (bots ? ` ${t('setup.and')} ${tn('setup.computers', bots)}` : '');
     out.textContent = `⏱ ${t('setup.duration', { rounds: p.rounds, who, minutes: estimatedMinutes(p, people, bots) })}`;
   };
+  form.addEventListener('input', (e) => {
+    const el = e.target as HTMLInputElement;
+    if (!el.matches('input[name^=p]')) return;
+    syncQuick();
+    showDuration();
+    // il nome compare anche nell'etichetta della pedina
+    refreshSeat(Number(el.name.slice(1)));
+  });
   form.addEventListener('change', (e) => {
-    const t = e.target as HTMLInputElement;
-    if (t.name === 'board') chooseBoard(t.value);
-    if (t.name === 'preset') applyPreset(t.value);
-    else if (['rounds', 'quick', 'sprint', 'goal', 'pot', 'money'].includes(t.name)) {
+    const el = e.target as HTMLInputElement;
+    if (el.name === 'board') {
+      chooseBoard(el.value);
+      syncSummary();
+    } else if (el.name === 'preset') applyPreset(el.value);
+    else if (['rounds', 'quick', 'sprint', 'goal', 'pot', 'money'].includes(el.name)) {
       form.querySelector<HTMLInputElement>('input[name=preset][value=custom]')!.checked = true;
       showDuration();
-    } else if (t.matches('select[name^=t]')) showDuration();
-  });
-  form.addEventListener('input', (e) => {
-    if ((e.target as HTMLElement).matches('input[name^=p]')) showDuration();
+    } else if (el.matches('select[name^=t]')) showDuration();
+    else if (el.name === 'demo') {
+      // la modalità demo propone la sua durata; togliendola si torna a "fino all'ultimo"
+      const rounds = form.querySelector<HTMLSelectElement>('select[name=rounds]')!;
+      if (el.checked) rounds.value = String(DEMO_ROUNDS);
+      else if (rounds.value === String(DEMO_ROUNDS)) rounds.value = '';
+      syncSeats();
+    }
   });
   showDuration();
+  syncSeats();
   form.addEventListener('click', (e) => {
-    const t = (e.target as HTMLElement).closest<HTMLElement>('button');
-    if (!t) return;
-    if (t.hasAttribute('data-board-editor')) {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('button');
+    if (!b) return;
+    if (b.hasAttribute('data-board-editor')) {
       // l'editor arriva in un pezzo di codice a parte, solo quando serve
       void import('./boardEditor').then((m) => m.openBoardEditor(currentBoard(), (id) => chooseBoard(id ?? currentBoard())));
-    } else if (t.hasAttribute('data-add-seat')) {
+    } else if (b.hasAttribute('data-add-seat')) {
       // mostra il prossimo posto nascosto e porta lì il cursore
       const row = form.querySelector<HTMLElement>('.setup-row[hidden]');
       if (row) {
@@ -668,40 +636,15 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
         row.querySelector('input')?.focus();
       }
       syncSeats();
-    } else if (t.dataset.look !== undefined) {
-      const seat = Number(t.dataset.look);
-      editingSeat = editingSeat === seat ? null : seat;
-      if (editingSeat !== null) editingFamily = familyOf(setupLooks[editingSeat].character);
-      refreshLooks();
-    } else if (t.dataset.lookFamily) {
-      editingFamily = t.dataset.lookFamily as LookFamily;
-      refreshLooks();
-    } else if (t.dataset.character) setLook({ character: t.dataset.character });
-    else if (t.dataset.color) setLook({ color: t.dataset.color });
-    else if (t.dataset.accent) setLook({ accentColor: t.dataset.accent });
-    else if (t.hasAttribute('data-look-done')) {
-      editingSeat = null;
-      refreshLooks();
-    }
+      showDuration();
+    } else if (b.dataset.look !== undefined) openPicker(Number(b.dataset.look));
   });
-  form.addEventListener('change', (e) => {
-    const t = e.target as HTMLInputElement | HTMLSelectElement;
-    if (t.hasAttribute('data-hat')) setLook({ hat: (t as HTMLInputElement).checked });
-    else if (t.hasAttribute('data-cape')) setLook({ cape: (t as HTMLInputElement).checked });
-    else if (t.hasAttribute('data-item')) setLook({ item: t.value });
-    else if (t.hasAttribute('data-finish')) setLook({ finish: t.value as FinishId });
-    else if (t.hasAttribute('data-base-style')) setLook({ baseStyle: t.value as BaseStyleId });
-    else if (t.name === 'demo') {
-      // la modalità demo propone la sua durata; togliendola si torna a "fino all'ultimo"
-      const rounds = form.querySelector<HTMLSelectElement>('select[name=rounds]')!;
-      if ((t as HTMLInputElement).checked) rounds.value = String(DEMO_ROUNDS);
-      else if (rounds.value === String(DEMO_ROUNDS)) rounds.value = '';
-      syncSeats();
-    }
-  });
-  document.querySelector<HTMLFormElement>('#setup-form')!.addEventListener('submit', (e) => {
+  const showError = (text: string) => {
+    form.querySelector('[data-setup-error]')!.innerHTML = `<p class="error">${text}</p>`;
+  };
+  form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const data = new FormData(e.target as HTMLFormElement);
+    const data = new FormData(form);
     const demo = data.get('demo') === 'on';
     const players = SEATS.filter((i) => i < (demo ? DEMO_MAX_PLAYERS : MAX_PLAYERS))
       .map((i) => {
@@ -715,21 +658,17 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     const mixed = [...BOT_STYLES.map((x) => x.id)].sort(() => Math.random() - 0.5);
     players.filter((p) => p.bot).forEach((p, n) => (p.bot!.style = styleChoice === 'mix' ? mixed[n % mixed.length] : (styleChoice as BotStyle)));
     if (players.length < MIN_PLAYERS) {
-      const form = e.target as HTMLFormElement;
-      form.querySelector('.error')?.remove();
-      form.insertAdjacentHTML('beforeend', `<p class="error">${t('setup.minPlayers', { n: MIN_PLAYERS })}</p>`);
+      showError(t('setup.minPlayers', { n: MIN_PLAYERS }));
       return;
     }
     if (data.get('teams') === 'on' && (players.length < 4 || players.length % 2 !== 0)) {
-      form.querySelector('.error')?.remove();
-      form.insertAdjacentHTML('beforeend', `<p class="error">${t('rules.teamsHint')}</p>`);
+      showError(t('rules.teamsHint'));
       return;
     }
     const rounds = Number(data.get('rounds')) || null;
     // il tipo di partita serve ai traguardi ("vinci con tre tipi diversi")
     savePreset(String(data.get('preset') ?? 'custom'));
-    destroyPreview();
-    editingSeat = null;
+    closePicker();
     onStart({
       players,
       rules: {
