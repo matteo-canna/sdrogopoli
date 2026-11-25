@@ -20,7 +20,8 @@ import { KEYS, SKY_LABELS, SPEEDS, loadLeaderboard, loadPreset, loadProgress, lo
 import { GameSession, randomSeed } from './session';
 import { BotScheduler } from './bots';
 import { soundFor } from './sounds';
-import { renderSetup, setupLooks, SEATS_SHOWN, type SetupChoice } from './setup';
+import { refreshBoards, renderSetup, setupLooks, SEATS_SHOWN, type SetupChoice } from './setup';
+import { decodeBoard, linkCode as linkBoardCode, loadCustomBoards, saveCustomBoard } from './boardStore';
 import { setupOffline } from './pwa';
 import { reportUrl } from './report';
 import { defaultSlotName, deleteSlot, downloadSave, FILE_EXT, listSlots, parseSaveText, saveSlot } from './slots';
@@ -55,7 +56,9 @@ const startSettings = loadSettings();
 applySettings(startSettings);
 audio.setVolumes(startSettings.sfxVolume, startSettings.musicVolume);
 translateSplash();
-// l'ultimo tabellone usato; una partita salvata ha il suo, e session.load() lo sceglie
+// i tabelloni fatti con l'editor, poi l'ultimo tabellone usato; una partita salvata ha il suo,
+// e session.load() lo sceglie
+loadCustomBoards();
 useBoard(readPref(KEYS.board));
 session.load();
 let selected: string | null = null;
@@ -1260,6 +1263,21 @@ window.addEventListener(LANG_EVENT, () => {
   if (board3d) destroy3d();
   render();
 });
+
+// link di un tabellone (#tabellone=…): si aggiunge ai propri e si sceglie per la prossima partita
+const boardLink = linkBoardCode(location.hash);
+if (boardLink) {
+  history.replaceState(null, '', location.pathname + location.search);
+  void decodeBoard(boardLink).then((result) => {
+    if (!result.ok) return showNotices([{ k: 'editor.linkBad' }], 1.5);
+    const id = saveCustomBoard(result.data);
+    writePref(KEYS.board, id);
+    // una partita salvata resta sul suo tabellone: quello nuovo è scelto per la prossima
+    if (!session.state) useBoard(id);
+    refreshBoards(id);
+    showNotices([{ k: 'editor.fromLink', p: { name: result.data.title ?? '' } }], 1.5);
+  });
+}
 
 // link di un tavolo (#tavolo=CODICE): si entra subito
 const linkCode = codeFromHash(location.hash);

@@ -50,6 +50,8 @@ export interface Group {
 }
 
 export interface BoardData {
+  // nome di un tabellone fatto con l'editor (quelli del gioco hanno il nome nelle traduzioni)
+  title?: string;
   currency: { name: string; plural: string; symbol: string };
   startingMoney: number;
   // Caselle a cui puntano le carte, per ruolo ("lusso", "studio", "partenza"): così lo stesso

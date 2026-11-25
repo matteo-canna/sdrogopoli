@@ -41,3 +41,44 @@ Il disegno non va toccato: il 2D e il 3D calcolano la griglia dalla lunghezza de
 (`perSide`, `gridPosition`, `boardStyle` in `src/ui/view.ts`, `spaceCenter` in
 `src/ui/three/layout.ts`), e nel 3D la base, il centro, le decorazioni e la vista d'insieme si
 riducono insieme a lui.
+
+## Tabelloni fatti dai giocatori
+
+Nella schermata iniziale, sotto i tabelloni, "✏️ Crea o modifica un tabellone" apre l'editor
+(`src/ui/boardEditor.ts`, scaricato solo quando si apre). Si parte da un tabellone del gioco o da
+uno fatto prima e si cambiano nome, soldi iniziali, nomi e colori dei quartieri, nomi delle
+caselle, prezzi e tasse. Cambiando il prezzo di una via, affitti e ipoteca lo seguono
+(`withPrice`: gli affitti restano crescenti, il prezzo delle case resta quello). La forma del
+tabellone, cioè quante caselle e di che tipo, resta quella di partenza: chi vuole cambiarla scrive
+il file a mano e lo importa.
+
+Un tabellone fatto così ha i nomi in una lingua sola: quella in cui è stato scritto. Mentre si
+gioca su di lui i nomi vengono dai suoi dati (`spaceName` e `groupName` in `src/i18n/index.ts`),
+anche se riusa gli id delle caselle del tabellone di partenza.
+
+**Il controllo.** Tutto quello che entra (editor, file, link, partita salvata) passa da
+`validateBoard` in `src/engine/boardCheck.ts`, che restituisce una copia pulita con solo i campi
+che il gioco conosce, oppure l'elenco degli errori (codici tradotti con le chiavi `boardErr.*`).
+Oltre alle regole qui sopra controlla che niente possa diventare codice nella pagina: id con sole
+lettere minuscole, cifre e trattini, colori `#rrggbb`, nomi senza `< > & "` (l'apostrofo va bene),
+lunghezze e numeri entro limiti fissi, da 20 a 48 caselle, al massimo 4 fermate e 2 servizi, e
+le carte "vai a" che trovano la loro casella.
+
+**Dove stanno.** `src/ui/boardStore.ts`:
+
+- *nel browser*: "Salva e scegli" li mette in `sdrogopoli-tabelloni` (al massimo 12) e li rende
+  sceglibili. L'id si calcola dal contenuto (`mio-…`), quindi lo stesso tabellone arrivato due
+  volte non si doppia, e salvando una modifica la versione nuova prende il posto della vecchia;
+- *in un file*: "Esporta file" scarica un `.sdrogo-tabellone`
+  (`{ kind: "sdrogopoli-tabellone", version: 1, board }`), "Importa un file" lo rilegge;
+- *in un link*: "Copia il link" dà un indirizzo `#tabellone=…` con il tabellone intero compresso
+  (deflate e base64url, circa 2 KB per Valle Stretta). Chi lo apre se lo trova tra i suoi
+  tabelloni, già scelto per la prossima partita, e l'indirizzo si ripulisce. Niente server;
+- *in una partita*: il salvataggio di una partita su un tabellone dell'editor porta con sé i dati
+  (`boardData`), così si riprende, si esporta e si rivede anche su un altro dispositivo; lì il
+  tabellone vale per quella partita e non finisce tra quelli salvati.
+
+Online e partita del giorno restano sul tabellone predefinito.
+
+Prove: `tests/editor.test.ts` (controllo, prezzi, salvataggio, file, link, una partita intera sul
+tabellone nuovo e il suo salvataggio aperto altrove) ed `e2e/editor.spec.ts`.
