@@ -9,6 +9,8 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:4180/sdrogopoli/',
     trace: 'off',
+    // le prove leggono i testi in italiano; quella in inglese (lingua.spec.ts) cambia lingua da sé
+    locale: 'it-IT',
   },
   webServer: {
     command: 'npx vite preview --port 4180 --strictPort',

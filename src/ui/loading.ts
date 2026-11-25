@@ -1,6 +1,7 @@
 // Schermata di caricamento: è già nella pagina (index.html) e si vede prima ancora che parta il codice.
 // Qui si caricano in anticipo i personaggi 3D, si aggiorna la barra e poi la schermata sparisce.
-import { LOADING_TIPS } from './intro';
+import { loadingTips } from './intro';
+import { t } from '../i18n';
 
 // Tempo minimo, così la schermata non lampeggia, e massimo, così non resta mai bloccata.
 const MIN_MS = 900;
@@ -34,7 +35,8 @@ export async function runLoading(tasks: LoadingTask[]): Promise<void> {
     splash.querySelector('.splash-bar')?.setAttribute('aria-valuenow', String(pct));
     if (status) status.textContent = label;
   };
-  update(tasks.length ? 'Preparo i personaggi…' : 'Pronto!');
+  update(tasks.length ? t('loading.characters') : t('loading.ready'));
+  const LOADING_TIPS = loadingTips();
 
   let tipIndex = Math.floor(Math.random() * LOADING_TIPS.length);
   const showTip = () => {
@@ -44,15 +46,15 @@ export async function runLoading(tasks: LoadingTask[]): Promise<void> {
   const tipTimer = setInterval(showTip, 3500);
 
   const all = Promise.all(
-    tasks.map((t) =>
-      t.run().then(
+    tasks.map((task) =>
+      task.run().then(
         () => {
           done++;
-          update(done === total ? 'Pronto!' : t.label);
+          update(done === total ? t('loading.ready') : task.label);
         },
         () => {
           done++;
-          update(t.label);
+          update(task.label);
         },
       ),
     ),
@@ -62,6 +64,19 @@ export async function runLoading(tasks: LoadingTask[]): Promise<void> {
   if (elapsed < MIN_MS) await wait(MIN_MS - elapsed);
   clearInterval(tipTimer);
   hideSplash();
+}
+
+// La schermata è scritta in italiano in index.html: con un'altra lingua si traduce appena parte il codice.
+export function translateSplash(): void {
+  const splash = document.querySelector<HTMLElement>('#splash');
+  if (!splash) return;
+  const set = (sel: string, text: string) => {
+    const el = splash.querySelector(sel);
+    if (el) el.textContent = text;
+  };
+  set('.splash-sub', t('splash.sub'));
+  set('.splash-status', t('splash.loading'));
+  splash.querySelector('.splash-bar')?.setAttribute('aria-label', t('splash.bar'));
 }
 
 // Fa sparire la schermata con una dissolvenza e poi la toglie dalla pagina.

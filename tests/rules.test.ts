@@ -641,7 +641,7 @@ describe('regole della casa', () => {
     expect(owned).toHaveLength(16);
     expect(owned.every(([id]) => board.spaces.some((sp) => sp.id === id && sp.type === 'property'))).toBe(true);
     for (const p of s.players) expect(owned.filter(([, o]) => o.owner === p.id)).toHaveLength(2);
-    expect(s.log.at(-1)).toContain('2 proprietà');
+    expect(s.log.at(-1)).toEqual({ k: 'log.quickStart', p: { n: 2 } });
   });
 
   it('senza la regola del montepremi le tasse vanno alla banca', () => {

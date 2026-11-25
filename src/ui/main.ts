@@ -10,7 +10,7 @@ import type { CameraMode } from './three/camera';
 import type { SkyMode } from './three/city';
 import { webglAvailable } from './webgl';
 import { load3d } from './lazy3d';
-import { runLoading } from './loading';
+import { runLoading, translateSplash } from './loading';
 import { tutorialTip } from './tutorial';
 import { addResult, renderSummary } from './summary';
 import { characterDef, playerColor } from './characters';
@@ -29,7 +29,8 @@ import { QUICK_SAYS, sayText } from '../net/chat';
 import { turnServers } from '../net/turn';
 import { GuestRoom } from '../net/guest';
 import { announce, moveAnnouncement } from './announce';
-import { applySettings, loadSettings, openSettings } from './settings';
+import { t, text, type MsgKey } from '../i18n';
+import { applySettings, LANG_EVENT, loadSettings, openSettings } from './settings';
 
 // senza "rng": i dadi vengono dal generatore della partita, che parte da un seme casuale
 const ctx: GameContext = { board, cards };
@@ -42,6 +43,7 @@ const session = new GameSession(ctx);
 const startSettings = loadSettings();
 applySettings(startSettings);
 audio.setVolumes(startSettings.sfxVolume, startSettings.musicVolume);
+translateSplash();
 session.load();
 let selected: string | null = null;
 let error = '';
@@ -204,8 +206,8 @@ function seatNote(seat: number): string {
   if (!online) return '';
   const offline = online.role === 'host' ? online.room.offlineSeats() : online.room.offline;
   const away = online.role === 'host' ? [...online.room.away] : online.room.away;
-  if (offline.includes(seat)) return ' · 📴 scollegato, gioca il computer';
-  if (away.includes(seat)) return ' · 🤖 tempo scaduto, gioca il computer';
+  if (offline.includes(seat)) return ` · 📴 ${t('online.seatOffline')}`;
+  if (away.includes(seat)) return ` · 🤖 ${t('online.seatAway')}`;
   return '';
 }
 
@@ -214,8 +216,8 @@ let saysOpen = false;
 function saysHtml(): string {
   if (!online || mySeat() === null) return '';
   return `<div class="quick-says">
-    <button class="says-toggle" data-action="toggleSays" aria-expanded="${saysOpen}">💬 Reazioni</button>
-    ${saysOpen ? `<div class="says-list">${QUICK_SAYS.map((q) => `<button data-action="say" data-say="${q.id}">${escapeHtml(q.text)}</button>`).join('')}</div>` : ''}
+    <button class="says-toggle" data-action="toggleSays" aria-expanded="${saysOpen}">💬 ${t('says.toggle')}</button>
+    ${saysOpen ? `<div class="says-list">${QUICK_SAYS.map((q) => `<button data-action="say" data-say="${q.id}">${escapeHtml(sayText(q.id) ?? '')}</button>`).join('')}</div>` : ''}
   </div>`;
 }
 
@@ -281,12 +283,12 @@ async function enterTable(role: 'host' | 'guest', code: string, restore?: HostSn
   selected = null;
   tradeDraft = null;
   error = '';
-  const name = onlineName || (role === 'host' ? 'Oste' : 'Ospite');
+  const name = onlineName || (role === 'host' ? t('online.hostName') : t('online.guestName'));
   let transport;
   try {
     transport = await openTransport(code);
   } catch {
-    lobbyStatus = 'Non riesco ad aprire il collegamento: controlla la connessione e riprova.';
+    lobbyStatus = t('online.cannotOpen');
     online = null;
     session.load();
     resumeOffered = !!session.state;
@@ -317,7 +319,7 @@ async function enterTable(role: 'host' | 'guest', code: string, restore?: HostSn
     };
     room.onHostLeft = () => {
       // può tornare ricaricando la pagina: si resta al tavolo ad aspettare
-      const msg = room.closed || 'Chi ha creato il tavolo si è scollegato. Aspetto che torni…';
+      const msg = room.closed || t('online.hostLeft');
       lobbyStatus = msg;
       error = msg;
       render();
@@ -332,8 +334,7 @@ async function enterTable(role: 'host' | 'guest', code: string, restore?: HostSn
     // se dopo un po' nessuno risponde, lo si dice
     setTimeout(() => {
       if (online?.room === room && !room.connected && !room.closed) {
-        lobbyStatus = 'Ancora nessuna risposta. Controlla il codice, o chiedi a chi ha creato il tavolo di tenere aperta la pagina.'
-          + (turnServers(import.meta.env).length ? '' : ' Se siete su reti diverse (per esempio uno con i dati del telefono) a volte il collegamento diretto non riesce: provate tutti sulla stessa Wi-Fi.');
+        lobbyStatus = t('online.noAnswer') + (turnServers(import.meta.env).length ? '' : ` ${t('online.sameWifi')}`);
         render();
       }
     }, 15000);
@@ -450,7 +451,8 @@ function openFile(file: SaveFile): void {
 function resumeSummary(s: GameState): string {
   const alive = s.players.filter((p) => !p.bankrupt);
   const who = s.players.map((p) => `${playerBadge(s, p.id, 'token')} ${escapeHtml(p.name)}`).join(' ');
-  const turn = s.phase === 'gameOver' ? 'Partita finita' : `Giro ${s.round}${s.rules?.maxRounds ? ` di ${s.rules.maxRounds}` : ''} · tocca a ${escapeHtml(s.players[actingPlayer(s)].name)}`;
+  const round = s.rules?.maxRounds ? t('round.ofMax', { n: s.round, max: s.rules.maxRounds }) : t('round.n', { n: s.round });
+  const turn = s.phase === 'gameOver' ? t('game.over') : `${round} · ${t('turn.of', { name: escapeHtml(s.players[actingPlayer(s)].name) })}`;
   return `<p class="resume-players">${who}</p><p class="resume-meta">${turn} · ${alive.length} in gioco</p>`;
 }
 
@@ -478,8 +480,8 @@ function tipHtml(s: GameState): string {
       <h4>💡 ${escapeHtml(tip.title)}</h4>
       <p>${escapeHtml(tip.text)}</p>
       <div class="tip-buttons">
-        <button data-action="tipOk" data-tip="${tip.id}">Ho capito</button>
-        <button class="link" data-action="tipOff">Basta consigli</button>
+        <button data-action="tipOk" data-tip="${tip.id}">${t('tip.ok')}</button>
+        <button class="link" data-action="tipOff">${t('tip.off')}</button>
       </div>
     </div>`;
 }
@@ -488,8 +490,8 @@ function tipHtml(s: GameState): string {
 function goalPill(s: GameState): string {
   const r = s.rules;
   if (!r || (!r.goalWorth && !r.goalGroups && !r.goalSide)) return '';
-  const parts = [r.goalGroups ? `${r.goalGroups} quartieri` : '', r.goalWorth ? `${board.currency.symbol} ${r.goalWorth}` : '', r.goalSide ? 'un lato intero' : ''].filter(Boolean);
-  return `<span class="pill" title="Vince subito chi raggiunge l'obiettivo">🎯 ${parts.join(' o ')}</span>`;
+  const parts = [r.goalGroups ? t('goal.groups', { n: r.goalGroups }) : '', r.goalWorth ? `${board.currency.symbol} ${r.goalWorth}` : '', r.goalSide ? t('goal.side') : ''].filter(Boolean);
+  return `<span class="pill" title="${t('goal.title')}">🎯 ${parts.join(` ${t('goal.or')} `)}</span>`;
 }
 
 function sprintLabel(face: SprintFace): string {
@@ -504,13 +506,13 @@ function turnHtml(s: GameState): string {
   return `
     <div class="turn" style="--c:${playerColor(p)}">
       ${playerBadge(s, id)}
-      <span>${s.phase === 'gameOver' ? '<strong>Partita finita</strong>' : `Tocca a <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>`}</span>
-      ${s.rules?.demo ? `<span class="pill demo" title="Modalità demo sperimentale">🧪 Demo</span>` : ''}
-      ${s.rules?.maxRounds ? `<span class="pill">Giro ${s.round} di ${s.rules.maxRounds}</span>` : ''}
-      ${online ? `<span class="pill clock" data-clock aria-label="Tempo per la mossa" ${timeLeft() === null ? 'hidden' : ''}>⏱ ${clockText(timeLeft() ?? 0)}</span>` : ''}
-      ${s.rules?.parkPot ? `<span class="pill" title="Montepremi della Panchina del Parco">🪑 ${board.currency.symbol} ${s.pot}</span>` : ''}
+      <span>${s.phase === 'gameOver' ? `<strong>${t('game.over')}</strong>` : t('turn.of', { name: `<strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>` })}</span>
+      ${s.rules?.demo ? `<span class="pill demo" title="${t('game.demoTitle')}">🧪 Demo</span>` : ''}
+      ${s.rules?.maxRounds ? `<span class="pill">${t('round.ofMax', { n: s.round, max: s.rules.maxRounds })}</span>` : ''}
+      ${online ? `<span class="pill clock" data-clock aria-label="${t('online.clock')}" ${timeLeft() === null ? 'hidden' : ''}>⏱ ${clockText(timeLeft() ?? 0)}</span>` : ''}
+      ${s.rules?.parkPot ? `<span class="pill" title="${t('game.potTitle')}">🪑 ${board.currency.symbol} ${s.pot}</span>` : ''}
       ${goalPill(s)}
-      ${s.lastRoll ? `<span class="roll">${renderDice(s)}${s.lastSprint ? `<span class="sprint-die" title="Dado Sprint">${sprintLabel(s.lastSprint)}</span>` : ''}<span class="roll-total">${total + (typeof s.lastSprint === 'number' ? s.lastSprint : 0)}</span></span>` : ''}
+      ${s.lastRoll ? `<span class="roll">${renderDice(s)}${s.lastSprint ? `<span class="sprint-die" title="${t('game.sprintDie')}">${sprintLabel(s.lastSprint)}</span>` : ''}<span class="roll-total">${total + (typeof s.lastSprint === 'number' ? s.lastSprint : 0)}</span></span>` : ''}
     </div>`;
 }
 
@@ -519,8 +521,8 @@ function controlsHtml(s: GameState): string {
   // online, quando tocca a un altro, al posto dei pulsanti si dice chi sta giocando
   const waiting = s.phase !== 'gameOver' && !myTurn(s);
   const actions = waiting
-    ? `<div class="actions waiting"><p class="wait">${mySeat() === null ? '👀 Stai guardando la partita' : `⏳ Aspetta il tuo turno: gioca <strong>${escapeHtml(s.players[actingPlayer(s)].name)}</strong>`}${seatNote(actingPlayer(s))}</p></div>`
-    : `${iAmAway() ? '<p class="away-note" role="status">🤖 Il tempo è scaduto e il computer sta giocando per te. Fai una mossa per riprendere.</p>' : ''}<div class="actions">${renderTurnActions(s)}${undoButton()}</div>`;
+    ? `<div class="actions waiting"><p class="wait">${mySeat() === null ? `👀 ${t('online.watching')}` : `⏳ ${t('online.waitTurn', { name: `<strong>${escapeHtml(s.players[actingPlayer(s)].name)}</strong>` })}`}${seatNote(actingPlayer(s))}</p></div>`
+    : `${iAmAway() ? `<p class="away-note" role="status">🤖 ${t('online.awayNote')}</p>` : ''}<div class="actions">${renderTurnActions(s)}${undoButton()}</div>`;
   return `
     ${tradeDraft && !waiting ? renderTradeEditor(s, tradeDraft) : actions}
     ${saysHtml()}
@@ -534,34 +536,36 @@ function infoHtml(s: GameState): string {
   const news = fresh ? s.log.slice(-fresh) : [];
   return `
     ${s.phase === 'gameOver' ? renderSummary(s, ctx) : ''}
-    ${news.length ? `<div class="news"><h4>Cosa è successo</h4><ul>${news.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul></div>` : ''}
-    ${selected ? '' : '<p class="hint">Tocca una casella per vedere i dettagli.</p>'}
-    <details class="log-box"><summary>Registro della partita</summary>
-      <ol class="log">${s.log.slice().reverse().map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ol>
+    ${news.length ? `<div class="news"><h4>${t('news.title')}</h4><ul>${news.map((l) => `<li>${escapeHtml(text(l))}</li>`).join('')}</ul></div>` : ''}
+    ${selected ? '' : `<p class="hint">${t('hint.tapSpace')}</p>`}
+    <details class="log-box"><summary>${t('log.title')}</summary>
+      <ol class="log">${s.log.slice().reverse().map((l) => `<li>${escapeHtml(text(l))}</li>`).join('')}</ol>
     </details>`;
 }
 
 function soundButtons(): string {
-  return `<button data-action="toggleSfx" aria-pressed="${audio.sfxOn}" aria-label="Effetti sonori" title="Effetti sonori">${audio.sfxOn ? '🔊' : '🔇'}<span class="lbl"> Effetti</span></button>
-    <button data-action="toggleMusic" aria-pressed="${audio.musicOn}" aria-label="Musica" title="Musica">${audio.musicOn ? '🎵' : '🚫'}<span class="lbl"> Musica</span></button>`;
+  return `<button data-action="toggleSfx" aria-pressed="${audio.sfxOn}" aria-label="${t('tools.sfx')}" title="${t('tools.sfx')}">${audio.sfxOn ? '🔊' : '🔇'}<span class="lbl"> ${t('tools.sfxShort')}</span></button>
+    <button data-action="toggleMusic" aria-pressed="${audio.musicOn}" aria-label="${t('tools.music')}" title="${t('tools.music')}">${audio.musicOn ? '🎵' : '🚫'}<span class="lbl"> ${t('tools.music')}</span></button>`;
 }
 
 function settingsButton(): string {
-  return `<button data-action="settings" aria-label="Impostazioni" title="Impostazioni: testo, movimento, volumi">⚙️<span class="lbl"> Impostazioni</span></button>`;
+  return `<button data-action="settings" aria-label="${t('settings.title')}" title="${t('settings.hint')}">⚙️<span class="lbl"> ${t('settings.title')}</span></button>`;
 }
 
 function viewButtons(): string {
   const cam = viewMode === '3d'
-    ? `<button data-action="camera" aria-label="${cameraMode === 'follow' ? 'Vista d\'insieme' : 'Segui la pedina'}">${cameraMode === 'follow' ? '🗺️<span class="lbl"> Vista d\'insieme</span>' : '🎥<span class="lbl"> Segui la pedina</span>'}</button>`
+    ? `<button data-action="camera" aria-label="${cameraMode === 'follow' ? t('tools.overview') : t('tools.follow')}">${cameraMode === 'follow' ? `🗺️<span class="lbl"> ${t('tools.overview')}</span>` : `🎥<span class="lbl"> ${t('tools.follow')}</span>`}</button>`
     : '';
   const toggle = webglAvailable()
-    ? `<button data-action="toggleView" aria-label="${viewMode === '3d' ? 'Vista 2D' : 'Vista 3D'}">${viewMode === '3d' ? '🔲<span class="lbl"> Vista 2D</span>' : '🧊<span class="lbl"> Vista 3D</span>'}</button>`
+    ? `<button data-action="toggleView" aria-label="${viewMode === '3d' ? t('tools.view2d') : t('tools.view3d')}">${viewMode === '3d' ? `🔲<span class="lbl"> ${t('tools.view2d')}</span>` : `🧊<span class="lbl"> ${t('tools.view3d')}</span>`}</button>`
     : '';
-  const [icon, label] = SKY_LABELS[skyMode];
+  const [icon, skyKey] = SKY_LABELS[skyMode];
+  const label = t(skyKey);
   const sky = viewMode === '3d'
-    ? `<button data-action="sky" aria-label="Cielo: ${label}" title="Cielo: ${label}">${icon}<span class="lbl"> ${label}</span></button>`
+    ? `<button data-action="sky" aria-label="${t('tools.sky', { label })}" title="${t('tools.sky', { label })}">${icon}<span class="lbl"> ${label}</span></button>`
     : '';
-  const speedBtn = `<button data-action="speed" aria-label="Velocità: ${speed.label}" title="Velocità di gioco: ${speed.label}">${speed.icon}<span class="lbl"> ${speed.label}</span></button>`;
+  const speedLabel = t(`speed.${speed.id}` as MsgKey);
+  const speedBtn = `<button data-action="speed" aria-label="${t('tools.speed', { label: speedLabel })}" title="${t('tools.speed', { label: speedLabel })}">${speed.icon}<span class="lbl"> ${speedLabel}</span></button>`;
   return cam + sky + toggle + speedBtn + soundButtons() + settingsButton();
 }
 
@@ -654,13 +658,13 @@ app.addEventListener('keydown', (e) => {
 function selectSpace(spaceId: string | null): void {
   selected = selected === spaceId ? null : spaceId;
   error = '';
-  if (selected && session.state) announce(`${spaceLabel(session.state, board.spaces.findIndex((sp) => sp.id === selected))}. Carta aperta.`);
+  if (selected && session.state) announce(`${spaceLabel(session.state, board.spaces.findIndex((sp) => sp.id === selected))}. ${t('announce.cardOpen')}`);
   render();
 }
 
 function undoButton(): string {
   if (online || !session.canUndo) return '';
-  return `<button class="undo" data-action="undo" title="Annulla l'ultima mossa (non i dadi)">↩ Annulla</button>`;
+  return `<button class="undo" data-action="undo" title="${t('undo.title')}">↩ ${t('btn.cancel')}</button>`;
 }
 
 // Struttura della partita, uguale nel 2D e nel 3D: tabellone, pannello laterale e,
@@ -673,26 +677,26 @@ function gameShell(stage: string, mode: ViewMode): string {
         <div class="view-buttons overlay"></div>
         <div class="card-slot"></div>
       </div>
-      <aside class="side" aria-label="Giocatori e registro">
-        <button class="drawer-close" data-action="drawer">✕ Chiudi</button>
+      <aside class="side" aria-label="${t('side.label')}">
+        <button class="drawer-close" data-action="drawer">✕ ${t('btn.close')}</button>
         <div class="view-buttons in-drawer"></div>
         <div class="hud"></div>
         <div class="players-list"></div>
-        ${online ? `<p class="saved">🌐 Partita online · tavolo <strong>${online.code}</strong>. Le partite online non si salvano.</p>` : `<p class="saved">💾 La partita si salva da sola su questo dispositivo.</p>
+        ${online ? `<p class="saved">🌐 ${t('online.savedNote', { code: `<strong>${online.code}</strong>` })}</p>` : `<p class="saved">💾 ${t('save.auto')}</p>
         <details class="slots-box">
-          <summary>Salva una copia o esporta</summary>
+          <summary>${t('save.copyOrExport')}</summary>
           <form class="slot-form" data-slot-form>
-            <label for="slot-name">Nome del salvataggio</label>
+            <label for="slot-name">${t('save.name')}</label>
             <div class="slot-row">
               <input id="slot-name" name="slotName" maxlength="60" placeholder="${escapeHtml(defaultSlotName())}" autocomplete="off">
-              <button type="submit">Salva copia</button>
+              <button type="submit">${t('save.copy')}</button>
             </div>
           </form>
-          <button data-action="exportGame">⬇️ Esporta in un file ${FILE_EXT}</button>
+          <button data-action="exportGame">⬇️ ${t('save.export', { ext: FILE_EXT })}</button>
           <p class="slot-msg" role="status" aria-live="polite"></p>
         </details>`}
-        <button class="link" data-action="quit">${online ? 'Esci dal tavolo' : 'Abbandona la partita'}</button>
-        <a class="report-link" data-report href="#" target="_blank" rel="noopener">🐞 Segnala un problema</a>
+        <button class="link" data-action="quit">${online ? t('online.leave') : t('game.quit')}</button>
+        <a class="report-link" data-report href="#" target="_blank" rel="noopener">🐞 ${t('report.link')}</a>
       </aside>
       <div class="action-bar"></div>
     </div>`;
@@ -706,7 +710,7 @@ function fillPanels(s: GameState): void {
   game.classList.toggle('busy', animating);
   app.querySelector('.hud')!.innerHTML = phone ? infoHtml(s) : turnHtml(s) + controlsHtml(s) + infoHtml(s);
   app.querySelector('.action-bar')!.innerHTML = phone
-    ? `<div class="bar-head">${turnHtml(s)}<button class="drawer-btn" data-action="drawer" aria-expanded="${drawerOpen}">👥 Giocatori</button></div>${controlsHtml(s)}`
+    ? `<div class="bar-head">${turnHtml(s)}<button class="drawer-btn" data-action="drawer" aria-expanded="${drawerOpen}">👥 ${t('side.players')}</button></div>${controlsHtml(s)}`
     : '';
   app.querySelector('.players-list')!.innerHTML = renderPlayers(s);
   // sul telefono, nel 2D, i comandi della vista stanno nel cassetto
@@ -732,7 +736,7 @@ let loading3d = false;
 function render3d(s: GameState): void {
   // la scena 3D si crea una sola volta: ridisegniamo solo i pannelli HTML
   if (!board3d) {
-    if (!app.querySelector('.game3d .board3d')) app.innerHTML = gameShell('<div class="board3d" tabindex="0" role="region" aria-label="Tabellone 3D: usa le frecce per scegliere una casella, Esc per chiudere la carta"><p class="loading-3d">Preparo il tabellone 3D…</p></div>', '3d');
+    if (!app.querySelector('.game3d .board3d')) app.innerHTML = gameShell(`<div class="board3d" tabindex="0" role="region" aria-label="${t('board3d.label')}"><p class="loading-3d">${t('board3d.loading')}</p></div>`, '3d');
     fillPanels(s);
     if (loading3d) return;
     loading3d = true;
@@ -798,7 +802,7 @@ function act(action: Action): void {
     else {
       const reason = online.room.act(action);
       if (reason) {
-        error = reason;
+        error = t(reason.k, reason.p);
         audio.play('error');
         render();
       }
@@ -815,7 +819,7 @@ function act(action: Action): void {
     afterMove(prev, session.state!, action, !actorBot);
   } catch (e) {
     if (e instanceof RuleError) {
-      error = e.message;
+      error = t(e.key, e.params);
       audio.play('error');
     } else throw e;
   }
@@ -1037,7 +1041,7 @@ app.addEventListener('submit', (e) => {
     const input = slotForm.querySelector<HTMLInputElement>('input')!;
     const result = saveSlot(input.value, file);
     const msg = app.querySelector('.slot-msg')!;
-    msg.textContent = result.ok ? `✅ Salvata come "${input.value.trim() || input.placeholder}". La trovi nella schermata iniziale.` : result.reason;
+    msg.textContent = result.ok ? `✅ ${t('save.done', { name: input.value.trim() || input.placeholder })}` : result.reason;
     if (result.ok) {
       input.value = '';
       input.placeholder = defaultSlotName();
@@ -1072,7 +1076,7 @@ function refreshTradeSummary(): void {
 function confirmTwice(button: HTMLElement): boolean {
   if (button.dataset.confirm === 'yes') return true;
   button.dataset.confirm = 'yes';
-  button.textContent = 'Tocca di nuovo per confermare';
+  button.textContent = t('confirm.again');
   return false;
 }
 
@@ -1086,6 +1090,12 @@ document.addEventListener('keydown', (e) => {
 });
 
 setupOffline();
+
+// lingua cambiata nelle impostazioni: si ridisegna tutto (il 3D rifà le scritte delle caselle)
+window.addEventListener(LANG_EVENT, () => {
+  if (board3d) destroy3d();
+  render();
+});
 
 // link di un tavolo (#tavolo=CODICE): si entra subito
 const linkCode = codeFromHash(location.hash);
@@ -1116,7 +1126,7 @@ const neededCharacters = webglAvailable() && viewMode === '3d'
   : [];
 void runLoading(
   neededCharacters.map((id) => ({
-    label: `${characterDef(id).emoji} ${characterDef(id).label} pronto`,
+    label: `${characterDef(id).emoji} ${t('loading.characterReady', { name: characterDef(id).label })}`,
     run: () => load3d().then((m) => m.loadModel(id)),
   })),
 );

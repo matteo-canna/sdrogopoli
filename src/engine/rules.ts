@@ -2,6 +2,7 @@
 import { rollDice } from './dice';
 import { defaultRules, emptyStats, withRng, JAIL_FINE, MAX_JAIL_ATTEMPTS, SPRINT_FACES, type GameContext, type SprintFace, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
 import type { Card, CardEffect, DeckId, PropertySpace, Space } from './types';
+import { format, type MsgKey, type Params } from '../i18n';
 
 export type Action =
   | { type: 'roll' }
@@ -37,7 +38,16 @@ export function actingPlayer(state: GameState): number {
 }
 
 // Errore per un'azione non permessa in questo momento: l'interfaccia può mostrarlo.
-export class RuleError extends Error {}
+// Errore di regola: la chiave della frase e i suoi valori, così l'interfaccia lo mostra nella lingua scelta.
+// Il messaggio (per i test e la console) è in italiano.
+export class RuleError extends Error {
+  constructor(
+    readonly key: MsgKey,
+    readonly params?: Params,
+  ) {
+    super(format('it', key, params));
+  }
+}
 
 const BOARD_SIZE_FALLBACK = 40;
 export const HOTEL = 5;
@@ -55,7 +65,7 @@ function boardSize(ctx: GameContext): number {
 
 function spaceById(ctx: GameContext, id: string): Space {
   const s = ctx.board.spaces.find((sp) => sp.id === id);
-  if (!s) throw new RuleError(`Casella sconosciuta: ${id}`);
+  if (!s) throw new RuleError('err.unknownSpace', { id });
   return s;
 }
 
@@ -88,8 +98,8 @@ function recordHistory(state: GameState, ctx: GameContext): void {
   state.history.push(state.players.map((p) => (p.bankrupt ? 0 : netWorth(state, ctx, p.id))));
 }
 
-function log(state: GameState, msg: string): void {
-  state.log.push(msg);
+function log(state: GameState, k: MsgKey, p?: Params): void {
+  state.log.push(p ? { k, p } : { k });
   state.eventCount = (state.eventCount ?? state.log.length - 1) + 1;
 }
 
@@ -161,7 +171,7 @@ function collectSalary(state: GameState, ctx: GameContext): void {
   const start = ctx.board.spaces.find((s) => s.type === 'start');
   const salary = start && start.type === 'start' ? start.salary : 0;
   current(state).money += salary;
-  log(state, `${current(state).name} passa dalla Partenza e incassa ${salary}.`);
+  log(state, 'log.passGo', { name: current(state).name, amount: salary });
 }
 
 function sendToJail(state: GameState, ctx: GameContext): void {
@@ -172,7 +182,7 @@ function sendToJail(state: GameState, ctx: GameContext): void {
   stat(state, p.id).jailVisits++;
   state.extraRoll = false;
   state.doublesInRow = 0;
-  log(state, `${p.name} va in Caserma!`);
+  log(state, 'log.toJail', { name: p.name });
 }
 
 // ---------- risoluzione della casella di arrivo ----------
@@ -184,7 +194,7 @@ function diceTotal(state: GameState): number {
 function resolveLanding(state: GameState, ctx: GameContext): void {
   const p = current(state);
   const space = ctx.board.spaces[p.position];
-  log(state, `${p.name} arriva su ${space.name}.`);
+  log(state, 'log.lands', { name: p.name, space: space.id });
 
   if (isBuyable(space)) {
     const own = state.ownership[space.id];
@@ -200,20 +210,20 @@ function resolveLanding(state: GameState, ctx: GameContext): void {
         pay(state, p.id, rent, own.owner);
         stat(state, p.id).rentPaid += rent;
         stat(state, own.owner).rentReceived += rent;
-        log(state, `${p.name} paga ${rent} di affitto a ${state.players[own.owner].name}.`);
+        log(state, 'log.rent', { name: p.name, amount: rent, owner: state.players[own.owner].name });
       }
     }
   } else if (space.type === 'tax') {
     pay(state, p.id, space.amount, null);
     stat(state, p.id).taxesPaid += space.amount;
-    log(state, `${p.name} paga ${space.amount} di tasse.`);
+    log(state, 'log.tax', { name: p.name, amount: space.amount });
   } else if (space.type === 'card') {
     drawCard(state, ctx, space.deck);
     if (state.phase === 'buy' || state.phase === 'cardChoice') return;
   } else if (space.type === 'goToJail') {
     sendToJail(state, ctx);
   } else if (space.type === 'free' && state.rules?.parkPot && state.pot > 0) {
-    log(state, `${p.name} incassa il montepremi della ${space.name}: ${state.pot}!`);
+    log(state, 'log.pot', { name: p.name, space: space.id, amount: state.pot });
     p.money += state.pot;
     state.pot = 0;
   }
@@ -233,7 +243,7 @@ function drawCard(state: GameState, ctx: GameContext, deck: DeckId): void {
   const id = state.decks[deck].shift();
   if (!id) return; // mazzo vuoto (tutte le carte "esci gratis" sono in mano)
   const card = ctx.cards.cards.find((c) => c.id === id) as Card;
-  log(state, `${current(state).name} pesca: "${card.text}"`);
+  log(state, 'log.draws', { name: current(state).name, card: card.id });
   if (card.effect.kind === 'getOutOfJailFree') {
     current(state).jailCards.push(card.id);
   } else {
@@ -250,11 +260,11 @@ function drawCard(state: GameState, ctx: GameContext, deck: DeckId): void {
 function doChooseCard(state: GameState, ctx: GameContext, option: number): void {
   requirePhase(state, 'cardChoice');
   const card = ctx.cards.cards.find((c) => c.id === state.pendingCard);
-  if (!card || card.effect.kind !== 'choice') throw new RuleError('Nessuna carta da scegliere.');
+  if (!card || card.effect.kind !== 'choice') throw new RuleError('err.noCardChoice');
   const chosen = card.effect.options[option];
-  if (!chosen) throw new RuleError('Scelta non valida.');
+  if (!chosen) throw new RuleError('err.badChoice');
   state.pendingCard = null;
-  log(state, `${current(state).name} sceglie: ${chosen.label}.`);
+  log(state, 'log.chooses', { name: current(state).name, choice: `${card.id}#${option}` });
   applyCardEffect(state, ctx, chosen.effect);
   // effetti senza movimento: il turno prosegue come dopo una carta normale
   if (state.phase === 'cardChoice') finishMove(state);
@@ -327,13 +337,13 @@ function applyCardEffect(state: GameState, ctx: GameContext, effect: CardEffect)
 // ---------- azioni ----------
 
 function requirePhase(state: GameState, ...phases: GameState['phase'][]): void {
-  if (!phases.includes(state.phase)) throw new RuleError('Azione non permessa in questo momento.');
+  if (!phases.includes(state.phase)) throw new RuleError('err.notNow');
 }
 
 function requireOwnedProperty(state: GameState, ctx: GameContext, spaceId: string) {
   const space = spaceById(ctx, spaceId);
   const own = state.ownership[spaceId];
-  if (!own || own.owner !== state.current) throw new RuleError('Non possiedi questa casella.');
+  if (!own || own.owner !== state.current) throw new RuleError('err.notYours');
   return { space, own };
 }
 
@@ -342,14 +352,14 @@ function doRoll(state: GameState, ctx: GameContext): void {
   const p = current(state);
   const roll = rollDice(ctx.rng!); // applyAction garantisce sempre un generatore
   state.lastRoll = roll.dice;
-  log(state, `${p.name} lancia ${roll.dice[0]} e ${roll.dice[1]}.`);
+  log(state, 'log.rolls', { name: p.name, a: roll.dice[0], b: roll.dice[1] });
   if (roll.isDouble) stat(state, p.id).doubles++;
 
   if (p.inJail) {
     if (roll.isDouble) {
       p.inJail = false;
       p.jailAttempts = 0;
-      log(state, `${p.name} fa un doppio ed esce dalla Caserma.`);
+      log(state, 'log.jailDouble', { name: p.name });
     } else {
       p.jailAttempts++;
       if (p.jailAttempts < MAX_JAIL_ATTEMPTS) {
@@ -360,7 +370,7 @@ function doRoll(state: GameState, ctx: GameContext): void {
       pay(state, p.id, JAIL_FINE, null);
       p.inJail = false;
       p.jailAttempts = 0;
-      log(state, `${p.name} paga ${JAIL_FINE} ed esce dalla Caserma.`);
+      log(state, 'log.jailFine', { name: p.name, amount: JAIL_FINE });
     }
     // uscendo dalla Caserma non si rilancia, nemmeno con un doppio
     state.extraRoll = false;
@@ -372,7 +382,7 @@ function doRoll(state: GameState, ctx: GameContext): void {
   if (roll.isDouble) {
     state.doublesInRow++;
     if (state.doublesInRow === 3) {
-      log(state, `${p.name} fa tre doppi di fila!`);
+      log(state, 'log.threeDoubles', { name: p.name });
       sendToJail(state, ctx);
       state.phase = 'endTurn';
       return;
@@ -383,7 +393,7 @@ function doRoll(state: GameState, ctx: GameContext): void {
   state.lastSprint = sprint;
   state.sprintRent = sprint === 'pieno';
   moveBy(state, ctx, roll.total + (typeof sprint === 'number' ? sprint : 0));
-  if (sprint) log(state, sprintText(p.name, sprint));
+  if (sprint) sprintLog(state, p.name, sprint);
   // Occasione: se la casella non è in vendita si prosegue fino alla prossima proprietà libera
   if (sprint === 'occasione') {
     const here = ctx.board.spaces[p.position];
@@ -402,28 +412,28 @@ function doRoll(state: GameState, ctx: GameContext): void {
   resolveLanding(state, ctx);
 }
 
-function sprintText(name: string, face: SprintFace): string {
-  if (typeof face === 'number') return `Dado Sprint: ${name} avanza di ${face} in più.`;
-  return face === 'occasione' ? `Dado Sprint: Occasione! ${name} prosegue fino alla prossima proprietà in vendita.` : `Dado Sprint: Affitto pieno! Se ${name} paga un affitto, paga il doppio.`;
+function sprintLog(state: GameState, name: string, face: SprintFace): void {
+  if (typeof face === 'number') log(state, 'log.sprintSteps', { name, n: face });
+  else log(state, face === 'occasione' ? 'log.sprintBargain' : 'log.sprintFull', { name });
 }
 
 function doBuy(state: GameState, ctx: GameContext): void {
   requirePhase(state, 'buy');
   const p = current(state);
   const space = ctx.board.spaces[p.position];
-  if (!isBuyable(space) || !('price' in space)) throw new RuleError('Questa casella non si compra.');
-  if (p.money < space.price) throw new RuleError('Non hai abbastanza soldi.');
+  if (!isBuyable(space) || !('price' in space)) throw new RuleError('err.notForSale');
+  if (p.money < space.price) throw new RuleError('err.noMoney');
   p.money -= space.price;
   state.ownership[space.id] = { owner: p.id, houses: 0, mortgaged: false };
   stat(state, p.id).bought++;
-  log(state, `${p.name} compra ${space.name} per ${space.price}.`);
+  log(state, 'log.buys', { name: p.name, space: space.id, amount: space.price });
   finishMove(state);
 }
 
 function doDecline(state: GameState, ctx: GameContext): void {
   requirePhase(state, 'buy');
   const p = current(state);
-  log(state, `${p.name} non compra.`);
+  log(state, 'log.declines', { name: p.name });
   startAuction(state, ctx, ctx.board.spaces[p.position].id);
 }
 
@@ -440,13 +450,13 @@ function startAuction(state: GameState, ctx: GameContext, spaceId: string, queue
   }
   const space = spaceById(ctx, spaceId);
   if (bidders.length === 0) {
-    if (queue) log(state, `Nessuno può fare offerte: ${space.name} resta libera.`);
+    if (queue) log(state, 'log.nobodyCanBid', { space: space.id });
     afterAuction(state, ctx, queue);
     return;
   }
   state.auction = { spaceId, highestBid: 0, highestBidder: null, bidders, turn: 0, ...(queue ? { queue } : {}) };
   state.phase = 'auction';
-  log(state, `Asta per ${space.name}!`);
+  log(state, 'log.auction', { space: space.id });
 }
 
 function afterAuction(state: GameState, ctx: GameContext, queue?: string[]): void {
@@ -464,11 +474,11 @@ function doBid(state: GameState, ctx: GameContext, amount: number): void {
   requirePhase(state, 'auction');
   const a = state.auction!;
   const bidder = state.players[a.bidders[a.turn]];
-  if (!Number.isInteger(amount) || amount < Math.max(MIN_BID, a.highestBid + 1)) throw new RuleError('L\'offerta deve superare quella attuale.');
-  if (amount > bidder.money) throw new RuleError('Non hai abbastanza soldi.');
+  if (!Number.isInteger(amount) || amount < Math.max(MIN_BID, a.highestBid + 1)) throw new RuleError('err.bidTooLow');
+  if (amount > bidder.money) throw new RuleError('err.noMoney');
   a.highestBid = amount;
   a.highestBidder = bidder.id;
-  log(state, `${bidder.name} offre ${amount}.`);
+  log(state, 'log.bids', { name: bidder.name, amount });
   a.turn = (a.turn + 1) % a.bidders.length;
   checkAuctionEnd(state, ctx);
 }
@@ -477,7 +487,7 @@ function doPass(state: GameState, ctx: GameContext): void {
   requirePhase(state, 'auction');
   const a = state.auction!;
   const id = a.bidders[a.turn];
-  log(state, `${state.players[id].name} passa.`);
+  log(state, 'log.passes', { name: state.players[id].name });
   a.bidders.splice(a.turn, 1);
   if (a.turn >= a.bidders.length) a.turn = 0;
   checkAuctionEnd(state, ctx);
@@ -493,9 +503,9 @@ function checkAuctionEnd(state: GameState, ctx: GameContext): void {
     w.money -= a.highestBid;
     state.ownership[a.spaceId] = { owner: w.id, houses: 0, mortgaged: false };
     stat(state, w.id).bought++;
-    log(state, `${w.name} vince l'asta: ${space.name} per ${a.highestBid}.`);
+    log(state, 'log.auctionWon', { name: w.name, space: space.id, amount: a.highestBid });
   } else {
-    log(state, `Nessuna offerta: ${space.name} resta libera.`);
+    log(state, 'log.noBids', { space: space.id });
   }
   afterAuction(state, ctx, a.queue);
 }
@@ -503,13 +513,13 @@ function checkAuctionEnd(state: GameState, ctx: GameContext): void {
 // ---------- scambi ----------
 
 function validateSide(state: GameState, ctx: GameContext, owner: number, side: TradeSide): void {
-  if (!Number.isInteger(side.money) || side.money < 0) throw new RuleError('Somma non valida.');
-  if (side.money > Math.max(state.players[owner].money, 0)) throw new RuleError(`${state.players[owner].name} non ha abbastanza soldi.`);
+  if (!Number.isInteger(side.money) || side.money < 0) throw new RuleError('err.badAmount');
+  if (side.money > Math.max(state.players[owner].money, 0)) throw new RuleError('err.playerNoMoney', { name: state.players[owner].name });
   for (const id of side.spaces) {
     const space = spaceById(ctx, id);
-    if (state.ownership[id]?.owner !== owner) throw new RuleError(`${space.name} non appartiene a ${state.players[owner].name}.`);
+    if (state.ownership[id]?.owner !== owner) throw new RuleError('err.notOwnedBy', { space: space.id, name: state.players[owner].name });
     if (space.type === 'property' && groupProperties(ctx, space.group).some((g) => (state.ownership[g.id]?.houses ?? 0) > 0)) {
-      throw new RuleError(`Prima vendi le case del quartiere di ${space.name}.`);
+      throw new RuleError('err.sellGroupHousesOf', { space: space.id });
     }
   }
 }
@@ -518,15 +528,15 @@ function doProposeTrade(state: GameState, ctx: GameContext, offer: Omit<TradeOff
   requirePhase(state, 'roll', 'endTurn');
   const from = state.current;
   const to = state.players[offer.to];
-  if (!to || to.bankrupt || to.id === from) throw new RuleError('Scegli un altro giocatore.');
+  if (!to || to.bankrupt || to.id === from) throw new RuleError('err.otherPlayer');
   const empty = (x: TradeSide) => x.money === 0 && x.spaces.length === 0;
-  if (empty(offer.give) && empty(offer.get)) throw new RuleError('Lo scambio è vuoto.');
+  if (empty(offer.give) && empty(offer.get)) throw new RuleError('err.emptyTrade');
   validateSide(state, ctx, from, offer.give);
   validateSide(state, ctx, offer.to, offer.get);
   validateInterest(state, ctx, { from, ...offer });
   state.trade = { from, ...offer, give: { ...offer.give, spaces: [...offer.give.spaces] }, get: { ...offer.get, spaces: [...offer.get.spaces] } };
   if (current(state).isBot) state.tradeProposedThisTurn = true;
-  log(state, `${current(state).name} propone uno scambio a ${to.name}.`);
+  log(state, 'log.proposes', { name: current(state).name, to: to.name });
 }
 
 // Chi riceve una casella ipotecata (scambio o bancarotta) paga subito alla banca il 10%
@@ -548,7 +558,7 @@ function validateInterest(state: GameState, ctx: GameContext, t: Omit<TradeOffer
   const check = (who: number, receives: TradeSide, gives: TradeSide) => {
     const due = interestOn(state, ctx, receives.spaces);
     if (due > 0 && state.players[who].money - gives.money + receives.money < due) {
-      throw new RuleError(`${state.players[who].name} non può pagare ${due} di interessi sulle caselle ipotecate.`);
+      throw new RuleError('err.cannotPayInterest', { name: state.players[who].name, amount: due });
     }
   };
   check(t.from, t.get, t.give);
@@ -563,7 +573,7 @@ function transfer(state: GameState, from: number, to: number, side: TradeSide): 
 
 function doAcceptTrade(state: GameState, ctx: GameContext): void {
   const t = state.trade;
-  if (!t) throw new RuleError('Nessuno scambio in sospeso.');
+  if (!t) throw new RuleError('err.noTrade');
   // le condizioni potrebbero essere cambiate: si ricontrolla tutto
   validateSide(state, ctx, t.from, t.give);
   validateSide(state, ctx, t.to, t.get);
@@ -574,31 +584,31 @@ function doAcceptTrade(state: GameState, ctx: GameContext): void {
   transfer(state, t.to, t.from, t.get);
   if (dueFrom) {
     pay(state, t.from, dueFrom, null);
-    log(state, `${state.players[t.from].name} paga ${dueFrom} di interessi sulle caselle ipotecate.`);
+    log(state, 'log.interest', { name: state.players[t.from].name, amount: dueFrom });
   }
   if (dueTo) {
     pay(state, t.to, dueTo, null);
-    log(state, `${state.players[t.to].name} paga ${dueTo} di interessi sulle caselle ipotecate.`);
+    log(state, 'log.interest', { name: state.players[t.to].name, amount: dueTo });
   }
   state.trade = null;
   stat(state, t.from).trades++;
   stat(state, t.to).trades++;
-  log(state, `${state.players[t.to].name} accetta lo scambio.`);
+  log(state, 'log.accepts', { name: state.players[t.to].name });
 }
 
 function doCounterTrade(state: GameState, ctx: GameContext, offer: { give: TradeSide; get: TradeSide }): void {
   const t = state.trade;
-  if (!t) throw new RuleError('Nessuno scambio in sospeso.');
+  if (!t) throw new RuleError('err.noTrade');
   const counters = t.counters ?? 0;
-  if (counters >= MAX_COUNTERS) throw new RuleError('Basta controproposte: accetta o rifiuta.');
+  if (counters >= MAX_COUNTERS) throw new RuleError('err.noMoreCounters');
   const counter = { from: t.to, to: t.from, give: offer.give, get: offer.get };
   const empty = (x: TradeSide) => x.money === 0 && x.spaces.length === 0;
-  if (empty(offer.give) && empty(offer.get)) throw new RuleError('Lo scambio è vuoto.');
+  if (empty(offer.give) && empty(offer.get)) throw new RuleError('err.emptyTrade');
   validateSide(state, ctx, counter.from, counter.give);
   validateSide(state, ctx, counter.to, counter.get);
   validateInterest(state, ctx, counter);
   state.trade = { ...counter, give: { ...offer.give, spaces: [...offer.give.spaces] }, get: { ...offer.get, spaces: [...offer.get.spaces] }, counters: counters + 1 };
-  log(state, `${state.players[counter.from].name} risponde con una controproposta.`);
+  log(state, 'log.counters', { name: state.players[counter.from].name });
 }
 
 // Quartieri che ciascuno completerebbe se lo scambio andasse in porto.
@@ -617,75 +627,75 @@ export function tradeCompletions(state: GameState, ctx: GameContext, t: { from: 
 
 function doRejectTrade(state: GameState): void {
   const t = state.trade;
-  if (!t) throw new RuleError('Nessuno scambio in sospeso.');
+  if (!t) throw new RuleError('err.noTrade');
   state.trade = null;
-  log(state, `${state.players[t.to].name} rifiuta lo scambio.`);
+  log(state, 'log.rejects', { name: state.players[t.to].name });
 }
 
 function doPayJailFine(state: GameState): void {
   requirePhase(state, 'roll');
   const p = current(state);
-  if (!p.inJail) throw new RuleError('Non sei in Caserma.');
-  if (p.money < JAIL_FINE) throw new RuleError('Non hai abbastanza soldi.');
+  if (!p.inJail) throw new RuleError('err.notInJail');
+  if (p.money < JAIL_FINE) throw new RuleError('err.noMoney');
   pay(state, p.id, JAIL_FINE, null);
   p.inJail = false;
   p.jailAttempts = 0;
-  log(state, `${p.name} paga ${JAIL_FINE} ed esce dalla Caserma.`);
+  log(state, 'log.jailFine', { name: p.name, amount: JAIL_FINE });
 }
 
 function doUseJailCard(state: GameState, ctx: GameContext): void {
   requirePhase(state, 'roll');
   const p = current(state);
-  if (!p.inJail) throw new RuleError('Non sei in Caserma.');
+  if (!p.inJail) throw new RuleError('err.notInJail');
   const cardId = p.jailCards.pop();
-  if (!cardId) throw new RuleError('Non hai carte per uscire gratis.');
+  if (!cardId) throw new RuleError('err.noJailCard');
   const card = ctx.cards.cards.find((c) => c.id === cardId) as Card;
   state.decks[card.deck].push(card.id); // la carta torna in fondo al mazzo
   p.inJail = false;
   p.jailAttempts = 0;
-  log(state, `${p.name} usa una carta ed esce dalla Caserma.`);
+  log(state, 'log.jailCard', { name: p.name });
 }
 
 function doBuild(state: GameState, ctx: GameContext, spaceId: string): void {
   requirePhase(state, 'roll', 'buy', 'endTurn');
   const { space, own } = requireOwnedProperty(state, ctx, spaceId);
-  if (space.type !== 'property') throw new RuleError('Si costruisce solo sulle vie.');
-  if (!ownsWholeGroup(state, ctx, state.current, space.group)) throw new RuleError('Ti serve tutto il quartiere.');
+  if (space.type !== 'property') throw new RuleError('err.buildOnlyStreets');
+  if (!ownsWholeGroup(state, ctx, state.current, space.group)) throw new RuleError('err.needGroup');
   const group = groupProperties(ctx, space.group).map((g) => state.ownership[g.id]);
-  if (group.some((g) => g.mortgaged)) throw new RuleError('Una via del quartiere è ipotecata.');
-  if (own.houses >= HOTEL) throw new RuleError('C\'è già un palazzo.');
+  if (group.some((g) => g.mortgaged)) throw new RuleError('err.groupMortgaged');
+  if (own.houses >= HOTEL) throw new RuleError('err.hasHotel');
   // costruzione uniforme: non si può superare di più di una casa le altre vie del quartiere
-  if (own.houses > Math.min(...group.map((g) => g.houses))) throw new RuleError('Costruisci prima sulle altre vie.');
+  if (own.houses > Math.min(...group.map((g) => g.houses))) throw new RuleError('err.buildEvenly');
   const p = current(state);
-  if (p.money < space.housePrice) throw new RuleError('Non hai abbastanza soldi.');
+  if (p.money < space.housePrice) throw new RuleError('err.noMoney');
   p.money -= space.housePrice;
   own.houses++;
   stat(state, p.id).built++;
-  log(state, `${p.name} costruisce su ${space.name}.`);
+  log(state, 'log.builds', { name: p.name, space: space.id });
 }
 
 function doSell(state: GameState, ctx: GameContext, spaceId: string): void {
   requirePhase(state, 'roll', 'buy', 'endTurn');
   const { space, own } = requireOwnedProperty(state, ctx, spaceId);
-  if (space.type !== 'property' || own.houses === 0) throw new RuleError('Non ci sono case da vendere.');
+  if (space.type !== 'property' || own.houses === 0) throw new RuleError('err.noHouses');
   const group = groupProperties(ctx, space.group).map((g) => state.ownership[g.id]);
-  if (own.houses < Math.max(...group.map((g) => g.houses))) throw new RuleError('Vendi prima dalle altre vie.');
+  if (own.houses < Math.max(...group.map((g) => g.houses))) throw new RuleError('err.sellEvenly');
   own.houses--;
   current(state).money += space.housePrice / 2;
-  log(state, `${current(state).name} vende una casa su ${space.name}.`);
+  log(state, 'log.sellsHouse', { name: current(state).name, space: space.id });
 }
 
 function doMortgage(state: GameState, ctx: GameContext, spaceId: string): void {
   requirePhase(state, 'roll', 'buy', 'endTurn');
   const { space, own } = requireOwnedProperty(state, ctx, spaceId);
-  if (own.mortgaged) throw new RuleError('È già ipotecata.');
+  if (own.mortgaged) throw new RuleError('err.alreadyMortgaged');
   if (space.type === 'property' && groupProperties(ctx, space.group).some((g) => (state.ownership[g.id]?.houses ?? 0) > 0)) {
-    throw new RuleError('Vendi prima le case del quartiere.');
+    throw new RuleError('err.sellGroupHouses');
   }
-  if (!('mortgage' in space)) throw new RuleError('Non si può ipotecare.');
+  if (!('mortgage' in space)) throw new RuleError('err.cannotMortgage');
   own.mortgaged = true;
   current(state).money += space.mortgage;
-  log(state, `${current(state).name} ipoteca ${space.name}.`);
+  log(state, 'log.mortgages', { name: current(state).name, space: space.id });
 }
 
 // Per togliere l'ipoteca si paga il valore più il 10% di interessi.
@@ -696,13 +706,13 @@ export function unmortgageCost(mortgage: number): number {
 function doUnmortgage(state: GameState, ctx: GameContext, spaceId: string): void {
   requirePhase(state, 'roll', 'buy', 'endTurn');
   const { space, own } = requireOwnedProperty(state, ctx, spaceId);
-  if (!own.mortgaged || !('mortgage' in space)) throw new RuleError('Non è ipotecata.');
+  if (!own.mortgaged || !('mortgage' in space)) throw new RuleError('err.notMortgaged');
   const cost = unmortgageCost(space.mortgage);
   const p = current(state);
-  if (p.money < cost) throw new RuleError('Non hai abbastanza soldi.');
+  if (p.money < cost) throw new RuleError('err.noMoney');
   p.money -= cost;
   own.mortgaged = false;
-  log(state, `${p.name} toglie l'ipoteca da ${space.name}.`);
+  log(state, 'log.unmortgages', { name: p.name, space: space.id });
 }
 
 function nextPlayer(state: GameState, ctx: GameContext): void {
@@ -726,12 +736,12 @@ function nextPlayer(state: GameState, ctx: GameContext): void {
   state.extraRoll = false;
   state.creditor = null;
   state.tradeProposedThisTurn = false;
-  log(state, `Tocca a ${state.players[i].name}.`);
+  log(state, 'log.turn', { name: state.players[i].name });
 }
 
 function doEndTurn(state: GameState, ctx: GameContext): void {
   requirePhase(state, 'endTurn');
-  if (current(state).money < 0) throw new RuleError('Devi saldare il debito prima di passare il turno.');
+  if (current(state).money < 0) throw new RuleError('err.payDebtFirst');
   nextPlayer(state, ctx);
 }
 
@@ -765,17 +775,19 @@ function checkGoals(state: GameState, ctx: GameContext): void {
     const p = state.players[(state.current + k) % n];
     if (p.bankrupt || p.money < 0) continue;
     const g = goalProgress(state, ctx, p.id);
-    let reason = '';
-    if (r.goalWorth && g.worth >= r.goalWorth) reason = `raggiunge un patrimonio di ${g.worth}`;
-    else if (r.goalGroups && g.groups >= r.goalGroups) reason = `completa ${g.groups} quartieri`;
-    else if (r.goalSide && g.side >= 1) reason = 'possiede un lato intero del tabellone';
+    let reason: 'worth' | 'groups' | 'side' | '' = '';
+    if (r.goalWorth && g.worth >= r.goalWorth) reason = 'worth';
+    else if (r.goalGroups && g.groups >= r.goalGroups) reason = 'groups';
+    else if (r.goalSide && g.side >= 1) reason = 'side';
     if (!reason) continue;
     state.winner = p.id;
     state.phase = 'gameOver';
     state.winReason = reason;
     state.auction = null;
     recordHistory(state, ctx);
-    log(state, `${p.name} ${reason} e vince la partita!`);
+    if (reason === 'worth') log(state, 'log.goalWorth', { name: p.name, amount: g.worth });
+    else if (reason === 'groups') log(state, 'log.goalGroups', { name: p.name, n: g.groups });
+    else log(state, 'log.goalSide', { name: p.name });
     return;
   }
 }
@@ -788,7 +800,7 @@ function endByNetWorth(state: GameState, ctx: GameContext): void {
   state.phase = 'gameOver';
   // il giro finale è già stato fotografato passando il turno
   state.round = state.rules.maxRounds ?? state.round;
-  log(state, `Fine dei ${state.rules.maxRounds} giri! ${best.name} vince con un patrimonio di ${netWorth(state, ctx, best.id)}.`);
+  log(state, 'log.timeUp', { n: state.rules.maxRounds ?? state.round, name: best.name, amount: netWorth(state, ctx, best.id) });
 }
 
 // Quanto può ancora ricavare un giocatore vendendo tutte le case (a metà prezzo)
@@ -825,9 +837,9 @@ export function debtOptions(state: GameState, ctx: GameContext, playerId: number
 
 function doBankrupt(state: GameState, ctx: GameContext): void {
   const p = current(state);
-  if (p.money >= 0) throw new RuleError('Non sei in debito.');
+  if (p.money >= 0) throw new RuleError('err.notInDebt');
   if (p.money + liquidationValue(state, ctx, p.id) >= 0) {
-    throw new RuleError('Puoi ancora coprire il debito: vendi case o ipoteca.');
+    throw new RuleError('err.canStillPay');
   }
   const creditor = state.creditor;
   // le case si vendono alla banca a metà prezzo: il ricavato copre parte del debito
@@ -858,7 +870,7 @@ function doBankrupt(state: GameState, ctx: GameContext): void {
     const due = Math.min(interestOn(state, ctx, mortgagedToCreditor), Math.max(c.money, 0));
     if (due > 0) {
       pay(state, creditor, due, null);
-      log(state, `${c.name} paga ${due} di interessi sulle caselle ipotecate ricevute.`);
+      log(state, 'log.interestReceived', { name: c.name, amount: due });
     }
   } else if (state.rules?.parkPot) {
     // nella Panchina del Parco resta solo quello che il fallito ha davvero pagato
@@ -873,19 +885,19 @@ function doBankrupt(state: GameState, ctx: GameContext): void {
   p.bankrupt = true;
   p.inJail = false;
   stat(state, p.id).bankruptRound = state.round;
-  log(state, `${p.name} va in bancarotta.`);
+  log(state, 'log.bankrupt', { name: p.name });
 
   const alive = state.players.filter((pl) => !pl.bankrupt);
   if (alive.length === 1) {
     state.winner = alive[0].id;
     state.phase = 'gameOver';
     recordHistory(state, ctx);
-    log(state, `${alive[0].name} vince la partita!`);
+    log(state, 'log.wins', { name: alive[0].name });
     return;
   }
   nextPlayer(state, ctx);
   if (toAuction.length && state.phase !== 'gameOver') {
-    log(state, `Le proprietà di ${p.name} vanno all'asta.`);
+    log(state, 'log.toAuction', { name: p.name });
     const [first, ...rest] = toAuction;
     startAuction(state, ctx, first, rest);
   }
@@ -893,10 +905,10 @@ function doBankrupt(state: GameState, ctx: GameContext): void {
 
 // Applica un'azione e restituisce il nuovo stato. Lancia RuleError se l'azione non è valida.
 export function applyAction(state: GameState, action: Action, gameCtx: GameContext): GameState {
-  if (state.phase === 'gameOver') throw new RuleError('La partita è finita.');
+  if (state.phase === 'gameOver') throw new RuleError('err.gameOver');
   // con uno scambio in sospeso si può solo accettare o rifiutare
   if (state.trade && action.type !== 'acceptTrade' && action.type !== 'rejectTrade' && action.type !== 'counterTrade') {
-    throw new RuleError('Prima si deve rispondere allo scambio.');
+    throw new RuleError('err.answerTradeFirst');
   }
   const next = structuredClone(state);
   // compatibilità con partite salvate prima di aste e scambi

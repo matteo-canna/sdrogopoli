@@ -7,6 +7,7 @@ import { BroadcastTransport } from '../net/broadcast';
 import { MAX_SEATS } from '../net/host';
 import { CHARACTERS, characterDef } from './characters';
 import { escapeHtml } from './view';
+import { t, tn } from '../i18n';
 
 // lettere e numeri che non si confondono a voce o scritti a mano (niente 0/O, 1/I/L)
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -40,20 +41,23 @@ export async function openTransport(code: string): Promise<Transport> {
   return new TrysteroTransport(code);
 }
 
-export const DURATIONS: [string, string][] = [
-  ['', "Fino all'ultimo rimasto"],
-  ['15', '15 giri (partita breve)'],
-  ['20', '20 giri'],
-  ['25', '25 giri'],
-  ['40', '40 giri'],
-];
+// Durate e tempi per mossa proposti nella sala d'attesa (valore, testo nella lingua scelta).
+export function durations(): [string, string][] {
+  return [
+    ['', t('rules.untilLast')],
+    ['15', t('rules.roundsShort', { n: 15 })],
+    ...[20, 25, 40].map((n): [string, string] => [String(n), t('rules.rounds', { n })]),
+  ];
+}
 
-export const TURN_LIMITS: [string, string][] = [
-  ['', 'Nessun limite'],
-  ['30', '30 secondi'],
-  ['60', '1 minuto'],
-  ['120', '2 minuti'],
-];
+export function turnLimits(): [string, string][] {
+  return [
+    ['', t('lobby.noLimit')],
+    ['30', t('lobby.seconds', { n: 30 })],
+    ['60', t('lobby.minute')],
+    ['120', t('lobby.minutes', { n: 2 })],
+  ];
+}
 
 export interface LobbyView {
   role: 'host' | 'guest';
@@ -84,43 +88,43 @@ export function renderLobby(app: HTMLElement, view: LobbyView, h: LobbyHandlers)
   app.innerHTML = `
     <main class="setup lobby">
       <header class="brand">
-        <h1>🌐 Tavolo online</h1>
-        <p>${view.role === 'host' ? 'Manda il link o il codice agli amici: quando sono tutti dentro, inizia la partita.' : 'Sei al tavolo di un amico: scegli nome e personaggio, poi tocca "Sono pronto".'}</p>
+        <h1>🌐 ${t('lobby.title')}</h1>
+        <p>${view.role === 'host' ? t('lobby.hostIntro') : t('lobby.guestIntro')}</p>
       </header>
       <section class="card lobby-code" aria-labelledby="code-title">
-        <h2 id="code-title">Codice del tavolo</h2>
+        <h2 id="code-title">${t('lobby.code')}</h2>
         <p class="table-code" data-table-code>${view.code}</p>
         ${view.role === 'host' ? `
-        <label class="lobby-link">Link da condividere
+        <label class="lobby-link">${t('lobby.link')}
           <input readonly value="${escapeHtml(link)}" data-table-link>
         </label>
         <div class="lobby-buttons">
-          <button type="button" class="primary" data-copy>📋 Copia il link</button>
-          ${'share' in navigator ? '<button type="button" data-share>📤 Condividi</button>' : ''}
+          <button type="button" class="primary" data-copy>📋 ${t('lobby.copy')}</button>
+          ${'share' in navigator ? `<button type="button" data-share>📤 ${t('lobby.share')}</button>` : ''}
         </div>
         <p class="lobby-msg" role="status" aria-live="polite" data-copy-msg></p>` : ''}
       </section>
       <section class="card" aria-labelledby="me-title">
-        <h2 id="me-title">Tu</h2>
-        <label class="lobby-name">Il tuo nome
+        <h2 id="me-title">${t('lobby.you')}</h2>
+        <label class="lobby-name">${t('lobby.yourName')}
           <input maxlength="20" value="${escapeHtml(view.name)}" data-lobby-name autocomplete="nickname">
         </label>
-        <div class="look-group" role="radiogroup" aria-label="Personaggio">
+        <div class="look-group" role="radiogroup" aria-label="${t('look.character')}">
           ${CHARACTERS.map((c) => `<button type="button" class="chip-btn" role="radio" aria-checked="${c.id === view.look.character}" data-lobby-character="${c.id}">${c.emoji} ${c.label}</button>`).join('')}
         </div>
       </section>
       <section class="card" aria-labelledby="members-title">
-        <h2 id="members-title">Al tavolo</h2>
+        <h2 id="members-title">${t('lobby.atTable')}</h2>
         <div data-lobby-members></div>
         <div data-lobby-controls></div>
         <p class="lobby-status" role="status" aria-live="polite" data-lobby-status></p>
       </section>
       <section class="card privacy-note" aria-labelledby="privacy-title">
         <h2 id="privacy-title">🔒 Privacy</h2>
-        <p>I dispositivi al tavolo si collegano direttamente tra loro, come in una videochiamata: per questo <strong>chi è al tavolo può vedere il tuo indirizzo IP</strong>. Per trovarsi si passa da server pubblici e gratuiti (relay Nostr), che vedono il codice del tavolo ma non la partita. Nessun account, niente viene salvato su un server.</p>
-        <p>Condividi il link solo con persone che conosci.</p>
+        <p>${t('lobby.privacy1')} <strong>${t('lobby.privacyIp')}</strong>. ${t('lobby.privacy2')}</p>
+        <p>${t('lobby.privacy3')}</p>
       </section>
-      <button type="button" class="link" data-lobby-leave>← Esci dal tavolo</button>
+      <button type="button" class="link" data-lobby-leave>← ${t('online.leave')}</button>
     </main>`;
 
   let name = view.name;
@@ -142,13 +146,13 @@ export function renderLobby(app: HTMLElement, view: LobbyView, h: LobbyHandlers)
       const msg = main.querySelector('[data-copy-msg]')!;
       try {
         await navigator.clipboard.writeText(link);
-        msg.textContent = '✅ Link copiato: incollalo in una chat con gli amici.';
+        msg.textContent = `✅ ${t('lobby.copied')}`;
       } catch {
         main.querySelector<HTMLInputElement>('[data-table-link]')!.select();
-        msg.textContent = 'Seleziona il link e copialo a mano.';
+        msg.textContent = t('lobby.copyByHand');
       }
     } else if (b.hasAttribute('data-share')) {
-      void navigator.share({ title: 'Sdrogopoli', text: `Vieni a giocare a Sdrogopoli! Codice del tavolo: ${view.code}`, url: link }).catch(() => {});
+      void navigator.share({ title: 'Sdrogopoli', text: t('lobby.shareText', { code: view.code }), url: link }).catch(() => {});
     } else if (b.dataset.computers) h.onComputers(Number(b.dataset.computers));
     else if (b.hasAttribute('data-ready')) h.onReady(b.getAttribute('aria-pressed') !== 'true');
     else if (b.hasAttribute('data-lobby-start')) {
@@ -171,13 +175,13 @@ export function updateLobby(app: HTMLElement, view: LobbyView): void {
           const def = characterDef(m.look?.character ?? '');
           const you = m.id === view.meId;
           return `<li style="--c:${escapeHtml(m.look?.color ?? 'var(--line)')}"><span class="member-emoji" aria-hidden="true">${def.emoji}</span>
-            <span class="member-name">${escapeHtml(m.name)}${you ? ' <small>(tu)</small>' : ''}</span>
-            <span class="member-state">${m.host ? '🏠 ha creato il tavolo' : m.ready ? '✅ pronto' : '⏳ non ancora pronto'}</span></li>`;
+            <span class="member-name">${escapeHtml(m.name)}${you ? ` <small>(${t('lobby.youShort')})</small>` : ''}</span>
+            <span class="member-state">${m.host ? `🏠 ${t('lobby.isHost')}` : m.ready ? `✅ ${t('lobby.ready')}` : `⏳ ${t('lobby.notReady')}`}</span></li>`;
         })
         .join('')}
-      ${Array.from({ length: view.computers }, (_, c) => `<li class="member-bot"><span class="member-emoji" aria-hidden="true">🤖</span><span class="member-name">Computer ${c + 1}</span><span class="member-state">gioca da solo</span></li>`).join('')}
+      ${Array.from({ length: view.computers }, (_, c) => `<li class="member-bot"><span class="member-emoji" aria-hidden="true">🤖</span><span class="member-name">Computer ${c + 1}</span><span class="member-state">${t('lobby.botPlays')}</span></li>`).join('')}
     </ul>`
-    : '<p class="lobby-wait">Mi collego al tavolo…</p>';
+    : `<p class="lobby-wait">${t('lobby.connecting')}</p>`;
   const controls = app.querySelector('[data-lobby-controls]')!;
   const seats = view.members.length + view.computers;
   // le scelte fatte restano anche quando l'elenco si aggiorna
@@ -188,24 +192,24 @@ export function updateLobby(app: HTMLElement, view: LobbyView): void {
     const maxComputers = MAX_SEATS - view.members.length;
     controls.innerHTML = `
       <div class="lobby-computers">
-        <span>Computer al tavolo</span>
-        <button type="button" data-computers="${view.computers - 1}" ${view.computers <= 0 ? 'disabled' : ''} aria-label="Un computer in meno">−</button>
+        <span>${t('lobby.computers')}</span>
+        <button type="button" data-computers="${view.computers - 1}" ${view.computers <= 0 ? 'disabled' : ''} aria-label="${t('lobby.lessComputer')}">−</button>
         <strong aria-live="polite">${view.computers}</strong>
-        <button type="button" data-computers="${view.computers + 1}" ${view.computers >= maxComputers ? 'disabled' : ''} aria-label="Un computer in più">+</button>
+        <button type="button" data-computers="${view.computers + 1}" ${view.computers >= maxComputers ? 'disabled' : ''} aria-label="${t('lobby.moreComputer')}">+</button>
       </div>
-      <label class="lobby-rounds">Durata
-        <select data-lobby-rounds>${DURATIONS.map(([v, l]) => `<option value="${v}" ${v === rounds ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <label class="lobby-rounds">${t('lobby.duration')}
+        <select data-lobby-rounds>${durations().map(([v, l]) => `<option value="${v}" ${v === rounds ? 'selected' : ''}>${l}</option>`).join('')}</select>
       </label>
-      <label class="lobby-rounds">Tempo per ogni mossa
-        <select data-lobby-limit>${TURN_LIMITS.map(([v, l]) => `<option value="${v}" ${v === limit ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <label class="lobby-rounds">${t('lobby.limit')}
+        <select data-lobby-limit>${turnLimits().map(([v, l]) => `<option value="${v}" ${v === limit ? 'selected' : ''}>${l}</option>`).join('')}</select>
       </label>
-      <p class="hint">Se il tempo scade, o se qualcuno si scollega, per lui gioca il computer finché non torna.</p>
-      <button type="button" class="primary" data-lobby-start ${seats < 2 || waiting ? 'disabled' : ''}>Inizia la partita</button>
-      <p class="hint">${seats < 2 ? 'Serve almeno un altro giocatore: un amico o un computer.' : waiting ? `Aspetta che tutti siano pronti (${waiting} ${waiting === 1 ? 'manca' : 'mancano'}).` : `Si gioca in ${seats}. Fino a ${MAX_SEATS} al tavolo.`}</p>`;
+      <p class="hint">${t('lobby.limitHint')}</p>
+      <button type="button" class="primary" data-lobby-start ${seats < 2 || waiting ? 'disabled' : ''}>${t('setup.start')}</button>
+      <p class="hint">${seats < 2 ? t('lobby.needOne') : waiting ? tn('lobby.waitReady', waiting) : t('lobby.seats', { n: seats, max: MAX_SEATS })}</p>`;
   } else {
     controls.innerHTML = view.connected
-      ? `<button type="button" class="${view.ready ? '' : 'primary'}" data-ready aria-pressed="${view.ready}">${view.ready ? '✅ Pronto (tocca per annullare)' : 'Sono pronto'}</button>
-         <p class="hint">${view.ready ? "Aspetta che chi ha creato il tavolo inizi la partita." : 'Quando hai scelto nome e personaggio, tocca "Sono pronto".'}</p>`
+      ? `<button type="button" class="${view.ready ? '' : 'primary'}" data-ready aria-pressed="${view.ready}">${view.ready ? `✅ ${t('lobby.readyUndo')}` : t('lobby.imReady')}</button>
+         <p class="hint">${view.ready ? t('lobby.waitHost') : t('lobby.readyHint')}</p>`
       : '';
   }
   app.querySelector('[data-lobby-status]')!.textContent = view.status;

@@ -4,6 +4,7 @@ import { emptyStats, netWorth, type GameContext, type GameState, type PlayerStat
 import { board } from '../data';
 import { playerColor } from './characters';
 import { escapeHtml as esc } from './view';
+import { t, tn } from '../i18n';
 
 const SYMBOL = board.currency.symbol;
 
@@ -36,13 +37,13 @@ export interface Award {
 // Premi simpatici: a chi ha fatto di più in ogni categoria (nessun premio se nessuno ha punti).
 export function awards(state: GameState): Award[] {
   const defs: { emoji: string; title: string; value: (s: PlayerStats) => number; detail: (n: number) => string }[] = [
-    { emoji: '💰', title: 'Re degli affitti', value: (s) => s.rentReceived, detail: (n) => `${SYMBOL} ${n} incassati` },
-    { emoji: '🏗️', title: 'Costruttore', value: (s) => s.built, detail: (n) => `${n} ${n === 1 ? 'casa costruita' : 'case costruite'}` },
-    { emoji: '🛒', title: 'Collezionista', value: (s) => s.bought, detail: (n) => `${n} ${n === 1 ? 'proprietà comprata' : 'proprietà comprate'}` },
-    { emoji: '🤝', title: 'Gran mercante', value: (s) => s.trades, detail: (n) => `${n} ${n === 1 ? 'scambio' : 'scambi'}` },
-    { emoji: '🎲', title: 'Mano fortunata', value: (s) => s.doubles, detail: (n) => `${n} doppi` },
-    { emoji: '💸', title: 'Benefattore', value: (s) => s.rentPaid + s.taxesPaid, detail: (n) => `${SYMBOL} ${n} pagati in affitti e tasse` },
-    { emoji: '🚓', title: 'Cliente della Caserma', value: (s) => s.jailVisits, detail: (n) => `${n} ${n === 1 ? 'volta' : 'volte'} in Caserma` },
+    { emoji: '💰', title: t('award.rent'), value: (s) => s.rentReceived, detail: (n) => t('award.rentText', { amount: `${SYMBOL} ${n}` }) },
+    { emoji: '🏗️', title: t('award.builder'), value: (s) => s.built, detail: (n) => tn('award.builderText', n) },
+    { emoji: '🛒', title: t('award.collector'), value: (s) => s.bought, detail: (n) => tn('award.collectorText', n) },
+    { emoji: '🤝', title: t('award.trader'), value: (s) => s.trades, detail: (n) => tn('award.traderText', n) },
+    { emoji: '🎲', title: t('award.lucky'), value: (s) => s.doubles, detail: (n) => tn('award.luckyText', n) },
+    { emoji: '💸', title: t('award.giver'), value: (s) => s.rentPaid + s.taxesPaid, detail: (n) => t('award.giverText', { amount: `${SYMBOL} ${n}` }) },
+    { emoji: '🚓', title: t('award.jail'), value: (s) => s.jailVisits, detail: (n) => tn('award.jailText', n) },
   ];
   const result: Award[] = [];
   for (const d of defs) {
@@ -77,12 +78,12 @@ function chartSvg(state: GameState): string {
     })
     .join('');
   return `<figure class="chart">
-      <figcaption>Patrimonio giro per giro</figcaption>
-      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Grafico del patrimonio dei giocatori in ${h.length - 1} giri">
+      <figcaption>${t('chart.caption')}</figcaption>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${t('chart.label', { n: h.length - 1 })}">
         <line x1="${pad}" y1="${H - pad}" x2="${W - pad}" y2="${H - pad}" class="axis"/>
         ${lines}
       </svg>
-      <div class="chart-scale"><span>inizio</span><span>massimo ${SYMBOL} ${max}</span><span>fine</span></div>
+      <div class="chart-scale"><span>${t('chart.start')}</span><span>${t('chart.max', { amount: `${SYMBOL} ${max}` })}</span><span>${t('chart.end')}</span></div>
     </figure>`;
 }
 
@@ -94,7 +95,7 @@ export function renderSummary(state: GameState, ctx: GameContext): string {
     .map((id, rank) => {
       const p = state.players[id];
       const st = statsOf(state, id);
-      const what = p.bankrupt ? `bancarotta al giro ${st.bankruptRound ?? '?'}` : `patrimonio ${SYMBOL} ${netWorth(state, ctx, id)}`;
+      const what = p.bankrupt ? t('summary.bankruptAt', { n: st.bankruptRound ?? '?' }) : t('summary.worth', { amount: `${SYMBOL} ${netWorth(state, ctx, id)}` });
       return `<li><span class="medal">${medals[rank] ?? `${rank + 1}°`}</span><span class="token" style="background:${playerColor(p)}"></span>
         <strong>${p.isBot ? '🤖 ' : ''}${esc(p.name)}</strong><span class="what">${what}</span></li>`;
     })
@@ -103,10 +104,10 @@ export function renderSummary(state: GameState, ctx: GameContext): string {
     .map((a) => `<li><span class="award-emoji">${a.emoji}</span><div><strong>${a.title}</strong>: ${esc(state.players[a.playerId].name)}<br><small>${a.detail}</small></div></li>`)
     .join('');
   return `<section class="summary">
-      <h4>Classifica finale · ${state.round} ${state.round === 1 ? 'giro' : 'giri'}</h4>
+      <h4>${t('summary.title')} · ${tn('summary.rounds', state.round)}</h4>
       <ol class="standings">${rows}</ol>
       ${chartSvg(state)}
-      ${prizes ? `<h4>Premi</h4><ul class="awards">${prizes}</ul>` : ''}
+      ${prizes ? `<h4>${t('summary.awards')}</h4><ul class="awards">${prizes}</ul>` : ''}
     </section>`;
 }
 
@@ -151,11 +152,11 @@ export function renderLeaderboard(entries: LeaderEntry[]): string {
     )
     .join('');
   return `<details class="leaderboard">
-      <summary>🏆 Classifica tra amici</summary>
+      <summary>🏆 ${t('leader.title')}</summary>
       <table>
-        <thead><tr><th>#</th><th>Nome</th><th>Vittorie</th><th>Partite</th><th>Record</th></tr></thead>
+        <thead><tr><th>#</th><th>${t('leader.name')}</th><th>${t('leader.wins')}</th><th>${t('leader.games')}</th><th>${t('leader.best')}</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <button type="button" class="link" data-reset-leaderboard>Azzera la classifica</button>
+      <button type="button" class="link" data-reset-leaderboard>${t('leader.reset')}</button>
     </details>`;
 }

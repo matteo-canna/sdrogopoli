@@ -1,5 +1,6 @@
 // Catalogo dei personaggi-pedina (modelli KayKit di Kay Lousberg, licenza CC0) e scelte di aspetto.
 import type { Appearance, Player } from '../engine';
+import { t, type MsgKey } from '../i18n';
 
 export interface CharacterDef {
   id: string;
@@ -10,7 +11,7 @@ export interface CharacterDef {
   // nome della mesh del copricapo (null se non ne ha)
   hat: string | null;
   cape: string;
-  // oggetti che può tenere in mano: nome mesh → etichetta
+  // oggetti che può tenere in mano: nome mesh → etichetta in italiano (in pagina si usa itemName)
   items: Record<string, string>;
   // oggetto in mano proposto all'inizio
   defaultItem: string;
@@ -19,7 +20,9 @@ export interface CharacterDef {
 export const CHARACTERS: CharacterDef[] = [
   {
     id: 'knight',
-    label: 'Cavaliere',
+    get label() {
+      return t('char.knight');
+    },
     emoji: '🛡️',
     file: 'Knight.glb',
     hat: 'Knight_Helmet',
@@ -29,7 +32,9 @@ export const CHARACTERS: CharacterDef[] = [
   },
   {
     id: 'barbarian',
-    label: 'Barbaro',
+    get label() {
+      return t('char.barbarian');
+    },
     emoji: '🍺',
     file: 'Barbarian.glb',
     hat: 'Barbarian_Hat',
@@ -39,7 +44,9 @@ export const CHARACTERS: CharacterDef[] = [
   },
   {
     id: 'mage',
-    label: 'Mago',
+    get label() {
+      return t('char.mage');
+    },
     emoji: '🪄',
     file: 'Mage.glb',
     hat: 'Mage_Hat',
@@ -49,7 +56,9 @@ export const CHARACTERS: CharacterDef[] = [
   },
   {
     id: 'rogue',
-    label: 'Furfante',
+    get label() {
+      return t('char.rogue');
+    },
     emoji: '🗡️',
     file: 'Rogue.glb',
     hat: null,
@@ -59,7 +68,9 @@ export const CHARACTERS: CharacterDef[] = [
   },
   {
     id: 'hooded',
-    label: 'Incappucciato',
+    get label() {
+      return t('char.hooded');
+    },
     emoji: '🥷',
     file: 'Rogue_Hooded.glb',
     hat: null,
@@ -71,20 +82,16 @@ export const CHARACTERS: CharacterDef[] = [
 
 // Colori tra cui scegliere: uno diverso per ciascun posto, nello stesso ordine (gli ultimi 4 servono alla modalità demo).
 export const COLOR_CHOICES = ['#e4572e', '#2e86de', '#f4b400', '#8e44ad', '#27ae60', '#e84393', '#00b8b8', '#5d4037', '#ff8f00', '#9ccc00', '#90a4ae', '#263238'];
-export const COLOR_NAMES: Record<string, string> = {
-  '#e4572e': 'Rosso',
-  '#2e86de': 'Blu',
-  '#f4b400': 'Giallo',
-  '#8e44ad': 'Viola',
-  '#27ae60': 'Verde',
-  '#e84393': 'Rosa',
-  '#00b8b8': 'Turchese',
-  '#5d4037': 'Marrone',
-  '#ff8f00': 'Arancione',
-  '#9ccc00': 'Lime',
-  '#90a4ae': 'Grigio',
-  '#263238': 'Nero',
-};
+// Nome del colore nella lingua scelta (per chi non distingue i colori e per i lettori di schermo).
+export function colorName(hex: string): string {
+  const i = COLOR_CHOICES.indexOf(hex);
+  return i >= 0 ? t(`color.${i}` as MsgKey) : hex;
+}
+
+// Nome dell'oggetto in mano nella lingua scelta.
+export function itemName(mesh: string): string {
+  return t(`item.${mesh}` as MsgKey);
+}
 
 export function characterDef(id: string): CharacterDef {
   return CHARACTERS.find((c) => c.id === id) ?? CHARACTERS[0];

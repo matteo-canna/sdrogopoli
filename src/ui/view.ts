@@ -2,6 +2,7 @@
 import { board, cards } from '../data';
 import { actingPlayer, BOT_LEVELS, MAX_COUNTERS, tradeCompletions, BOT_STYLES, computeRent, debtOptions, liquidationValue, MIN_BID, netWorth, unmortgageCost, type BotProfile, type GameState, type Space, type TradeSide } from '../engine';
 import { inkOn, playerColor, playerMarks } from './characters';
+import { deckName, cardOption, cardText, spaceName, t, text, tn, type MsgKey } from '../i18n';
 
 // Dischetto con il colore e la sigla del giocatore (la sigla lo distingue anche senza colori).
 export function playerBadge(state: GameState, playerId: number, cls = 'token big'): string {
@@ -67,13 +68,18 @@ export function spaceLabel(state: GameState, i: number): string {
   const own = state.ownership[space.id];
   const here = state.players.filter((p) => !p.bankrupt && p.position === i);
   return [
-    space.name,
-    'price' in space && !own ? `in vendita a ${space.price}` : '',
-    own ? `di ${state.players[own.owner].name}` : '',
-    own?.mortgaged ? 'ipotecata' : '',
-    own && own.houses ? (own.houses === 5 ? 'palazzo' : own.houses === 1 ? '1 casa' : `${own.houses} case`) : '',
-    here.length ? `qui: ${here.map((p) => p.name).join(', ')}` : '',
+    spaceName(space.id),
+    'price' in space && !own ? t('space.forSale', { amount: space.price }) : '',
+    own ? t('space.ownedBy', { name: state.players[own.owner].name }) : '',
+    own?.mortgaged ? t('space.mortgaged') : '',
+    own && own.houses ? housesText(own.houses) : '',
+    here.length ? t('space.here', { names: here.map((p) => p.name).join(', ') }) : '',
   ].filter(Boolean).join(', ');
+}
+
+// "palazzo", "1 casa", "3 case"
+export function housesText(houses: number): string {
+  return houses === 5 ? t('space.hotel') : tn('space.houses', houses);
 }
 
 // Il tabellone è un solo punto di sosta per il tasto Tab: le frecce scorrono le caselle
@@ -104,7 +110,7 @@ export function renderBoard(state: GameState, selected: string | null): string {
         ${color ? `<span class="band" style="background:${color}">${housePips(own?.houses ?? 0)}</span>` : ''}
         ${owner}
         ${icon}
-        <span class="name">${escapeHtml(space.name)}</span>
+        <span class="name">${escapeHtml(spaceName(space.id))}</span>
         ${price}
         <span class="pawns ${here.length > 3 ? 'crowd' : ''}">${tokens}</span>
       </button>`;
@@ -118,9 +124,9 @@ export function renderTable(state: GameState): string {
   const last = state.log.slice(-3).reverse();
   return `
     <h1 class="title">Sdrogopoli</h1>
-    ${state.phase === 'gameOver' ? '' : `<p class="table-turn">${playerBadge(state, p.id)} <span>Tocca a <strong>${escapeHtml(p.name)}</strong></span></p>`}
+    ${state.phase === 'gameOver' ? '' : `<p class="table-turn">${playerBadge(state, p.id)} <span>${t('turn.of', { name: `<strong>${escapeHtml(p.name)}</strong>` })}</span></p>`}
     ${state.lastRoll ? `<span class="center-dice">${renderDice(state)}</span>` : ''}
-    ${last.length ? `<ol class="table-log" aria-label="Ultime mosse">${last.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ol>` : ''}`;
+    ${last.length ? `<ol class="table-log" aria-label="${t('table.lastMoves')}">${last.map((l) => `<li>${escapeHtml(text(l))}</li>`).join('')}</ol>` : ''}`;
 }
 
 // Quante vie del quartiere ha chi è di turno, e se comprando questa lo completerebbe.
@@ -129,11 +135,11 @@ function groupNote(state: GameState, group: string, spaceId: string): string {
   const streets = board.spaces.filter((sp) => sp.type === 'property' && sp.group === group);
   const mine = streets.filter((sp) => state.ownership[sp.id]?.owner === me).length;
   const own = state.ownership[spaceId];
-  if (!own && mine === streets.length - 1) return `<p class="group-note good">⭐ Comprandola completi il quartiere: affitto doppio e puoi costruire.</p>`;
+  if (!own && mine === streets.length - 1) return `<p class="group-note good">⭐ ${t('group.wouldComplete')}</p>`;
   if (own && own.owner !== me && streets.every((sp) => state.ownership[sp.id]?.owner === own.owner)) {
-    return `<p class="group-note">Quartiere completo di ${escapeHtml(state.players[own.owner].name)}: affitto doppio.</p>`;
+    return `<p class="group-note">${t('group.completeOf', { name: escapeHtml(state.players[own.owner].name) })}</p>`;
   }
-  if (mine > 0) return `<p class="group-note">Hai ${mine} vie su ${streets.length} di questo quartiere.</p>`;
+  if (mine > 0) return `<p class="group-note">${t('group.youHave', { n: mine, total: streets.length })}</p>`;
   return '';
 }
 
@@ -141,8 +147,8 @@ function groupNote(state: GameState, group: string, spaceId: string): string {
 export function renderSpaceCard(state: GameState, spaceId: string): string {
   const space = board.spaces.find((s) => s.id === spaceId);
   if (!space) return '';
-  return `<div class="space-card" role="dialog" aria-label="${escapeHtml(space.name)}">
-    <button class="card-close" data-action="closeCard" aria-label="Chiudi la carta">✕</button>
+  return `<div class="space-card" role="dialog" aria-label="${escapeHtml(spaceName(space.id))}">
+    <button class="card-close" data-action="closeCard" aria-label="${t('card.close')}">✕</button>
     ${renderSpaceDetails(state, spaceId)}
   </div>`;
 }
@@ -153,23 +159,23 @@ export function renderSpaceDetails(state: GameState, spaceId: string): string {
   const own = state.ownership[space.id];
   const lines: string[] = [];
   if (space.type === 'property') {
-    const labels = ['Terreno', '1 casa', '2 case', '3 case', '4 case', 'Palazzo'];
-    lines.push(`<p>Prezzo ${money(space.price)} · Casa ${money(space.housePrice)}</p>`);
+    const labels = [t('space.land'), ...[1, 2, 3, 4].map((n) => tn('space.houses', n)), t('space.hotelCap')];
+    lines.push(`<p>${t('space.priceHouse', { price: money(space.price), house: money(space.housePrice) })}</p>`);
     lines.push(`<table class="rents">${space.rent.map((r, i) => `<tr class="${own && own.houses === i ? 'now' : ''}"><td>${labels[i]}</td><td>${money(r)}</td></tr>`).join('')}</table>`);
   } else if (space.type === 'station') {
-    lines.push(`<p>Prezzo ${money(space.price)}</p><p>Affitto con 1-4 fermate: ${space.rent.map(money).join(' / ')}</p>`);
+    lines.push(`<p>${t('space.price', { price: money(space.price) })}</p><p>${t('space.stationRent', { rents: space.rent.map(money).join(' / ') })}</p>`);
   } else if (space.type === 'utility') {
-    lines.push(`<p>Prezzo ${money(space.price)}</p><p>Affitto: ${space.diceMultiplier[0]}× i dadi con 1 servizio, ${space.diceMultiplier[1]}× con 2</p>`);
+    lines.push(`<p>${t('space.price', { price: money(space.price) })}</p><p>${t('space.utilityRent', { a: space.diceMultiplier[0], b: space.diceMultiplier[1] })}</p>`);
   } else if (space.type === 'tax') {
-    lines.push(`<p>Si pagano ${money(space.amount)} alla banca.</p>`);
+    lines.push(`<p>${t('space.taxText', { amount: money(space.amount) })}</p>`);
   } else if (space.type === 'start') {
-    lines.push(`<p>Passando di qui si incassano ${money(space.salary)}.</p>`);
+    lines.push(`<p>${t('space.startText', { amount: money(space.salary) })}</p>`);
   }
   if (own) {
     const ownerName = escapeHtml(state.players[own.owner].name);
     const rent = computeRent(state, { board, cards }, space.id, 7);
-    lines.push(`<p class="owner-line">Proprietario: ${playerBadge(state, own.owner, 'token')} <strong>${ownerName}</strong>${own.mortgaged ? ' (ipotecata)' : ''}</p>`);
-    if (space.type !== 'utility') lines.push(`<p>Affitto attuale: ${money(rent)}</p>`);
+    lines.push(`<p class="owner-line">${t('space.owner')} ${playerBadge(state, own.owner, 'token')} <strong>${ownerName}</strong>${own.mortgaged ? ` (${t('space.mortgaged')})` : ''}</p>`);
+    if (space.type !== 'utility') lines.push(`<p>${t('space.rentNow', { amount: money(rent) })}</p>`);
   }
   if (space.type === 'property' && state.phase !== 'gameOver') lines.push(groupNote(state, space.group, space.id));
 
@@ -177,16 +183,16 @@ export function renderSpaceDetails(state: GameState, spaceId: string): string {
   const canManage = own && own.owner === state.current && state.phase !== 'gameOver';
   if (canManage && 'mortgage' in space) {
     if (space.type === 'property' && !own.mortgaged) {
-      buttons.push(`<button data-action="build" data-space="${space.id}">Costruisci (${money(space.housePrice)})</button>`);
-      if (own.houses > 0) buttons.push(`<button data-action="sell" data-space="${space.id}">Vendi casa (+${money(space.housePrice / 2)})</button>`);
+      buttons.push(`<button data-action="build" data-space="${space.id}">${t('btn.build', { amount: money(space.housePrice) })}</button>`);
+      if (own.houses > 0) buttons.push(`<button data-action="sell" data-space="${space.id}">${t('btn.sellHouse', { amount: money(space.housePrice / 2) })}</button>`);
     }
-    if (!own.mortgaged) buttons.push(`<button data-action="mortgage" data-space="${space.id}">Ipoteca (+${money(space.mortgage)})</button>`);
-    else buttons.push(`<button data-action="unmortgage" data-space="${space.id}">Riscatta (${money(unmortgageCost(space.mortgage))})</button>`);
+    if (!own.mortgaged) buttons.push(`<button data-action="mortgage" data-space="${space.id}">${t('btn.mortgage', { amount: money(space.mortgage) })}</button>`);
+    else buttons.push(`<button data-action="unmortgage" data-space="${space.id}">${t('btn.unmortgage', { amount: money(unmortgageCost(space.mortgage)) })}</button>`);
   }
 
   return `
     <div class="details">
-      <h3>${groupColor(space) ? `<span class="dot" style="background:${groupColor(space)}"></span>` : ''}${escapeHtml(space.name)}</h3>
+      <h3>${groupColor(space) ? `<span class="dot" style="background:${groupColor(space)}"></span>` : ''}${escapeHtml(spaceName(space.id))}</h3>
       ${lines.join('')}
       ${buttons.length ? `<div class="actions">${buttons.join('')}</div>` : ''}
     </div>`;
@@ -202,26 +208,26 @@ export function renderPlayers(state: GameState): string {
         .map((s) => {
           const o = state.ownership[s.id];
           const c = groupColor(s) ?? '#8a948d';
-          const label = `${s.name}${o.mortgaged ? ' (ipotecata)' : ''}${o.houses ? `, ${o.houses === 5 ? 'palazzo' : o.houses === 1 ? '1 casa' : `${o.houses} case`}` : ''}`;
-          return `<button class="chip ${o.mortgaged ? 'mortgaged' : ''}" data-space="${s.id}" style="--g:${c}" aria-label="${escapeHtml(label)}">${escapeHtml(s.name)}${o.houses ? ` <span class="chip-houses">${o.houses === 5 ? '🏢' : '🏠' + o.houses}</span>` : ''}</button>`;
+          const label = `${spaceName(s.id)}${o.mortgaged ? ` (${t('space.mortgaged')})` : ''}${o.houses ? `, ${housesText(o.houses)}` : ''}`;
+          return `<button class="chip ${o.mortgaged ? 'mortgaged' : ''}" data-space="${s.id}" style="--g:${c}" aria-label="${escapeHtml(label)}">${escapeHtml(spaceName(s.id))}${o.houses ? ` <span class="chip-houses">${o.houses === 5 ? '🏢' : '🏠' + o.houses}</span>` : ''}</button>`;
         })
         .join('');
       const active = p.id === state.current && state.phase !== 'gameOver';
-      const where = p.bankrupt ? 'In bancarotta' : p.inJail ? '🚓 In Caserma' : `📍 ${escapeHtml(board.spaces[p.position].name)}`;
+      const where = p.bankrupt ? t('player.bankrupt') : p.inJail ? `🚓 ${t('player.inJail')}` : `📍 ${escapeHtml(spaceName(board.spaces[p.position].id))}`;
       return `
         <div class="player ${active ? 'active' : ''} ${p.bankrupt ? 'out' : ''}" style="--c:${playerColor(p)}">
           <div class="player-head">
             ${playerBadge(state, p.id)}
             <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>
-            ${active ? '<span class="badge">di turno</span>' : ''}
-            <span class="money ${p.money < 0 ? 'negative' : ''}" title="Contanti">${money(p.money)}</span>
+            ${active ? `<span class="badge">${t('player.onTurn')}</span>` : ''}
+            <span class="money ${p.money < 0 ? 'negative' : ''}" title="${t('player.cash')}">${money(p.money)}</span>
           </div>
           <div class="player-meta">
             <span>${where}</span>
             ${p.bot ? `<span class="bot-kind" title="${escapeHtml(botStyleText(p.bot.style))}">🤖 ${escapeHtml(botLabel(p.bot))}</span>` : ''}
-            ${p.bankrupt ? '' : `<span title="Contanti + proprietà + case">Patrimonio ${money(netWorth(state, ctx, p.id))}</span>`}
+            ${p.bankrupt ? '' : `<span title="${t('player.worthHint')}">${t('player.worth', { amount: money(netWorth(state, ctx, p.id)) })}</span>`}
           </div>
-          ${p.jailCards.length ? `<div class="status">🎟️ ${p.jailCards.length} carta esci gratis</div>` : ''}
+          ${p.jailCards.length ? `<div class="status">🎟️ ${tn('player.jailCards', p.jailCards.length)}</div>` : ''}
           ${owned ? `<div class="chips">${owned}</div>` : ''}
         </div>`;
     })
@@ -231,17 +237,17 @@ export function renderPlayers(state: GameState): string {
 // Pulsanti delle azioni disponibili nella fase corrente.
 export function renderTurnActions(state: GameState): string {
   if (state.phase === 'gameOver') {
-    return `<p class="winner">🏆 ${escapeHtml(state.players[state.winner!].name)} vince!</p>
-      <button data-action="newGame">Nuova partita</button>`;
+    return `<p class="winner">🏆 ${t('turn.wins', { name: escapeHtml(state.players[state.winner!].name) })}</p>
+      <button data-action="newGame">${t('btn.newGame')}</button>`;
   }
   const p = state.players[actingPlayer(state)];
   const banner = state.trade ? renderTradeOffer(state) : state.phase === 'auction' ? renderAuction(state) : '';
-  if (p.isBot) return `${banner}<p class="hint">🤖 ${escapeHtml(p.name)} sta pensando…</p>`;
+  if (p.isBot) return `${banner}<p class="hint">🤖 ${t('turn.thinking', { name: escapeHtml(p.name) })}</p>`;
   const b: string[] = [banner];
   if (state.trade) {
-    b.push(`<button class="primary" data-action="acceptTrade">Accetta</button>`);
-    if ((state.trade.counters ?? 0) < MAX_COUNTERS) b.push(`<button data-action="counterTrade">↩️ Controproponi</button>`);
-    b.push(`<button data-action="rejectTrade">Rifiuta</button>`);
+    b.push(`<button class="primary" data-action="acceptTrade">${t('btn.accept')}</button>`);
+    if ((state.trade.counters ?? 0) < MAX_COUNTERS) b.push(`<button data-action="counterTrade">↩️ ${t('btn.counter')}</button>`);
+    b.push(`<button data-action="rejectTrade">${t('btn.reject')}</button>`);
     return b.join('');
   }
   if (state.phase === 'auction') {
@@ -249,41 +255,41 @@ export function renderTurnActions(state: GameState): string {
     const base = Math.max(MIN_BID, a.highestBid);
     for (const step of a.highestBid === 0 ? [0, 40, 90] : [10, 50, 100]) {
       const amount = base + step;
-      b.push(`<button class="${step === (a.highestBid === 0 ? 0 : 10) ? 'primary' : ''}" data-action="bid" data-amount="${amount}" ${amount > p.money ? 'disabled' : ''}>Offri ${money(amount)}</button>`);
+      b.push(`<button class="${step === (a.highestBid === 0 ? 0 : 10) ? 'primary' : ''}" data-action="bid" data-amount="${amount}" ${amount > p.money ? 'disabled' : ''}>${t('btn.bid', { amount: money(amount) })}</button>`);
     }
-    b.push(`<button data-action="pass">Passa</button>`);
+    b.push(`<button data-action="pass">${t('btn.pass')}</button>`);
     return b.join('');
   }
   if (state.phase === 'cardChoice') {
     const card = cards.cards.find((c) => c.id === state.pendingCard);
     if (card?.effect.kind === 'choice') {
-      b.push(`<div class="offer card-choice"><h4>🃏 ${escapeHtml(cards.decks[card.deck].name)}</h4><p>${escapeHtml(card.text)}</p><p class="hint">Scegli:</p></div>`);
-      card.effect.options.forEach((o, i) => b.push(`<button class="${i === 0 ? 'primary' : ''}" data-action="chooseCard" data-option="${i}">${escapeHtml(o.label)}</button>`));
+      b.push(`<div class="offer card-choice"><h4>🃏 ${escapeHtml(deckName(card.deck))}</h4><p>${escapeHtml(cardText(card.id))}</p><p class="hint">${t('card.choose')}</p></div>`);
+      card.effect.options.forEach((_, i) => b.push(`<button class="${i === 0 ? 'primary' : ''}" data-action="chooseCard" data-option="${i}">${escapeHtml(cardOption(card.id, i))}</button>`));
       return b.join('');
     }
   }
   if (state.phase === 'roll') {
     if (p.inJail) {
-      b.push(`<button data-action="payJailFine" ${p.money < 50 ? 'disabled' : ''}>Paga ${money(50)} ed esci</button>`);
-      if (p.jailCards.length) b.push(`<button data-action="useJailCard">Usa carta esci gratis</button>`);
-      b.push(`<button class="primary" data-action="roll">Tenta il doppio</button>`);
+      b.push(`<button data-action="payJailFine" ${p.money < 50 ? 'disabled' : ''}>${t('btn.payFine', { amount: money(50) })}</button>`);
+      if (p.jailCards.length) b.push(`<button data-action="useJailCard">${t('btn.useJailCard')}</button>`);
+      b.push(`<button class="primary" data-action="roll">${t('btn.tryDouble')}</button>`);
     } else {
-      b.push(`<button class="primary" data-action="roll">${state.extraRoll ? 'Doppio! Rilancia' : 'Lancia i dadi'}</button>`);
+      b.push(`<button class="primary" data-action="roll">${state.extraRoll ? t('btn.rollAgain') : t('btn.roll')}</button>`);
     }
   } else if (state.phase === 'buy') {
     const space = board.spaces[p.position];
     const price = 'price' in space ? space.price : 0;
-    b.push(`<button class="primary" data-action="buy" ${p.money < price ? 'disabled' : ''}>Compra ${escapeHtml(space.name)} (${money(price)})</button>`);
-    b.push(`<button data-action="decline">Lascia all'asta</button>`);
+    b.push(`<button class="primary" data-action="buy" ${p.money < price ? 'disabled' : ''}>${t('btn.buy', { space: escapeHtml(spaceName(space.id)), amount: money(price) })}</button>`);
+    b.push(`<button data-action="decline">${t('btn.decline')}</button>`);
   } else if (state.phase === 'endTurn') {
     if (p.money < 0) {
       b.push(renderDebt(state, p.id));
     } else {
-      b.push(`<button class="primary" data-action="endTurn">Fine turno</button>`);
+      b.push(`<button class="primary" data-action="endTurn">${t('btn.endTurn')}</button>`);
     }
   }
   if ((state.phase === 'roll' || state.phase === 'endTurn') && state.players.some((o) => o.id !== p.id && !o.bankrupt)) {
-    b.push(`<button data-action="openTrade">🤝 Proponi scambio</button>`);
+    b.push(`<button data-action="openTrade">🤝 ${t('btn.openTrade')}</button>`);
   }
   return b.join('');
 }
@@ -295,27 +301,27 @@ export function renderDice(state: GameState): string {
 }
 
 function spaceNames(ids: string[]): string {
-  return ids.map((id) => escapeHtml(board.spaces.find((s) => s.id === id)!.name)).join(', ');
+  return ids.map((id) => escapeHtml(spaceName(id))).join(', ');
 }
 
 function sideText(side: TradeSide): string {
   const parts = [];
   if (side.money) parts.push(money(side.money));
   if (side.spaces.length) parts.push(spaceNames(side.spaces));
-  return parts.join(' + ') || 'niente';
+  return parts.join(' + ') || t('trade.nothing');
 }
 
 function renderTradeOffer(state: GameState): string {
-  const t = state.trade!;
-  const from = escapeHtml(state.players[t.from].name);
-  const to = escapeHtml(state.players[t.to].name);
+  const tr = state.trade!;
+  const from = escapeHtml(state.players[tr.from].name);
+  const to = escapeHtml(state.players[tr.to].name);
   return `<div class="offer">
-    <h4>${t.counters ? `↩️ ${from} risponde a ${to} con una controproposta` : `🤝 ${from} propone uno scambio a ${to}`}</h4>
+    <h4>${tr.counters ? `↩️ ${t('trade.counterTitle', { from, to })}` : `🤝 ${t('trade.offerTitle', { from, to })}`}</h4>
     <div class="offer-cols">
-      <div><span class="offer-label">${from} dà</span>${sideText(t.give)}</div>
-      <div><span class="offer-label">${from} chiede</span>${sideText(t.get)}</div>
+      <div><span class="offer-label">${t('trade.gives', { name: from })}</span>${sideText(tr.give)}</div>
+      <div><span class="offer-label">${t('trade.asks', { name: from })}</span>${sideText(tr.get)}</div>
     </div>
-    ${tradeSummaryHtml(state, t)}
+    ${tradeSummaryHtml(state, tr)}
   </div>`;
 }
 
@@ -325,26 +331,26 @@ function renderDebt(state: GameState, playerId: number): string {
   const ctx = { board, cards, rng: Math.random };
   const debt = -state.players[playerId].money;
   const available = liquidationValue(state, ctx, playerId);
-  const creditor = state.creditor === null ? 'alla banca' : `a ${escapeHtml(state.players[state.creditor].name)}`;
+  const owe = state.creditor === null ? t('debt.oweBank', { amount: money(debt) }) : t('debt.owe', { amount: money(debt), name: escapeHtml(state.players[state.creditor].name) });
   if (available < debt) {
     return `<div class="debt-panel">
-      <p class="warning">Devi ${money(debt)} ${creditor}.</p>
-      <p>Anche vendendo tutte le case e ipotecando tutto arriveresti a ${money(available)}: non basta.</p>
-      <button class="danger" data-action="bankrupt">Dichiara bancarotta</button>
+      <p class="warning">${owe}</p>
+      <p>${t('debt.notEnough', { amount: money(available) })}</p>
+      <button class="danger" data-action="bankrupt">${t('btn.bankrupt')}</button>
     </div>`;
   }
   const options = debtOptions(state, ctx, playerId)
     .map(({ action, gain }) => {
       const id = 'spaceId' in action ? action.spaceId : '';
-      const name = escapeHtml(board.spaces.find((s) => s.id === id)?.name ?? '');
-      const label = action.type === 'sell' ? `Vendi una casa su ${name}` : `Ipoteca ${name}`;
+      const name = escapeHtml(spaceName(id));
+      const label = action.type === 'sell' ? t('debt.sellOn', { space: name }) : t('debt.mortgage', { space: name });
       return `<li><button data-action="${action.type}" data-space="${id}">${label} <strong>+${money(gain)}</strong></button></li>`;
     })
     .join('');
   return `<div class="debt-panel">
-    <p class="warning">Devi ${money(debt)} ${creditor}.</p>
-    <p>Puoi ricavare fino a ${money(available)}. Scegli tu cosa vendere o ipotecare, oppure lascia fare al gioco.</p>
-    <button class="primary" data-action="coverDebt">Copri il debito automaticamente</button>
+    <p class="warning">${owe}</p>
+    <p>${t('debt.canRaise', { amount: money(available) })}</p>
+    <button class="primary" data-action="coverDebt">${t('btn.coverDebt')}</button>
     <ul class="debt-options">${options}</ul>
   </div>`;
 }
@@ -352,12 +358,12 @@ function renderDebt(state: GameState, playerId: number): string {
 function renderAuction(state: GameState): string {
   const a = state.auction!;
   const space = board.spaces.find((s) => s.id === a.spaceId)!;
-  const leader = a.highestBidder === null ? 'nessuna offerta' : `${money(a.highestBid)} di ${escapeHtml(state.players[a.highestBidder].name)}`;
+  const leader = a.highestBidder === null ? t('auction.noBid') : t('auction.bidBy', { amount: money(a.highestBid), name: escapeHtml(state.players[a.highestBidder].name) });
   const turn = escapeHtml(state.players[a.bidders[a.turn]].name);
   return `<div class="offer">
-    <h4>🔨 Asta: ${escapeHtml(space.name)} ${'price' in space ? `(valore ${money(space.price)})` : ''}</h4>
-    <p>Offerta più alta: <strong>${leader}</strong></p>
-    <p>Tocca a <strong>${turn}</strong> · in gara: ${a.bidders.map((id) => escapeHtml(state.players[id].name)).join(', ')}</p>
+    <h4>🔨 ${t('auction.title', { space: escapeHtml(spaceName(space.id)) })} ${'price' in space ? `(${t('auction.value', { amount: money(space.price) })})` : ''}</h4>
+    <p>${t('auction.highest')} <strong>${leader}</strong></p>
+    <p>${t('turn.of', { name: `<strong>${turn}</strong>` })} · ${t('auction.bidders', { names: a.bidders.map((id) => escapeHtml(state.players[id].name)).join(', ') })}</p>
   </div>`;
 }
 
@@ -371,13 +377,13 @@ export interface TradeDraft {
 }
 
 // Chi completa quale quartiere se lo scambio va in porto: la cosa da guardare prima di accettare.
-export function tradeSummaryHtml(state: GameState, t: { from: number; to: number; give: TradeSide; get: TradeSide }): string {
-  const done = tradeCompletions(state, { board, cards }, t);
-  if (!done.length) return '<p class="trade-note">Nessuno completa un quartiere con questo scambio.</p>';
+export function tradeSummaryHtml(state: GameState, offer: { from: number; to: number; give: TradeSide; get: TradeSide }): string {
+  const done = tradeCompletions(state, { board, cards }, offer);
+  if (!done.length) return `<p class="trade-note">${t('trade.noCompletion')}</p>`;
   return done
     .map((d) => {
       const g = board.groups.find((x) => x.id === d.group)!;
-      return `<p class="trade-note complete" style="--g:${g.color}">✨ <strong>${escapeHtml(state.players[d.player].name)}</strong> completa il quartiere <strong>${escapeHtml(g.name)}</strong> e può costruire.</p>`;
+      return `<p class="trade-note complete" style="--g:${g.color}">✨ ${t('trade.completes', { name: `<strong>${escapeHtml(state.players[d.player].name)}</strong>`, group: `<strong>${escapeHtml(g.name)}</strong>` })}</p>`;
     })
     .join('');
 }
@@ -398,48 +404,48 @@ export function renderTradeEditor(state: GameState, d: TradeDraft): string {
   const others = state.players.filter((o) => o.id !== me.id && !o.bankrupt);
   const list = (owner: number, side: 'give' | 'get') => {
     const ids = tradeableSpaces(state, owner);
-    if (!ids.length) return '<p class="hint">Nessuna casella scambiabile.</p>';
+    if (!ids.length) return `<p class="hint">${t('trade.noSpaces')}</p>`;
     const chosen = side === 'give' ? d.give.spaces : d.get.spaces;
     return ids
       .map((id) => {
         const sp = board.spaces.find((s) => s.id === id)!;
         const c = groupColor(sp) ?? '#999';
         return `<label class="pick"><input type="checkbox" data-trade="${side}-space" value="${id}" ${chosen.includes(id) ? 'checked' : ''}>
-          <span class="dot" style="background:${c}"></span>${escapeHtml(sp.name)}${state.ownership[id].mortgaged ? ' (ipotecata)' : ''}</label>`;
+          <span class="dot" style="background:${c}"></span>${escapeHtml(spaceName(sp.id))}${state.ownership[id].mortgaged ? ` (${t('space.mortgaged')})` : ''}</label>`;
       })
       .join('');
   };
   const other = state.players[d.to];
   return `<form class="trade-editor" id="trade-form">
-    <h4>${d.counter ? `↩️ Controproposta a ${escapeHtml(other.name)}` : '🤝 Proponi uno scambio'}</h4>
-    ${d.counter ? '<p class="hint">Cambia quello che dai e quello che chiedi, poi manda la tua proposta.</p>' : `<label class="row">Con
+    <h4>${d.counter ? `↩️ ${t('trade.counterTo', { name: escapeHtml(other.name) })}` : `🤝 ${t('trade.proposeTitle')}`}</h4>
+    ${d.counter ? `<p class="hint">${t('trade.counterHint')}</p>` : `<label class="row">${t('trade.with')}
       <select data-trade="to">${others.map((o) => `<option value="${o.id}" ${o.id === d.to ? 'selected' : ''}>${o.isBot ? '🤖 ' : ''}${escapeHtml(o.name)}</option>`).join('')}</select>
     </label>`}
     <div class="trade-cols">
-      <fieldset><legend>Tu dai</legend>
+      <fieldset><legend>${t('trade.youGive')}</legend>
         ${list(me.id, 'give')}
-        <label class="row">Soldi <input type="number" inputmode="numeric" min="0" max="${Math.max(me.money, 0)}" step="10" value="${d.give.money}" data-trade="give-money"></label>
+        <label class="row">${t('trade.money')} <input type="number" inputmode="numeric" min="0" max="${Math.max(me.money, 0)}" step="10" value="${d.give.money}" data-trade="give-money"></label>
       </fieldset>
-      <fieldset><legend>Chiedi a ${escapeHtml(other.name)}</legend>
+      <fieldset><legend>${t('trade.youAsk', { name: escapeHtml(other.name) })}</legend>
         ${list(other.id, 'get')}
-        <label class="row">Soldi <input type="number" inputmode="numeric" min="0" max="${Math.max(other.money, 0)}" step="10" value="${d.get.money}" data-trade="get-money"></label>
+        <label class="row">${t('trade.money')} <input type="number" inputmode="numeric" min="0" max="${Math.max(other.money, 0)}" step="10" value="${d.get.money}" data-trade="get-money"></label>
       </fieldset>
     </div>
     <div data-trade-summary aria-live="polite">${tradeSummaryHtml(state, { from: me.id, to: d.to, give: d.give, get: d.get })}</div>
     <div class="actions">
-      <button class="primary" type="submit">${d.counter ? 'Manda la controproposta' : 'Proponi'}</button>
-      <button type="button" data-action="closeTrade">Annulla</button>
+      <button class="primary" type="submit">${d.counter ? t('btn.sendCounter') : t('btn.propose')}</button>
+      <button type="button" data-action="closeTrade">${t('btn.cancel')}</button>
     </div>
   </form>`;
 }
 
 // "Difficile · Collezionista": livello e carattere di un computer.
 export function botLabel(b: BotProfile): string {
-  const level = BOT_LEVELS.find((l) => l.id === b.level)?.label ?? '';
+  const level = BOT_LEVELS.some((l) => l.id === b.level) ? t(`bot.level.${b.level}` as MsgKey) : '';
   const style = BOT_STYLES.find((x) => x.id === b.style);
-  return style && style.id !== 'equilibrato' ? `${level} · ${style.label}` : level;
+  return style && style.id !== 'equilibrato' ? `${level} · ${t(`bot.style.${style.id}` as MsgKey)}` : level;
 }
 
 export function botStyleText(style: string): string {
-  return BOT_STYLES.find((x) => x.id === style)?.text ?? '';
+  return BOT_STYLES.some((x) => x.id === style) ? t(`bot.styleText.${style}` as MsgKey) : '';
 }

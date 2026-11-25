@@ -1,8 +1,10 @@
 // Messaggi tra i dispositivi di una partita online. Chi ha creato il tavolo (l'"oste") tiene la
 // partita vera: gli altri mandano solo le loro mosse e ricevono lo stato aggiornato.
 import type { Action, Appearance, GameState } from '../engine';
+import type { MsgKey, Params } from '../i18n';
 
-export const PROTOCOL_VERSION = 1;
+// 2: registro e motivi dei rifiuti come frasi da tradurre (chiave e valori)
+export const PROTOCOL_VERSION = 2;
 
 // Chi siede al tavolo prima dell'inizio.
 export interface Member {
@@ -31,10 +33,11 @@ export type ToGuest =
   // stato completo dopo ogni mossa; "n" conta le mosse, così si scartano messaggi vecchi
   | { t: 'state'; state: GameState; n: number; action: Action | null }
   // mossa rifiutata (non è il tuo turno, regola violata…)
-  | { t: 'rejected'; seq: number; reason: string }
+  // reason è il testo in italiano; key e p la frase da mostrare nella lingua di chi la riceve
+  | { t: 'rejected'; seq: number; reason: string; key?: MsgKey; p?: Params }
   // posti scollegati, posti mossi dal computer perché il tempo è scaduto, tempo per ogni mossa
   | { t: 'presence'; offline: number[]; away: number[]; limitMs: number | null }
   | { t: 'said'; seat: number; id: string }
-  | { t: 'bye'; reason: string };
+  | { t: 'bye'; reason: string; key?: MsgKey; p?: Params };
 
 export type NetMessage = ToHost | ToGuest;

@@ -3,6 +3,7 @@
 import { board, cards } from '../data';
 import { JAIL_FINE, MAX_PLAYERS, MIN_PLAYERS } from '../engine';
 import { escapeHtml } from './view';
+import { deckName, t, type MsgKey } from '../i18n';
 
 const SYMBOL = board.currency.symbol;
 
@@ -28,24 +29,24 @@ export function gameFacts(): { value: string; label: string }[] {
   const start = board.spaces.find((s) => s.type === 'start');
   const salary = start && 'salary' in start ? start.salary : 0;
   return [
-    { value: `${MIN_PLAYERS}-${MAX_PLAYERS}`, label: 'giocatori' },
-    { value: String(board.spaces.length), label: 'caselle' },
-    { value: String(board.groups.length), label: 'quartieri' },
-    { value: String(cards.cards.length), label: 'carte' },
-    { value: `${SYMBOL} ${board.startingMoney}`, label: 'per iniziare' },
-    { value: `${SYMBOL} ${salary}`, label: 'alla Partenza' },
+    { value: `${MIN_PLAYERS}-${MAX_PLAYERS}`, label: t('facts.players') },
+    { value: String(board.spaces.length), label: t('facts.spaces') },
+    { value: String(board.groups.length), label: t('facts.groups') },
+    { value: String(cards.cards.length), label: t('facts.cards') },
+    { value: `${SYMBOL} ${board.startingMoney}`, label: t('facts.start') },
+    { value: `${SYMBOL} ${salary}`, label: t('facts.salary') },
   ];
 }
 
-const STEPS: [string, string, string][] = [
-  ['🎲', 'Lancia i dadi', 'Muovi la pedina in senso orario. Con un doppio rilanci.'],
-  ['🏠', 'Compra le vie', "Se nessuno la possiede puoi comprarla. Se rinunci va all'asta."],
-  ['🏗️', 'Costruisci', 'Con tutto un quartiere dello stesso colore costruisci case e poi il palazzo.'],
-  ['💸', 'Incassa gli affitti', 'Chi arriva sulle tue vie paga. Vince chi resta in piedi.'],
+const STEPS: [string, number][] = [
+  ['🎲', 1],
+  ['🏠', 2],
+  ['🏗️', 3],
+  ['💸', 4],
 ];
 
 function deckNames(): string {
-  return Object.values(cards.decks).map((d) => `“${escapeHtml(d.name)}”`).join(' e ');
+  return Object.keys(cards.decks).map((d) => `“${escapeHtml(deckName(d))}”`).join(` ${t('setup.and')} `);
 }
 
 export function renderIntro(): string {
@@ -53,40 +54,35 @@ export function renderIntro(): string {
   const salary = start && 'salary' in start ? start.salary : 0;
   return `
     <section class="card intro-block" aria-labelledby="how-title">
-      <h2 id="how-title">Come si gioca</h2>
+      <h2 id="how-title">${t('intro.how')}</h2>
       <ol class="steps">
-        ${STEPS.map(([icon, title, text]) => `<li><span class="step-icon" aria-hidden="true">${icon}</span><div><strong>${title}</strong><p>${text}</p></div></li>`).join('')}
+        ${STEPS.map(([icon, n]) => `<li><span class="step-icon" aria-hidden="true">${icon}</span><div><strong>${t(`intro.step${n}` as MsgKey)}</strong><p>${t(`intro.step${n}Text` as MsgKey)}</p></div></li>`).join('')}
       </ol>
       <details class="rules-more">
-        <summary>Regole in breve</summary>
+        <summary>${t('intro.rules')}</summary>
         <ul>
-          <li>🏁 Ogni volta che passi dalla Partenza incassi ${SYMBOL} ${salary}.</li>
-          <li>❓ Sulle caselle con il punto di domanda peschi una carta: ${deckNames()}.</li>
-          <li>🚋 Fermate e 💡 servizi non si costruiscono: l'affitto cresce con quanti ne possiedi.</li>
-          <li>👮 Chi viene fermato dai vigili va in Caserma: esce con un doppio, pagando ${SYMBOL} ${JAIL_FINE} o con la carta esci gratis.</li>
-          <li>🤝 Nel tuo turno puoi proporre scambi di vie e soldi agli altri giocatori.</li>
-          <li>🏦 Se sei in debito vendi case o ipoteca le vie; se non basta dichiari bancarotta.</li>
-          <li>⏱️ Con una durata in giri vince chi ha il patrimonio più alto alla fine.</li>
+          <li>🏁 ${t('intro.rule1', { amount: `${SYMBOL} ${salary}` })}</li>
+          <li>❓ ${t('intro.rule2', { decks: deckNames() })}</li>
+          <li>🚋 ${t('intro.rule3')}</li>
+          <li>👮 ${t('intro.rule4', { amount: `${SYMBOL} ${JAIL_FINE}` })}</li>
+          <li>🤝 ${t('intro.rule5')}</li>
+          <li>🏦 ${t('intro.rule6')}</li>
+          <li>⏱️ ${t('intro.rule7')}</li>
         </ul>
       </details>
     </section>
     <section class="card intro-block" aria-labelledby="city-title">
-      <h2 id="city-title">La città</h2>
+      <h2 id="city-title">${t('intro.city')}</h2>
       <ul class="facts">
         ${gameFacts().map((f) => `<li><strong>${f.value}</strong><span>${f.label}</span></li>`).join('')}
       </ul>
       <ul class="districts">
-        ${districts().map((d) => `<li style="--g:${d.color}"><span class="district-name">${escapeHtml(d.name)}</span><span class="district-price">${d.streets} vie · ${SYMBOL} ${d.minPrice}${d.maxPrice !== d.minPrice ? `-${d.maxPrice}` : ''}</span></li>`).join('')}
+        ${districts().map((d) => `<li style="--g:${d.color}"><span class="district-name">${escapeHtml(d.name)}</span><span class="district-price">${t('intro.streets', { n: d.streets })} · ${SYMBOL} ${d.minPrice}${d.maxPrice !== d.minPrice ? `-${d.maxPrice}` : ''}</span></li>`).join('')}
       </ul>
     </section>`;
 }
 
 // Consigli mostrati a rotazione durante il caricamento.
-export const LOADING_TIPS = [
-  'Un quartiere completo raddoppia gli affitti anche senza case.',
-  'Le vie arancioni del Porto sono tra le più visitate: chi ci arriva spesso paga.',
-  'Un doppio ti fa rilanciare, ma tre doppi di fila ti portano in Caserma.',
-  "Non vuoi comprare? La via va all'asta e puoi vincerla a meno.",
-  'Ipotecare una via ti dà soldi subito, ma non incassi affitti finché non la riscatti.',
-  'Uno scambio ben fatto può completare un quartiere: provalo con 🤝.',
-];
+export function loadingTips(): string[] {
+  return [1, 2, 3, 4, 5, 6].map((n) => t(`loadingTip.${n}` as MsgKey));
+}
