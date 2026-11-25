@@ -96,7 +96,7 @@ function drawVectorIcon(ctx: CanvasRenderingContext2D, type: Space['type'], cx: 
       ctx.font = `900 ${Math.round(r * 0.95)}px Georgia, serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('Ꞩ', 0, 4);
+      ctx.fillText('Ƒ', 0, 4);
       break;
     }
     case 'card': {
