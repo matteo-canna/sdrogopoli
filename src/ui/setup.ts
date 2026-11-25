@@ -4,6 +4,8 @@ import { DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYER
 import { webglAvailable } from './webgl';
 import { load3d } from './lazy3d';
 import { reportUrl } from './report';
+import { FILE_EXT, MAX_SLOTS, type Slot } from './slots';
+import { escapeHtml } from './view';
 import type { CharacterPreview } from './three/characters3d';
 import { renderIntro } from './intro';
 import { version } from '../../package.json';
@@ -134,13 +136,42 @@ function setLook(change: Partial<Appearance>): void {
   refreshLooks();
 }
 
+// Partite salvate con un nome e file da importare.
+export interface SlotsOffer {
+  list: Slot[];
+  onLoad: (id: string) => void;
+  onExport: (id: string) => void;
+  onDelete: (id: string) => void;
+  // false se il file non è una partita di Sdrogopoli
+  onImport: (file: File) => Promise<boolean>;
+}
+
+function slotsHtml(list: Slot[]): string {
+  const items = list
+    .map(
+      (sl) => `<li class="slot">
+        <div class="slot-info"><strong>${escapeHtml(sl.name)}</strong>
+          <small>${escapeHtml(sl.summary)} · ${new Date(sl.date).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div>
+        <div class="slot-buttons">
+          <button type="button" data-slot-load="${sl.id}">▶ Gioca</button>
+          <button type="button" data-slot-export="${sl.id}" aria-label="Esporta ${escapeHtml(sl.name)}">⬇️</button>
+          <button type="button" data-slot-delete="${sl.id}" aria-label="Elimina ${escapeHtml(sl.name)}">🗑️</button>
+        </div>
+      </li>`,
+    )
+    .join('');
+  return `${list.length ? `<h2 id="slots-title">Partite salvate <small>(${list.length} di ${MAX_SLOTS})</small></h2><ul class="slot-list">${items}</ul>` : '<h2 id="slots-title" class="visually-hidden">Partite salvate</h2>'}
+    <label class="import-file">📂 Apri una partita da un file ${FILE_EXT}<input type="file" accept="${FILE_EXT},.json,application/json" data-import></label>
+    <p class="slot-msg" role="status" aria-live="polite"></p>`;
+}
+
 // Partita salvata da proporre in cima alla schermata.
 export interface ResumeOffer {
   summary: string;
   onContinue: () => void;
 }
 
-export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice: SetupChoice) => void, resume?: ResumeOffer): void {
+export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice: SetupChoice) => void, resume?: ResumeOffer, slots?: SlotsOffer): void {
   destroyPreview();
   editingSeat = null;
   app.innerHTML = `
@@ -160,6 +191,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
           <button type="button" data-new-game>Nuova partita</button>
         </div>
       </section>` : ''}
+      ${slots ? `<section class="card saved-games" aria-labelledby="slots-title">${slotsHtml(slots.list)}</section>` : ''}
       <form id="setup-form" class="card" ${resume ? 'hidden' : ''}>
         <div class="form-head">
           <h2>Chi gioca?</h2>
@@ -230,6 +262,34 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
   });
   document.querySelector('[data-credits]')!.addEventListener('click', () => document.querySelector<HTMLDialogElement>('.credits-dialog')!.showModal());
   const form = document.querySelector<HTMLFormElement>('#setup-form')!;
+  const savedBox = document.querySelector<HTMLElement>('.saved-games');
+  if (slots && savedBox) {
+    let list = slots.list;
+    savedBox.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+      if (!b) return;
+      if (b.dataset.slotLoad) slots.onLoad(b.dataset.slotLoad);
+      else if (b.dataset.slotExport) slots.onExport(b.dataset.slotExport);
+      else if (b.dataset.slotDelete) {
+        // eliminare non si annulla: il primo tocco chiede conferma
+        if (b.dataset.confirm !== 'yes') {
+          b.dataset.confirm = 'yes';
+          b.textContent = 'Elimina?';
+          return;
+        }
+        slots.onDelete(b.dataset.slotDelete);
+        list = list.filter((x) => x.id !== b.dataset.slotDelete);
+        savedBox.innerHTML = slotsHtml(list);
+      }
+    });
+    savedBox.addEventListener('change', async (e) => {
+      const input = e.target as HTMLInputElement;
+      if (!input.matches('[data-import]') || !input.files?.[0]) return;
+      const ok = await slots.onImport(input.files[0]);
+      if (!ok) savedBox.querySelector('.slot-msg')!.textContent = `Questo file non è una partita di Sdrogopoli (o è di una versione più nuova).`;
+      input.value = '';
+    });
+  }
   if (resume) {
     const box = document.querySelector<HTMLElement>('.resume')!;
     box.querySelector('[data-resume]')!.addEventListener('click', resume.onContinue);

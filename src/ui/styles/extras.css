@@ -57,3 +57,27 @@
 }
 .update-toast span { flex: 1 1 200px; }
 .update-toast button.primary { padding: 8px 16px; }
+
+/* ---------- partite salvate ed esportate ---------- */
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.saved-games { padding: 18px; margin-top: 16px; text-align: left; }
+.saved-games h2 { margin: 0 0 8px; font-size: 1.15rem; }
+.saved-games h2 small { color: var(--muted); font-weight: 400; }
+.slot-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
+.slot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--space); }
+.slot-info { flex: 1 1 180px; min-width: 0; display: grid; }
+.slot-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slot-info small { color: var(--muted); }
+.slot-buttons { display: flex; gap: 6px; }
+.slot-buttons button { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); }
+.import-file { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--accent); font-weight: 600; min-height: 44px; }
+.import-file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.import-file:focus-within { box-shadow: var(--focus); border-radius: var(--radius-s); }
+.slot-msg:empty { display: none; }
+.slot-msg { margin: 6px 0 0; font-size: 0.9em; }
+.slots-box summary { cursor: pointer; color: var(--muted); font-size: 0.9em; padding: 6px 0; }
+.slot-form { display: grid; gap: 4px; margin: 6px 0; font-size: 0.9em; }
+.slot-row { display: flex; gap: 6px; }
+.slot-row input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--space); color: var(--ink); font: inherit; }
+.slot-row button, .slots-box > button { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); }
+.slots-box > button { width: 100%; }
