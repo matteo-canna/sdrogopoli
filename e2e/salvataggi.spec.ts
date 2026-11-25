@@ -23,7 +23,8 @@ test('salva, esporta, elimina e reimporta una partita', async ({ page }) => {
   await expect(page.locator('.slot')).toContainText('Prova di Matteo');
   await page.click('[data-slot-load]');
   await expect(page.locator('.board')).toBeVisible();
-  expect((await stato(page)).round).toBe(giro);
+  // intanto il computer può aver già giocato: la partita riprende da lì, non dall'inizio
+  expect((await stato(page)).round).toBeGreaterThanOrEqual(giro);
 
   // eliminata la copia, il file esportato riporta la stessa partita
   await page.click('[data-action=quit]');
@@ -33,5 +34,6 @@ test('salva, esporta, elimina e reimporta una partita', async ({ page }) => {
   await expect(page.locator('.slot')).toHaveCount(0);
   await page.setInputFiles('[data-import]', path);
   await expect(page.locator('.board')).toBeVisible();
-  expect((await stato(page)).round).toBe(giro);
+  // intanto il computer può aver già giocato: la partita riprende da lì, non dall'inizio
+  expect((await stato(page)).round).toBeGreaterThanOrEqual(giro);
 });

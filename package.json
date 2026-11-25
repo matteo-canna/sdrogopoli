@@ -22,7 +22,8 @@
     "vitest": "^3.2.7"
   },
   "dependencies": {
-    "three": "^0.170.0"
+    "three": "^0.170.0",
+    "trystero": "^0.27.0"
   },
   "overrides": {
     "playwright-core": "1.63.0"
