@@ -1,8 +1,8 @@
 {
   "currency": {
-    "name": "sdrogo",
-    "plural": "sdroghi",
-    "symbol": "Ꞩ"
+    "name": "foulbuck",
+    "plural": "foulbucks",
+    "symbol": "Ƒ"
   },
   "startingMoney": 1500,
   "targets": { "partenza": "partenza", "lusso": "lungolago-2", "studio": "universita-3" },
