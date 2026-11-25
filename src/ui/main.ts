@@ -21,6 +21,7 @@ import { BotScheduler } from './bots';
 import { soundFor } from './sounds';
 import { renderSetup, setupLooks, SEATS_SHOWN, type SetupChoice } from './setup';
 import { setupOffline } from './pwa';
+import { reportUrl } from './report';
 
 // senza "rng": i dadi vengono dal generatore della partita, che parte da un seme casuale
 const ctx: GameContext = { board, cards };
@@ -214,6 +215,7 @@ function gameShell(stage: string, mode: ViewMode): string {
         <div class="players-list"></div>
         <p class="saved">💾 La partita si salva da sola su questo dispositivo.</p>
         <button class="link" data-action="quit">Abbandona la partita</button>
+        <a class="report-link" data-report href="#" target="_blank" rel="noopener">🐞 Segnala un problema</a>
       </aside>
       <div class="action-bar"></div>
     </div>`;
@@ -353,6 +355,12 @@ function act(action: Action): void {
 app.addEventListener('click', (e) => {
   // l'audio si può attivare solo dopo un gesto dell'utente
   audio.unlock();
+  // la segnalazione si compila al momento del clic, con le ultime mosse
+  const report = (e.target as HTMLElement).closest<HTMLAnchorElement>('[data-report]');
+  if (report) {
+    report.href = reportUrl(session.state, viewMode);
+    return;
+  }
   const target = (e.target as HTMLElement).closest<HTMLElement>('[data-action], [data-space]');
   const state = session.state;
   if (!target || !state) return;
