@@ -9,7 +9,7 @@ import { FILE_EXT, MAX_SLOTS, type Slot } from './slots';
 import { escapeHtml } from './view';
 import type { CharacterPreview } from './three/characters3d';
 import { renderIntro } from './intro';
-import { version } from '../../package.json';
+import { buildLabel } from './build';
 import { renderLeaderboard } from './summary';
 import { ACCENT_CHOICES, BASE_STYLES, CHARACTERS, COLLECTION_GROUPS, COLOR_CHOICES, FINISHES, collectionLook, colorName, itemName, characterDef, defaultAppearance, type CollectionGroup } from './characters';
 import { boardTitle, getLang, t, tn, type MsgKey } from '../i18n';
@@ -446,7 +446,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       </div>
       <footer class="credits">
         <p>🆓 ${t('footer.free')}</p>
-        <p>${t('footer.characters')} <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit ${t('credits.by')} Kay Lousberg</a> (CC0) · ${t('footer.version', { v: version })} · <button type="button" class="link" data-credits>${t('footer.credits')}</button> · <button type="button" class="link" data-settings>⚙️ ${t('settings.title')}</button> · <a href="${reportUrl(null, 'iniziale')}" target="_blank" rel="noopener">${t('report.link')}</a></p>
+        <p>${t('footer.characters')} <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit ${t('credits.by')} Kay Lousberg</a> (CC0) · ${t('footer.version', { v: buildLabel() })} · <button type="button" class="link" data-credits>${t('footer.credits')}</button> · <button type="button" class="link" data-settings>⚙️ ${t('settings.title')}</button> · <a href="${reportUrl(null, 'iniziale')}" target="_blank" rel="noopener">${t('report.link')}</a></p>
       </footer>
       <dialog class="credits-dialog" aria-labelledby="credits-title">
         <h2 id="credits-title">${t('footer.credits')}</h2>

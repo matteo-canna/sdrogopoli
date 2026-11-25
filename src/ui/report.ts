@@ -1,5 +1,5 @@
 // "Segnala un problema": apre una segnalazione su GitHub già compilata con versione, browser e ultime mosse.
-import { version } from '../../package.json';
+import { buildLabel } from './build';
 import type { GameState } from '../engine';
 import { format, getLang, t } from '../i18n';
 
@@ -13,7 +13,7 @@ export function reportUrl(state: GameState | null, view: string, ua = navigator.
     '',
     `**${t('report.details')}**`,
     '',
-    `- Versione: ${version}`,
+    `- Versione: ${buildLabel()}`,
     `- Browser: ${ua}`,
     `- Schermo: ${window.innerWidth}×${window.innerHeight}, vista ${view}, lingua ${getLang()}`,
   ];
