@@ -1,199 +1,242 @@
-/* Schermata iniziale giocosa: sfondi animati, titolo a lettere colorate, riquadri "adesivo"
-   e piccole animazioni sui tocchi. Si muove solo con transform e opacity; con il movimento
-   ridotto (base.css) tutto resta fermo. */
+/* Schermata iniziale in stile gioco da tavolo classico: tavolo di panno verde o tabellone,
+   titolo su una targa, riquadri come atti di proprietà e piccole animazioni sui tocchi.
+   Si muove solo con transform e opacity; con il movimento ridotto (base.css) tutto resta fermo. */
 
-/* ---------- colori allegri ---------- */
+/* ---------- colori del tavolo da gioco ---------- */
 :root {
-  --pop-red: #ff6b6b; --pop-orange: #ff9f43; --pop-yellow: #feca57; --pop-green: #1dd1a1;
-  --pop-cyan: #48dbfb; --pop-blue: #54a0ff; --pop-violet: #a55eea; --pop-pink: #ff6bcb;
-  --sticker: 0 6px 0 rgba(31, 36, 33, 0.14), 0 16px 34px rgba(31, 36, 33, 0.12);
+  --game-crimson: #b8323b; --game-gold: #e3b23c; --game-paper: #f6efd9; --game-ink: #1f2421;
+  --game-blue: #3a5fcd; --game-teal: #138a8a; --game-coral: #f08c6c; --game-lilac: #b28dd6;
+  --deed-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), 0 10px 28px rgba(0, 0, 0, 0.28);
   --bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-@media (prefers-color-scheme: dark) {
-  :root { --sticker: 0 6px 0 rgba(0, 0, 0, 0.45), 0 16px 34px rgba(0, 0, 0, 0.35); }
+  --tk: clamp(30px, 6.4vmin, 78px); /* spessore del percorso nel tema "tabellone" */
 }
 
 /* ---------- livello dello sfondo ---------- */
 .setup-bg { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; contain: strict; }
 .setup-bg > * { position: absolute; }
+.setup-bg svg { display: block; width: 100%; height: auto; }
 
-/* ===== Città giocattolo ===== */
-.bg-citta { background: linear-gradient(180deg, #7fd0ff 0%, #b9e6ff 38%, #ffe3f1 72%, #fff1c9 100%); }
-.bg-citta .bg-sun { top: 4%; right: 6%; width: clamp(110px, 16vw, 210px); aspect-ratio: 1; }
-@media (max-width: 620px) { .bg-citta .bg-sun { top: auto; bottom: 34%; right: -30px; } .bg-balloon { top: 40%; } }
-.bg-citta .bg-sun svg { width: 100%; height: 100%; overflow: visible; }
-.bg-citta .bg-sun circle { fill: #ffd23f; }
-.bg-citta .bg-sun .rays { fill: #ffb703; }
-.bg-citta .bg-sun svg { animation: bg-spin 40s linear infinite; will-change: transform; }
-.bg-citta .bg-stars { inset: 0; display: none; }
-.bg-citta .bg-stars i { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #fff; animation: bg-twinkle 3s ease-in-out infinite; animation-delay: var(--d); }
-.bg-cloud { left: 0; width: calc(170px * var(--s)); fill: #fff; opacity: 0.92; animation: bg-drift var(--t) linear infinite; will-change: transform; }
-.bg-balloon { left: 8%; top: 18%; width: clamp(56px, 7vw, 92px); animation: bg-balloon 26s ease-in-out infinite; will-change: transform; }
-.bg-plane { top: 30%; left: 0; width: clamp(260px, 30vw, 420px); animation: bg-fly 38s linear infinite; animation-delay: -6s; will-change: transform; }
-.bg-plane svg { width: 100%; display: block; }
-.bg-city { left: 0; bottom: 0; width: 100%; height: clamp(150px, 26vh, 260px); }
-.bg-city.back { bottom: clamp(22px, 4vh, 40px); opacity: 0.5; height: clamp(170px, 30vh, 300px); }
-.bg-city .house { transform-box: fill-box; transform-origin: 50% 100%; }
-/* le casette saltellano solo sugli schermi grandi: sul telefono le animazioni dentro l'SVG costano troppo */
-@media (min-width: 900px) and (pointer: fine) {
-  .bg-city.front .house { animation: bg-hop 6s var(--bounce) infinite; animation-delay: var(--d); }
+/* ===== Tavolo verde: il tabellone in prospettiva sul panno ===== */
+.bg-tavolo { background: #1d5a3a; }
+.bg-felt {
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.05) 0 1px, transparent 1.5px) 0 0 / 5px 5px,
+    radial-gradient(ellipse 80% 70% at 50% 38%, #2e7d52 0%, #1f6140 45%, #0f3a25 100%);
 }
-.bg-city .win { fill: #fff7d1; opacity: 0.9; }
-.bg-city .door { fill: rgba(0, 0, 0, 0.25); }
-.bg-ground { left: 0; right: 0; bottom: 0; height: clamp(18px, 3vh, 30px); background: repeating-linear-gradient(90deg, #fff 0 30px, transparent 30px 60px) center / 100% 4px no-repeat, #4a5563; }
-@media (prefers-color-scheme: dark) and (min-width: 900px) and (pointer: fine) {
-  .bg-city .win { animation: bg-lights 9s steps(1) infinite; animation-delay: var(--d); }
+.bg-lamp {
+  inset: -10%; background: radial-gradient(ellipse 55% 45% at 50% 30%, rgba(255, 232, 170, 0.22), transparent 70%);
+  animation: bg-lamp 9s ease-in-out infinite; will-change: opacity;
+}
+.bg-board {
+  left: 50%; top: 56%; width: clamp(560px, 100vmin, 1080px);
+  transform: translate(-50%, -50%) perspective(1600px) rotateX(52deg) rotateZ(-20deg);
+  animation: bg-sway 40s ease-in-out infinite alternate; will-change: transform;
+}
+.bg-board svg { filter: drop-shadow(0 30px 30px rgba(0, 0, 0, 0.45)); }
+.bg-prop { width: var(--w); transform: rotate(var(--r)); filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.35)); }
+.bg-prop.note { margin-left: calc(var(--w) * -0.5); }
+.bg-prop.deed { margin-left: calc(var(--w) * -0.5); }
+.bg-prop.figure { animation: bg-pawn 7s ease-in-out infinite; }
+.bg-prop.figure + .bg-prop.figure { animation-delay: -3.5s; }
+.bg-dice { left: 2.5%; top: 44%; display: flex; flex-direction: column; gap: 6px; }
+.bg-dice .die { width: clamp(38px, 4.6vw, 62px); filter: drop-shadow(0 6px 5px rgba(0, 0, 0, 0.4)); animation: bg-roll 8s var(--bounce) infinite; will-change: transform; }
+.bg-dice .die.a { --r: -14deg; }
+.bg-dice .die.b { --r: 18deg; animation-delay: 0.12s; margin-left: 22px; }
+@media (max-width: 620px) {
+  .bg-board { top: 50%; width: 150vmin; }
+  .bg-dice { left: auto; right: 3%; top: auto; bottom: 20%; flex-direction: row; }
+  .bg-dice .die.b { margin: 14px 0 0; }
+  .bg-prop.note { top: 1% !important; }
+  .bg-prop.deed { display: none; }
 }
 @media (prefers-color-scheme: dark) {
-  .bg-citta { background: linear-gradient(180deg, #120f3a 0%, #2a1b5c 45%, #5b2a6e 80%, #8a3d6b 100%); }
-  .bg-citta .bg-stars { display: block; }
-  .bg-citta .bg-sun circle { fill: #f6f1d5; }
-  .bg-citta .bg-sun .rays { display: none; }
-  .bg-citta .bg-sun svg { animation: none; }
-  .bg-cloud { fill: #8c7fd0; opacity: 0.35; }
-  .bg-city .win { fill: #ffd86b; }
-  .bg-city.front { filter: brightness(0.8); }
+  .bg-felt { background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.04) 0 1px, transparent 1.5px) 0 0 / 5px 5px, radial-gradient(ellipse 80% 70% at 50% 38%, #1d4d34 0%, #12362a 45%, #081d14 100%); }
+  .bg-board { opacity: 0.85; }
 }
 
-/* ===== Tavolo in festa ===== */
-.bg-festa { background: linear-gradient(135deg, #7b5cff 0%, #4f8cff 45%, #2ed1c4 100%); }
-.bg-festa .bg-dots { inset: 0; background: radial-gradient(circle, rgba(255, 255, 255, 0.22) 3px, transparent 4px) 0 0 / 34px 34px; }
-.bg-border { left: 0; right: 0; height: 16px; background: repeating-linear-gradient(90deg, var(--pop-red) 0 48px, var(--pop-yellow) 48px 96px, var(--pop-green) 96px 144px, var(--pop-blue) 144px 192px, var(--pop-violet) 192px 240px, var(--pop-pink) 240px 288px); }
-.bg-border.top { top: 0; }
-.bg-border.bottom { bottom: 0; }
-.bg-float { width: var(--w); margin-left: calc(var(--w) / -2); filter: drop-shadow(0 8px 0 rgba(0, 0, 0, 0.18)); animation: bg-bob var(--t) ease-in-out infinite; animation-delay: calc(var(--d) * -1); will-change: transform; }
-.bg-float svg { width: 100%; display: block; }
+/* ===== Tabellone: lo schermo è il tabellone, con le caselle lungo i bordi ===== */
+.bg-tabellone { background: #e9dfbf; }
+.bg-paper {
+  inset: 0;
+  background:
+    repeating-linear-gradient(45deg, rgba(31, 36, 33, 0.035) 0 2px, transparent 2px 14px),
+    repeating-linear-gradient(-45deg, rgba(31, 36, 33, 0.035) 0 2px, transparent 2px 14px),
+    radial-gradient(ellipse at 50% 35%, #f6efd9 0%, #e9dfbf 75%);
+}
+.bg-track { display: flex; background: var(--game-ink); gap: 2px; padding: 2px; }
+.bg-track.top, .bg-track.bottom { left: var(--tk); right: var(--tk); height: var(--tk); }
+.bg-track.top { top: 0; }
+.bg-track.bottom { bottom: 0; }
+.bg-track.left, .bg-track.right { top: var(--tk); bottom: var(--tk); width: var(--tk); flex-direction: column; }
+.bg-track.left { left: 0; }
+.bg-track.right { right: 0; }
+.bg-track i { flex: 1; position: relative; background: var(--game-paper); display: grid; place-items: center; }
+.bg-track i::before { content: ''; position: absolute; background: var(--g, transparent); }
+.bg-track.top i::before { left: 0; right: 0; bottom: 0; height: 36%; box-shadow: 0 -2px 0 var(--game-ink); }
+.bg-track.bottom i::before { left: 0; right: 0; top: 0; height: 36%; box-shadow: 0 2px 0 var(--game-ink); }
+.bg-track.left i::before { top: 0; bottom: 0; right: 0; width: 36%; box-shadow: -2px 0 0 var(--game-ink); }
+.bg-track.right i::before { top: 0; bottom: 0; left: 0; width: 36%; box-shadow: 2px 0 0 var(--game-ink); }
+.bg-track i.plain::before { display: none; }
+.bg-track b, .bg-corner b { font: 900 calc(var(--tk) * 0.42) / 1 var(--font-title); color: var(--game-crimson); }
+.bg-corner { width: var(--tk); height: var(--tk); background: var(--game-paper); border: 2px solid var(--game-ink); display: grid; place-items: center; }
+.bg-corner.tl { top: 0; left: 0; }
+.bg-corner.tr { top: 0; right: 0; }
+.bg-corner.bl { bottom: 0; left: 0; }
+.bg-corner.br { bottom: 0; right: 0; }
+.bg-corner.t-start { background: var(--game-gold); }
+.bg-corner.t-jail { background: var(--game-coral); }
+.bg-corner.t-free b { color: var(--game-teal); }
+.bg-corner.t-goToJail b { color: var(--game-blue); }
+.bg-walker { left: 0; width: calc(var(--tk) * 0.62); animation: bg-walk 26s linear infinite; will-change: transform; }
+.bg-walker.top { top: calc(var(--tk) * 0.08); }
+.bg-walker.bottom { bottom: calc(var(--tk) * 0.12); animation-direction: reverse; animation-duration: 34s; }
+.bg-walker .hop { animation: bg-hop 0.9s ease-in-out infinite; filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.3)); }
+@media (max-width: 620px) {
+  .bg-track.left, .bg-track.right { display: none; }
+  .bg-track.top, .bg-track.bottom { left: 0; right: 0; }
+  .bg-corner { display: none; }
+}
+/* il contenuto parte sotto il percorso e non ci finisce sopra ai lati */
+.bg-tabellone + .setup { padding-top: var(--tk); }
+@media (min-width: 621px) and (max-width: 1320px) { .bg-tabellone + .setup { padding-left: calc(var(--tk) + 12px); padding-right: calc(var(--tk) + 12px); } }
 @media (prefers-color-scheme: dark) {
-  .bg-festa { background: linear-gradient(135deg, #2b1a6b 0%, #1b3a7a 50%, #0f5a5a 100%); }
+  .bg-tabellone { background: #24231f; }
+  .bg-paper { background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.03) 0 2px, transparent 2px 14px), repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.03) 0 2px, transparent 2px 14px), radial-gradient(ellipse at 50% 35%, #34322b 0%, #1d1c18 75%); }
+  .bg-track i, .bg-corner { background: #3a372f; }
+  .bg-track { background: #0e0f0e; }
 }
 
-/* ===== Strisce caramella ===== */
-.bg-strisce { background: #fff4e6; }
-.bg-stripes { inset: -50% -50%; background: var(--stripes); opacity: 0.55; animation: bg-slide 14s linear infinite; will-change: transform; }
-.bg-veil { inset: 0; background: radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.2) 70%); }
-.bg-confetti { top: -4%; width: 12px; height: 18px; border-radius: 3px; background: var(--c); box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08); animation: bg-fall var(--t) linear infinite; animation-delay: var(--d); will-change: transform; }
-@media (prefers-color-scheme: dark) {
-  .bg-strisce { background: #1c1430; }
-  .bg-stripes { opacity: 0.35; }
-  .bg-veil { background: radial-gradient(ellipse at 50% 30%, rgba(20, 16, 40, 0.75), rgba(20, 16, 40, 0.35) 70%); }
+@keyframes bg-lamp { 50% { opacity: 0.65; } }
+@keyframes bg-sway { from { transform: translate(-50%, -50%) perspective(1600px) rotateX(52deg) rotateZ(-24deg); } to { transform: translate(-50%, -50%) perspective(1600px) rotateX(52deg) rotateZ(-14deg); } }
+@keyframes bg-roll {
+  0%, 82%, 100% { transform: rotate(var(--r)); }
+  86% { transform: translate(-18px, -34px) rotate(calc(var(--r) + 160deg)) scale(1.08); }
+  91% { transform: translate(-6px, 0) rotate(calc(var(--r) + 300deg)); }
+  95% { transform: translate(-2px, -8px) rotate(calc(var(--r) + 350deg)); }
 }
+@keyframes bg-pawn { 0%, 70%, 100% { transform: translateY(0); } 78% { transform: translateY(-16px) rotate(-6deg); } 86% { transform: translateY(0); } }
+@keyframes bg-walk { from { transform: translateX(-10vw); } to { transform: translateX(110vw); } }
+@keyframes bg-hop { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-22%); } }
 
-@keyframes bg-spin { to { transform: rotate(360deg); } }
-@keyframes bg-twinkle { 50% { opacity: 0.2; } }
-@keyframes bg-drift { from { transform: translateX(-30vw); } to { transform: translateX(110vw); } }
-@keyframes bg-balloon { 0%, 100% { transform: translate(0, 0) rotate(-3deg); } 50% { transform: translate(14vw, -6vh) rotate(4deg); } }
-@keyframes bg-fly { from { transform: translateX(-460px); } to { transform: translateX(110vw); } }
-@keyframes bg-hop { 0%, 88%, 100% { transform: translateY(0) scaleY(1); } 92% { transform: translateY(-10px) scaleY(1.04); } 96% { transform: translateY(0) scaleY(0.96); } }
-@keyframes bg-lights { 0%, 100% { opacity: 0.95; } 40% { opacity: 0.25; } 70% { opacity: 0.95; } }
-@keyframes bg-bob { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-22px) rotate(var(--r)); } }
-@keyframes bg-slide { from { transform: translateX(0); } to { transform: translateX(var(--period)); } }
-@keyframes bg-fall { from { transform: translate(0, 0) rotate(0deg); } to { transform: translate(var(--x), 110vh) rotate(720deg); } }
-
-/* ---------- intestazione: casette che saltano e titolo a lettere colorate ---------- */
-.brand-houses { display: flex; justify-content: center; align-items: flex-end; gap: 6px; height: 40px; }
-.brand-houses span {
-  width: 22px; height: var(--h); background: var(--c); border-radius: 3px 3px 2px 2px; position: relative;
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18); animation: pop-in 0.5s var(--bounce) both, house-jump 4s ease-in-out infinite;
-  animation-delay: calc(var(--i) * 70ms), calc(1s + var(--i) * 0.18s);
+/* ---------- intestazione: fila di quartieri e titolo su una targa ---------- */
+.brand-strip { display: flex; justify-content: center; gap: 4px; }
+.brand-strip span {
+  width: 26px; height: 34px; border-radius: 3px; background: linear-gradient(var(--c) 0 34%, var(--game-paper) 34%);
+  border: 2px solid var(--game-ink); box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+  animation: deal-in 0.45s var(--bounce) both; animation-delay: calc(var(--i) * 60ms);
 }
-.brand-houses span::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 11px; background: var(--c); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
-.brand h1 { margin: 8px 0 10px; text-shadow: none; }
-.title-letters { display: inline-flex; flex-wrap: wrap; justify-content: center; }
-.title-letters span {
-  display: inline-block; color: var(--c); -webkit-text-stroke: 0.06em #fff; paint-order: stroke fill;
-  text-shadow: 0 0.07em 0 rgba(31, 36, 33, 0.22); animation: letter-drop 0.7s var(--bounce) both, letter-wave 5s ease-in-out infinite;
-  animation-delay: calc(var(--i) * 60ms), calc(1.2s + var(--i) * 0.12s);
+.brand h1 { margin: 12px 0 14px; text-shadow: none; }
+.title-plate {
+  display: inline-flex; flex-wrap: wrap; justify-content: center; position: relative; overflow: hidden;
+  padding: 0.18em 0.6em; border-radius: 14px; background: var(--game-crimson); color: #fff;
+  border: 3px solid var(--game-ink); box-shadow: inset 0 0 0 4px var(--game-crimson), inset 0 0 0 7px var(--game-gold), 0 10px 26px rgba(0, 0, 0, 0.35);
+  transform: rotate(-2deg); letter-spacing: 0.04em; text-transform: uppercase;
+  animation: plate-in 0.6s var(--bounce) both;
 }
-.title-letters .gap { width: 0.3em; animation: none; }
-.title-letters span:not(.gap):hover { animation: letter-boing 0.6s var(--bounce); }
+.title-plate::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 30%; left: -40%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent); animation: shine 6s ease-in-out infinite 1.6s;
+}
+.title-plate span { display: inline-block; animation: letter-drop 0.55s var(--bounce) both; animation-delay: calc(0.25s + var(--i) * 45ms); }
+.title-plate .gap { width: 0.35em; }
+.title-plate span:not(.gap):hover { animation: letter-boing 0.6s var(--bounce); }
 .brand .tagline {
-  display: inline-block; max-width: 62ch; margin: 0 auto; padding: 8px 16px; border-radius: 999px; color: var(--ink);
-  background: color-mix(in srgb, var(--panel) 88%, transparent); box-shadow: var(--shadow-s); font-weight: 600;
+  display: inline-block; max-width: 62ch; margin: 0 auto; padding: 8px 16px; border-radius: 8px; color: var(--ink);
+  background: var(--panel); box-shadow: var(--deed-shadow); font-weight: 600;
 }
-@media (prefers-color-scheme: dark) { .title-letters span { -webkit-text-stroke-color: #1f2421; } }
-@keyframes pop-in { from { opacity: 0; transform: scale(0.3) translateY(20px); } }
-@keyframes house-jump { 0%, 86%, 100% { transform: translateY(0); } 91% { transform: translateY(-9px); } 96% { transform: translateY(1px); } }
-@keyframes letter-drop { from { opacity: 0; transform: translateY(-60px) rotate(-12deg); } }
-@keyframes letter-wave { 0%, 80%, 100% { transform: translateY(0) rotate(0); } 86% { transform: translateY(-8px) rotate(-4deg); } 93% { transform: translateY(0) rotate(3deg); } }
-@keyframes letter-boing { 30% { transform: translateY(-14px) scale(1.15, 0.9); } 60% { transform: translateY(0) scale(0.92, 1.08); } }
+@keyframes deal-in { from { opacity: 0; transform: translateY(-24px) rotate(-10deg); } }
+@keyframes plate-in { from { opacity: 0; transform: rotate(-8deg) scale(0.7); } }
+@keyframes letter-drop { from { opacity: 0; transform: translateY(-0.6em); } }
+@keyframes letter-boing { 30% { transform: translateY(-10px) scale(1.12, 0.92); } 60% { transform: translateY(0) scale(0.95, 1.05); } }
 
-/* ---------- riquadri come adesivi colorati, che entrano uno dopo l'altro ---------- */
-.setup .card { border-radius: 22px; border: 2px solid color-mix(in srgb, var(--ink) 10%, transparent); box-shadow: var(--sticker); }
-.setup .step { border-top: 8px solid var(--step-c); }
-.setup .step:nth-child(1) { --step-c: var(--pop-red); }
-.setup .step:nth-child(2) { --step-c: var(--pop-blue); }
-.setup .step:nth-child(3) { --step-c: var(--pop-yellow); }
-.setup .step-n { background: var(--step-c); color: #1f2421; transform: rotate(-8deg); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2); font-size: 1rem; flex-basis: 32px; height: 32px; }
-.setup .setup-summary { border-top: 8px solid var(--pop-green); }
-.setup .resume { border-top: 8px solid var(--pop-violet); }
-.setup .section-title { display: inline-block; padding: 6px 16px; border-radius: 999px; background: var(--panel); box-shadow: var(--shadow-s); }
-.setup .step, .setup .setup-summary, .setup .resume, .more-modes, .about { animation: rise-in 0.6s var(--bounce) both; }
+/* ---------- riquadri come atti di proprietà, distribuiti come carte sul tavolo ---------- */
+.setup .card {
+  border-radius: 10px; border: 2px solid var(--game-ink); box-shadow: inset 0 0 0 4px var(--panel), inset 0 0 0 5px color-mix(in srgb, var(--ink) 16%, transparent), var(--deed-shadow);
+}
+.setup .step, .setup .setup-summary, .setup .resume { border-top: 12px solid var(--step-c); }
+.setup .step:nth-child(1) { --step-c: var(--game-blue); }
+.setup .step:nth-child(2) { --step-c: var(--game-teal); }
+.setup .step:nth-child(3) { --step-c: var(--game-gold); }
+.setup .setup-summary { --step-c: var(--game-crimson); }
+.setup .resume { --step-c: var(--game-lilac); }
+.setup .step h2, .setup .setup-summary h2 { text-transform: uppercase; letter-spacing: 0.05em; font-size: 1.05rem; }
+/* numero del passo come una fiche */
+.setup .step-n {
+  background: var(--step-c); color: #fff; flex-basis: 34px; height: 34px; font-size: 1rem;
+  box-shadow: inset 0 0 0 3px var(--step-c), inset 0 0 0 5px rgba(255, 255, 255, 0.9), 0 2px 4px rgba(0, 0, 0, 0.3);
+  border: 2px dashed rgba(255, 255, 255, 0.75); text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+.setup .section-title { display: inline-block; padding: 6px 16px; border-radius: 8px; background: var(--panel); box-shadow: var(--deed-shadow); text-transform: uppercase; letter-spacing: 0.05em; font-size: 1.05rem; }
+.setup .step, .setup .setup-summary, .setup .resume, .more-modes, .about { animation: deal-card 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.1) both; }
 .setup .step:nth-child(2) { animation-delay: 0.08s; }
 .setup .step:nth-child(3) { animation-delay: 0.16s; }
 .setup .setup-summary { animation-delay: 0.12s; }
 .more-modes { animation-delay: 0.24s; }
 .about { animation-delay: 0.32s; }
-@keyframes rise-in { from { opacity: 0; transform: translateY(26px) scale(0.98); } }
-.modes-grid .card:nth-child(1), .modes-grid > :nth-child(1) .card { border-top: 6px solid var(--pop-cyan); }
-.modes-grid > :nth-child(2) .daily-card, .modes-grid > .daily-card { border-top: 6px solid var(--pop-orange); }
-.modes-grid .saved-games { border-top: 6px solid var(--pop-pink); }
+@keyframes deal-card { from { opacity: 0; transform: translateY(40px) rotate(-2deg); } }
+.modes-grid .card:nth-child(1), .modes-grid > :nth-child(1) .card { border-top: 8px solid var(--game-coral); }
+.modes-grid > :nth-child(2) .daily-card, .modes-grid > .daily-card { border-top: 8px solid var(--game-gold); }
+.modes-grid .saved-games { border-top: 8px solid var(--game-lilac); }
 
 /* ---------- posti dei giocatori ---------- */
-.setup-row { animation: pop-in 0.45s var(--bounce) both; background: color-mix(in srgb, var(--c) 7%, var(--space)); }
+.setup-row { animation: pop-in 0.4s var(--bounce) both; background: color-mix(in srgb, var(--c) 7%, var(--space)); }
 .seat-list .setup-row:nth-child(2) { animation-delay: 0.06s; }
 .seat-list .setup-row:nth-child(3) { animation-delay: 0.12s; }
 .seat-list .setup-row:nth-child(4) { animation-delay: 0.18s; }
+@keyframes pop-in { from { opacity: 0; transform: scale(0.6) translateY(14px); } }
 .setup .look-btn { transition: transform 0.25s var(--bounce); }
-.setup .look-btn:not(:disabled):hover { transform: scale(1.1) rotate(-6deg); }
-.setup .look-btn:not(:disabled):active { transform: scale(0.92); }
+.setup .look-btn:not(:disabled):hover { transform: scale(1.08) rotate(-5deg); }
+.setup .look-btn:not(:disabled):active { transform: scale(0.94); }
 .look-btn-edit { transition: transform 0.25s var(--bounce); }
 .look-btn:hover .look-btn-edit { transform: rotate(-20deg) scale(1.15); }
 /* la pedina appena cambiata fa un saltello */
 .look-btn.bump .look-btn-emoji { animation: bump 0.6s var(--bounce); }
-@keyframes bump { 0% { transform: scale(0.4) rotate(-20deg); } 60% { transform: scale(1.25) rotate(8deg); } 100% { transform: none; } }
+@keyframes bump { 0% { transform: scale(0.4) rotate(-20deg); } 60% { transform: scale(1.2) rotate(6deg); } 100% { transform: none; } }
 .setup button.add-seat { border-radius: 999px; transition: transform 0.2s var(--bounce), background 0.2s; }
-.setup button.add-seat:not(:disabled):hover { transform: scale(1.04); background: color-mix(in srgb, var(--pop-green) 15%, transparent); }
+.setup button.add-seat:not(:disabled):hover { transform: scale(1.03); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
-/* ---------- scelte: pastiglie che rimbalzano ---------- */
-.setup .preset { border-radius: 14px; transition: transform 0.2s var(--bounce), box-shadow 0.2s; }
+/* ---------- scelte ---------- */
+.setup .preset { border-radius: 10px; transition: transform 0.2s var(--bounce), box-shadow 0.2s; }
 .setup .preset:hover { transform: translateY(-2px); }
-.setup .preset:has(input:checked) { animation: chosen 0.45s var(--bounce); box-shadow: 0 0 0 2px var(--accent), 0 4px 0 color-mix(in srgb, var(--accent) 45%, transparent); }
-@keyframes chosen { 40% { transform: scale(1.06); } }
+.setup .preset:has(input:checked) { animation: chosen 0.4s var(--bounce); box-shadow: 0 0 0 2px var(--accent), 0 4px 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+@keyframes chosen { 40% { transform: scale(1.05); } }
 
-/* ---------- pulsante principale: grande, gommoso e con un riflesso che passa ---------- */
+/* ---------- pulsante principale: pieno, con un bordo in rilievo e un riflesso che passa ---------- */
 .setup button.primary {
-  position: relative; overflow: hidden; border-radius: 16px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 80%, #fff) 0%, var(--accent) 60%);
+  position: relative; overflow: hidden; border-radius: 10px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #fff) 0%, var(--accent) 55%);
+  box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.22), 0 3px 8px rgba(0, 0, 0, 0.25);
   transition: transform 0.2s var(--bounce);
 }
-.setup button.primary:not(:disabled):hover { transform: translateY(-2px) scale(1.02); }
-.setup button.primary:not(:disabled):active { transform: translateY(2px) scale(0.98); }
-.setup .setup-summary button[type=submit] { font-size: 1.2rem; min-height: 58px; letter-spacing: 0.01em; }
+.setup button.primary:not(:disabled):hover { transform: translateY(-2px); }
+.setup button.primary:not(:disabled):active { transform: translateY(1px); }
+.setup .setup-summary button[type=submit] { font-size: 1.2rem; min-height: 58px; letter-spacing: 0.04em; text-transform: uppercase; }
 .setup .setup-summary button[type=submit]::after {
   content: ''; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.45), transparent); animation: shine 3.5s ease-in-out infinite 1.5s;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.4), transparent); animation: shine 4.5s ease-in-out infinite 1.5s;
 }
 @keyframes shine { 0%, 60% { transform: translateX(0); } 100% { transform: translateX(400%); } }
 
-/* ---------- finestra della pedina: entra con un rimbalzo, le tessere scelte saltano ---------- */
-.look-dialog[open] { animation: dialog-in 0.4s var(--bounce); }
+/* ---------- finestra della pedina: entra come una carta, le tessere scelte saltano ---------- */
+.look-dialog[open] { animation: dialog-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.1); }
 .look-dialog[open]::backdrop { animation: fade-in 0.25s ease-out; }
-@keyframes dialog-in { from { opacity: 0; transform: translateY(40px) scale(0.94); } }
+@keyframes dialog-in { from { opacity: 0; transform: translateY(40px) scale(0.96); } }
 @keyframes fade-in { from { opacity: 0; } }
 .setup .look-tile { transition: transform 0.2s var(--bounce), border-color 0.2s; }
-.setup .look-tile:not(:disabled):hover { transform: translateY(-3px) rotate(-1.5deg); }
+.setup .look-tile:not(:disabled):hover { transform: translateY(-3px); }
 .setup .look-tile:hover .tile-emoji { animation: wiggle 0.5s ease-in-out; }
 .look-tile[aria-checked="true"] .tile-emoji { animation: bump 0.55s var(--bounce); }
 .look-tile[aria-checked="true"]::before {
   content: ''; position: absolute; inset: -6px; border-radius: 16px; pointer-events: none;
-  background: radial-gradient(circle, var(--pop-yellow) 0 3px, transparent 4px) 0 0 / 50% 50%;
+  background: radial-gradient(circle, var(--game-gold) 0 3px, transparent 4px) 0 0 / 50% 50%;
   animation: sparkle 0.6s ease-out forwards; opacity: 0;
 }
 @keyframes wiggle { 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
 @keyframes sparkle { 0% { opacity: 1; transform: scale(0.6); } 100% { opacity: 0; transform: scale(1.4); } }
 .setup .look-dialog .swatch { transition: transform 0.2s var(--bounce); }
-.setup .look-dialog .swatch:not(:disabled):hover { transform: scale(1.15); }
-.setup .look-dialog .swatch[aria-checked="true"] { transform: scale(1.12); }
+.setup .look-dialog .swatch:not(:disabled):hover { transform: scale(1.12); }
+.setup .look-dialog .swatch[aria-checked="true"] { transform: scale(1.1); }
 .look-stage .look-preview { animation: none; }
 .look-caption strong { display: inline-block; animation: bump 0.5s var(--bounce); }
 
@@ -207,7 +250,11 @@
 .summary-seat .avatar { transition: transform 0.25s var(--bounce); }
 .summary-seat:hover .avatar { transform: rotate(-10deg) scale(1.1); }
 
-/* finestra della pedina con la striscia arcobaleno in alto */
-.look-dialog { border-radius: 24px; }
-.look-head { border-top: 6px solid transparent; border-image: linear-gradient(90deg, var(--pop-red), var(--pop-orange), var(--pop-yellow), var(--pop-green), var(--pop-cyan), var(--pop-blue), var(--pop-violet), var(--pop-pink)) 1; }
+/* finestra della pedina con la fila dei colori dei quartieri in alto */
+.look-dialog { border-radius: 14px; }
+.look-head {
+  border-top: 8px solid transparent;
+  background: var(--groups-strip, linear-gradient(90deg, var(--game-blue), var(--game-teal), var(--game-gold), var(--game-coral), var(--game-crimson))) top / 100% 8px no-repeat border-box, var(--panel);
+  border-bottom-color: color-mix(in srgb, var(--line) 60%, var(--panel));
+}
 .look-head h2 { font-family: var(--font-title); }

@@ -47,11 +47,11 @@ describe('impostazioni', () => {
       motion: 'ridotto',
       sfxVolume: 100,
       musicVolume: 0,
-      background: 'citta',
+      background: 'tavolo',
     });
   });
   it('lo sfondo della schermata iniziale si sceglie tra quelli che esistono', () => {
-    expect(parseSettings('{"background":"festa"}').background).toBe('festa');
-    expect(parseSettings('{"background":"spiaggia"}').background).toBe('citta');
+    expect(parseSettings('{"background":"tabellone"}').background).toBe('tabellone');
+    expect(parseSettings('{"background":"citta"}').background).toBe('tavolo');
   });
 });

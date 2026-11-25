@@ -1,148 +1,201 @@
-// Sfondo animato della schermata iniziale. Tre temi, scelti nelle impostazioni:
-// - "citta": cielo con nuvole, mongolfiera, aereo con lo striscione e la città dei quartieri in basso;
-// - "festa": tavolo da gioco colorato con dadi, monete, casette e carte che fluttuano;
-// - "strisce": strisce caramella nei colori dei quartieri e coriandoli che cadono.
-// Tutto è disegnato nel codice (niente file), si muove solo con transform/opacity e si ferma
-// con il movimento ridotto (regola generale in base.css).
+// Sfondo della schermata iniziale, in stile gioco da tavolo classico. Due temi, scelti nelle impostazioni:
+// - "tavolo": il tabellone vero del gioco appoggiato in prospettiva su un tavolo di panno verde,
+//   con dadi, banconote, un atto di proprietà, casette e pedine sparsi intorno;
+// - "tabellone": lo schermo diventa il tabellone, con il percorso delle caselle lungo i bordi
+//   e due pedine che lo percorrono.
+// Tutto è disegnato nel codice (niente file), i colori sono quelli dei quartieri, si muove solo con
+// transform/opacity e si ferma con il movimento ridotto (regola generale in base.css).
 import { board } from '../data';
 
-export const BACKGROUNDS = ['citta', 'festa', 'strisce'] as const;
+export const BACKGROUNDS = ['tavolo', 'tabellone'] as const;
 export type BackgroundId = (typeof BACKGROUNDS)[number];
-export const DEFAULT_BACKGROUND: BackgroundId = 'citta';
+export const DEFAULT_BACKGROUND: BackgroundId = 'tavolo';
 
-// Colori allegri di riserva, se il tabellone ha pochi quartieri.
-const CANDY = ['#ff6b6b', '#ff9f43', '#feca57', '#1dd1a1', '#48dbfb', '#54a0ff', '#a55eea', '#ff6bcb'];
+const INK = '#1f2421';
+const PAPER = '#f6efd9';
+const CRIMSON = '#b8323b';
+const GOLD = '#e3b23c';
+const FONT = 'ui-rounded, system-ui, sans-serif';
 
-function palette(): string[] {
-  const groups = board.groups.map((g) => g.color);
-  return groups.length >= 6 ? groups : CANDY;
+type Space = (typeof board.spaces)[number];
+
+function groupColor(s: Space): string | null {
+  if (s.type !== 'property' || !('group' in s)) return null;
+  return board.groups.find((g) => g.id === s.group)?.color ?? null;
 }
 
-// Generatore pseudo-casuale fisso: lo sfondo è uguale a ogni apertura (niente salti tra un ridisegno e l'altro).
-function seeded(seed: number): () => number {
-  let s = seed;
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
-}
+// ---------- il tabellone visto dall'alto (viewBox 1000×1000, 40 caselle come quello del gioco) ----------
+const C = 136; // lato delle caselle d'angolo
+const W = (1000 - 2 * C) / 9; // larghezza delle caselle sui lati
+const BAND = 28; // fascia colorata del quartiere
 
-// Una fila di casette larga 1600 unità: tetto a punta, porta e finestre.
-function skyline(colors: string[], seed: number, minH: number, maxH: number, windows: boolean): string {
-  const rnd = seeded(seed);
-  let x = 0;
-  let out = '';
-  let i = 0;
-  while (x < 1600) {
-    const w = 70 + Math.round(rnd() * 50);
-    const h = minH + Math.round(rnd() * (maxH - minH));
-    const roof = 26 + Math.round(rnd() * 18);
-    const c = colors[i % colors.length];
-    const top = 300 - h;
-    out += `<g class="house" style="--d:${(i % 7) * 0.35}s">
-      <path d="M${x + 4} 300 V${top} L${x + w / 2} ${top - roof} L${x + w - 4} ${top} V300 Z" fill="${c}"/>`;
-    if (windows) {
-      const cols = w > 95 ? 3 : 2;
-      for (let r = 0; r < Math.min(3, Math.floor((h - 40) / 36)); r++)
-        for (let k = 0; k < cols; k++) {
-          const wx = x + 14 + k * ((w - 28 - 14) / Math.max(1, cols - 1));
-          out += `<rect class="win" style="--d:${((i * 3 + r + k) % 9) * 0.7}s" x="${wx.toFixed(1)}" y="${top + 14 + r * 36}" width="14" height="18" rx="3"/>`;
-        }
-      out += `<rect class="door" x="${x + w / 2 - 9}" y="${300 - 30}" width="18" height="30" rx="9"/>`;
-    }
-    out += '</g>';
-    x += w + 6;
-    i++;
+// Rettangolo della casella e della sua fascia (verso il centro), partendo dall'angolo in basso a destra.
+function spaceRect(i: number): { x: number; y: number; w: number; h: number; band: [number, number, number, number] } {
+  const side = Math.floor(i / 10);
+  const k = i % 10;
+  if (k === 0) {
+    const pos = [[1000 - C, 1000 - C], [0, 1000 - C], [0, 0], [1000 - C, 0]][side];
+    return { x: pos[0], y: pos[1], w: C, h: C, band: [0, 0, 0, 0] };
   }
-  return out;
+  if (side === 0) { const x = 1000 - C - k * W; return { x, y: 1000 - C, w: W, h: C, band: [x, 1000 - C, W, BAND] }; }
+  if (side === 1) { const y = 1000 - C - k * W; return { x: 0, y, w: C, h: W, band: [C - BAND, y, BAND, W] }; }
+  if (side === 2) { const x = C + (k - 1) * W; return { x, y: 0, w: W, h: C, band: [x, C - BAND, W, BAND] }; }
+  const y = C + (k - 1) * W;
+  return { x: 1000 - C, y, w: C, h: W, band: [1000 - C, y, BAND, W] };
 }
 
-const CLOUD = '<path d="M30 60 a24 24 0 0 1 22-34 a32 32 0 0 1 60-6 a26 26 0 0 1 44 14 a20 20 0 0 1 4 26 Z"/>';
-
-function cityHtml(colors: string[]): string {
-  const starRnd = seeded(42);
-  const rot = colors.slice(3).concat(colors.slice(0, 3));
-  return `
-    <div class="bg-sun"><svg viewBox="0 0 200 200"><g class="rays">${Array.from({ length: 12 }, (_, i) => `<rect x="94" y="4" width="12" height="34" rx="6" transform="rotate(${i * 30} 100 100)"/>`).join('')}</g><circle cx="100" cy="100" r="50"/></svg></div>
-    <div class="bg-stars">${Array.from({ length: 28 }, () => {
-      const r = starRnd;
-      return `<i style="left:${(r() * 100).toFixed(1)}%;top:${(r() * 55).toFixed(1)}%;--d:${(r() * 4).toFixed(1)}s"></i>`;
-    }).join('')}</div>
-    ${[
-      [8, 0.9, 70, 0],
-      [22, 0.7, 95, -40],
-      [40, 1.2, 80, -20],
-      [58, 0.8, 110, -70],
-    ]
-      .map(([top, scale, dur, delay]) => `<svg class="bg-cloud" viewBox="0 0 170 70" style="top:${top}%;--s:${scale};--t:${dur}s;animation-delay:${delay}s">${CLOUD}</svg>`)
-      .join('')}
-    <svg class="bg-balloon" viewBox="0 0 120 180">
-      <ellipse cx="60" cy="58" rx="50" ry="56" fill="${colors[5 % colors.length]}"/>
-      <ellipse cx="60" cy="58" rx="32" ry="56" fill="${colors[2 % colors.length]}"/>
-      <ellipse cx="60" cy="58" rx="13" ry="56" fill="${colors[4 % colors.length]}"/>
-      <path d="M28 100 L46 138 M92 100 L74 138" stroke="#6b4a2b" stroke-width="3"/>
-      <rect x="44" y="136" width="32" height="24" rx="5" fill="#9a5b33"/>
-    </svg>
-    <div class="bg-plane"><svg viewBox="0 0 420 70">
-      <path d="M8 35 C40 20 70 50 100 35 C130 20 160 50 190 35" stroke="#fff" stroke-width="2" fill="none" stroke-dasharray="4 6"/>
-      <rect x="190" y="14" width="160" height="42" rx="8" fill="#fff" stroke="${colors[0]}" stroke-width="3"/>
-      <text x="270" y="43" text-anchor="middle" font-size="22" font-weight="800" fill="${colors[3 % colors.length]}" font-family="ui-rounded, system-ui, sans-serif">Gioco Folle!</text>
-      <path d="M350 35 h12" stroke="#555" stroke-width="2"/>
-      <path d="M362 28 h36 a10 10 0 0 1 0 14 h-36 Z" fill="${colors[0]}"/>
-      <path d="M376 28 l-6 -16 h10 l10 16 Z M376 42 l-6 16 h10 l10 -16 Z" fill="${colors[1 % colors.length]}"/>
-      <circle cx="398" cy="35" r="3" fill="#fff"/>
-    </svg></div>
-    <svg class="bg-city back" viewBox="0 0 1600 300" preserveAspectRatio="xMidYMax slice">${skyline(rot, 3, 120, 230, false)}</svg>
-    <svg class="bg-city front" viewBox="0 0 1600 300" preserveAspectRatio="xMidYMax slice">${skyline(colors, 11, 70, 170, true)}</svg>
-    <div class="bg-ground"></div>`;
+// Piccole icone delle caselle speciali, disegnate al centro della casella.
+function glyph(s: Space, cx: number, cy: number): string {
+  const txt = (t: string, fill: string, size = 40) => `<text x="${cx}" y="${cy + size * 0.36}" text-anchor="middle" font-size="${size}" font-weight="900" fill="${fill}" font-family="${FONT}">${t}</text>`;
+  switch (s.type) {
+    case 'card': return txt('?', CRIMSON, 46);
+    case 'tax': return txt('Ƒ', '#8a5d00', 40);
+    case 'station': return `<g transform="translate(${cx - 20} ${cy - 16})" fill="${INK}"><rect width="40" height="22" rx="5"/><rect x="5" y="4" width="10" height="8" rx="2" fill="${PAPER}"/><rect x="25" y="4" width="10" height="8" rx="2" fill="${PAPER}"/><circle cx="9" cy="27" r="5"/><circle cx="31" cy="27" r="5"/></g>`;
+    case 'utility': return `<circle cx="${cx}" cy="${cy}" r="17" fill="${GOLD}" stroke="${INK}" stroke-width="4"/><path d="M${cx - 2} ${cy - 10} l-6 12 h8 l-4 10 l12 -14 h-8 l4 -8 Z" fill="${INK}"/>`;
+    case 'start': return `<path d="M${cx - 44} ${cy + 18} h52 v18 l36 -36 l-36 -36 v18 h-52 Z" fill="${CRIMSON}" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>`;
+    case 'jail': return `<rect x="${cx - 34}" y="${cy - 34}" width="68" height="68" rx="6" fill="#f08c6c" stroke="${INK}" stroke-width="4"/>${[-18, 0, 18].map((d) => `<path d="M${cx + d} ${cy - 34} v68" stroke="${INK}" stroke-width="5"/>`).join('')}`;
+    case 'free': return `<circle cx="${cx}" cy="${cy}" r="36" fill="${GOLD}" stroke="${INK}" stroke-width="4"/>${txt('Ƒ', INK, 44)}`;
+    case 'goToJail': return `<path d="M${cx} ${cy - 40} l11 24 l26 3 l-19 18 l5 26 l-23 -13 l-23 13 l5 -26 l-19 -18 l26 -3 Z" fill="#3a5fcd" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>`;
+    default: return '';
+  }
 }
 
-// Oggetti del gioco che galleggiano sul tavolo.
+function pawnSvg(c: string, cx: number, cy: number, r = 14): string {
+  return `<g transform="translate(${cx} ${cy})"><ellipse cx="0" cy="${r * 1.1}" rx="${r * 1.25}" ry="${r * 0.55}" fill="rgba(0,0,0,.25)"/><circle r="${r}" fill="${c}" stroke="${INK}" stroke-width="3"/><circle r="${r * 0.4}" cx="${-r * 0.3}" cy="${-r * 0.3}" fill="rgba(255,255,255,.55)"/></g>`;
+}
+
+function boardSvg(): string {
+  let spaces = '';
+  board.spaces.slice(0, 40).forEach((s, i) => {
+    const r = spaceRect(i);
+    spaces += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${PAPER}" stroke="${INK}" stroke-width="3"/>`;
+    const c = groupColor(s);
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+    if (c) {
+      const [bx, by, bw, bh] = r.band;
+      spaces += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="${c}" stroke="${INK}" stroke-width="3"/>`;
+      // due righe al posto del nome e del prezzo
+      const vertical = r.w > r.h;
+      const lx = vertical ? (r.x < 500 ? r.x + 24 : r.x + BAND + 20) : r.x + 14;
+      const ly = vertical ? r.y + 16 : (r.y < 500 ? r.y + 22 : r.y + BAND + 22);
+      spaces += vertical
+        ? `<path d="M${lx + 20} ${ly} v${r.h - 32} M${lx + 54} ${ly + 14} v${r.h - 60}" stroke="rgba(31,36,33,.28)" stroke-width="7" stroke-linecap="round"/>`
+        : `<path d="M${lx} ${ly + 20} h${r.w - 28} M${lx + 10} ${ly + 54} h${r.w - 48}" stroke="rgba(31,36,33,.28)" stroke-width="7" stroke-linecap="round"/>`;
+    } else spaces += glyph(s, cx, cy);
+  });
+  // qualche casetta sulle fasce dei quartieri già costruiti
+  const houses = [[6, 1], [8, 2], [16, 3], [26, 2], [27, 1], [37, 1]]
+    .map(([i, n]) => {
+      const [bx, by, bw, bh] = spaceRect(i).band;
+      const horiz = bw > bh;
+      return Array.from({ length: n }, (_, k) => {
+        const x = horiz ? bx + 10 + k * 22 : bx + 5;
+        const y = horiz ? by + 5 : by + 10 + k * 22;
+        return `<path d="M${x} ${y + 18} v-10 l9 -8 l9 8 v10 Z" fill="#fff" stroke="${INK}" stroke-width="2.5" stroke-linejoin="round"/>`;
+      }).join('');
+    })
+    .join('');
+  const colors = board.groups.map((g) => g.color);
+  const pawns = [[3, colors[3 % colors.length]], [14, CRIMSON], [24, colors[4 % colors.length]], [33, GOLD]]
+    .map(([i, c]) => { const r = spaceRect(i as number); return pawnSvg(c as string, r.x + r.w / 2, r.y + r.h / 2 + 4, 16); })
+    .join('');
+  return `<svg viewBox="0 0 1000 1000">
+    <rect x="-14" y="-14" width="1028" height="1028" rx="18" fill="${INK}"/>
+    <rect width="1000" height="1000" fill="#e9dfbf"/>
+    <rect x="${C}" y="${C}" width="${1000 - 2 * C}" height="${1000 - 2 * C}" fill="#efe5c6"/>
+    <path d="M${C} ${C} L${1000 - C} ${1000 - C} M${1000 - C} ${C} L${C} ${1000 - C}" stroke="rgba(31,36,33,.06)" stroke-width="2"/>
+    ${spaces}${houses}
+    <g transform="translate(300 290) rotate(-12)"><rect width="150" height="104" rx="10" fill="#f08c6c" stroke="${INK}" stroke-width="4"/><rect x="8" y="8" width="134" height="88" rx="6" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="6 5"/><text x="75" y="70" text-anchor="middle" font-size="54" font-weight="900" fill="#fff" font-family="${FONT}">?</text></g>
+    <g transform="translate(560 610) rotate(-12)"><rect width="150" height="104" rx="10" fill="#138a8a" stroke="${INK}" stroke-width="4"/><rect x="8" y="8" width="134" height="88" rx="6" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="6 5"/><text x="75" y="70" text-anchor="middle" font-size="54" font-weight="900" fill="#fff" font-family="${FONT}">!</text></g>
+    <g transform="translate(500 500) rotate(-12)"><rect x="-230" y="-52" width="460" height="104" rx="16" fill="${CRIMSON}" stroke="${INK}" stroke-width="5"/><rect x="-218" y="-40" width="436" height="80" rx="10" fill="none" stroke="${GOLD}" stroke-width="4"/><text y="22" text-anchor="middle" font-size="62" font-weight="900" fill="#fff" letter-spacing="3" font-family="${FONT}">GIOCO FOLLE!</text></g>
+    ${pawns}
+  </svg>`;
+}
+
+// ---------- oggetti sparsi sul tavolo ----------
 function die(n: number): string {
   const pips: Record<number, [number, number][]> = {
-    1: [[50, 50]],
+    2: [[30, 30], [70, 70]],
     3: [[28, 28], [50, 50], [72, 72]],
+    4: [[30, 30], [70, 30], [30, 70], [70, 70]],
     5: [[28, 28], [72, 28], [50, 50], [28, 72], [72, 72]],
-    6: [[28, 26], [72, 26], [28, 50], [72, 50], [28, 74], [72, 74]],
+    6: [[30, 26], [70, 26], [30, 50], [70, 50], [30, 74], [70, 74]],
   };
-  return `<svg viewBox="0 0 100 100"><rect x="6" y="6" width="88" height="88" rx="20" fill="#fff" stroke="#1f2421" stroke-width="5"/>${(pips[n] ?? pips[5]).map(([x, y]) => `<circle cx="${x}" cy="${y}" r="8" fill="#1f2421"/>`).join('')}</svg>`;
-}
-function coin(): string {
-  return `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="#f4b400" stroke="#b07d00" stroke-width="6"/><circle cx="50" cy="50" r="31" fill="none" stroke="#ffe08a" stroke-width="4"/><text x="50" y="64" text-anchor="middle" font-size="40" font-weight="900" fill="#8a5d00" font-family="ui-rounded, system-ui, sans-serif">F</text></svg>`;
-}
-function house(c: string): string {
-  return `<svg viewBox="0 0 100 100"><path d="M14 92 V46 L50 12 L86 46 V92 Z" fill="${c}" stroke="#1f2421" stroke-width="5" stroke-linejoin="round"/><rect x="40" y="62" width="20" height="30" rx="4" fill="#fff"/></svg>`;
-}
-function card(c: string): string {
-  return `<svg viewBox="0 0 80 110"><rect x="5" y="5" width="70" height="100" rx="10" fill="#fff" stroke="#1f2421" stroke-width="5"/><rect x="12" y="12" width="56" height="22" rx="4" fill="${c}"/><text x="40" y="82" text-anchor="middle" font-size="40" font-weight="900" fill="${c}" font-family="ui-rounded, system-ui, sans-serif">?</text></svg>`;
+  return `<svg viewBox="0 0 100 100"><rect x="4" y="4" width="92" height="92" rx="20" fill="#fbf7ee" stroke="#c9c0ab" stroke-width="3"/><rect x="4" y="4" width="92" height="92" rx="20" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="2" transform="translate(-1.5 -1.5)"/>${(pips[n] ?? pips[5]).map(([x, y]) => `<circle cx="${x}" cy="${y}" r="8.5" fill="${n === 5 ? CRIMSON : INK}"/>`).join('')}</svg>`;
 }
 
-function partyHtml(colors: string[]): string {
-  const items = [
-    die(5), coin(), house(colors[0]), card(colors[3 % colors.length]), die(3), coin(),
-    house(colors[5 % colors.length]), die(6), card(colors[6 % colors.length]), coin(), house(colors[2 % colors.length]), die(1),
-  ];
-  // posizioni fisse, sparse ai lati per non stare sotto ai riquadri
-  const spots: [number, number, number][] = [
-    [4, 12, 70], [88, 8, 56], [12, 46, 80], [92, 38, 64], [3, 78, 58], [84, 70, 72],
-    [30, 4, 44], [64, 3, 50], [46, 88, 60], [70, 90, 46], [22, 92, 54], [96, 92, 40],
-  ];
-  return `<div class="bg-dots"></div>
-    <div class="bg-border top"></div><div class="bg-border bottom"></div>
-    ${items.map((svg, i) => `<div class="bg-float" style="left:${spots[i][0]}%;top:${spots[i][1]}%;--w:${spots[i][2]}px;--d:${(i * 0.9) % 6}s;--t:${6 + (i % 4)}s;--r:${(i % 2 ? -1 : 1) * (8 + (i % 3) * 6)}deg">${svg}</div>`).join('')}`;
+function banknote(value: number, c: string): string {
+  return `<svg viewBox="0 0 200 104"><rect x="2" y="2" width="196" height="100" rx="6" fill="${c}"/><rect x="10" y="10" width="180" height="84" rx="4" fill="none" stroke="rgba(31,36,33,.45)" stroke-width="2"/><ellipse cx="100" cy="52" rx="34" ry="30" fill="rgba(255,255,255,.55)" stroke="rgba(31,36,33,.35)" stroke-width="2"/><text x="100" y="66" text-anchor="middle" font-size="40" font-weight="900" fill="${INK}" font-family="${FONT}">Ƒ</text><text x="30" y="38" text-anchor="middle" font-size="22" font-weight="800" fill="${INK}" font-family="${FONT}">${value}</text><text x="170" y="84" text-anchor="middle" font-size="22" font-weight="800" fill="${INK}" font-family="${FONT}">${value}</text></svg>`;
 }
 
-function stripesHtml(colors: string[]): string {
-  const stops = colors.map((c, i) => `${c} ${i * 60}px ${(i + 1) * 60}px`).join(', ');
-  const rnd = seeded(5);
-  return `<div class="bg-stripes" style="--stripes:repeating-linear-gradient(-45deg, ${stops});--period:${colors.length * 60 * Math.SQRT2}px"></div>
-    <div class="bg-veil"></div>
-    ${Array.from({ length: 22 }, (_, i) => `<i class="bg-confetti" style="left:${(rnd() * 100).toFixed(1)}%;--c:${['#fff', '#feca57', '#ff6bcb', '#48dbfb'][i % 4]};--t:${(9 + rnd() * 9).toFixed(1)}s;--d:${(-rnd() * 18).toFixed(1)}s;--x:${(rnd() * 80 - 40).toFixed(0)}px"></i>`).join('')}`;
+function deed(c: string): string {
+  return `<svg viewBox="0 0 120 160"><rect x="3" y="3" width="114" height="154" rx="6" fill="#fffdf6" stroke="${INK}" stroke-width="3"/><rect x="12" y="12" width="96" height="36" rx="3" fill="${c}" stroke="${INK}" stroke-width="2"/><path d="M34 26 h52 M44 36 h32" stroke="rgba(255,255,255,.85)" stroke-width="4" stroke-linecap="round"/>${[64, 80, 94, 108, 122].map((y, i) => `<path d="M20 ${y} h${i === 0 ? 80 : 50} M${i === 0 ? 100 : 86} ${y} h${i === 0 ? 0 : 14}" stroke="rgba(31,36,33,.35)" stroke-width="4" stroke-linecap="round"/>`).join('')}<path d="M30 140 h60" stroke="rgba(31,36,33,.25)" stroke-width="3"/></svg>`;
+}
+
+// casetta e albergo in prospettiva, come i pezzi di legno sul tavolo
+function piece(c: string, wide = false): string {
+  const w = wide ? 70 : 40;
+  return `<svg viewBox="0 0 ${w + 30} 70"><path d="M4 ${30} l${w / 2} -24 l${w / 2} 24 v34 h-${w} Z" fill="${c}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/><path d="M${w + 4} 30 l22 -12 v34 l-22 12 Z" fill="${c}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/><path d="M${w + 4} 30 l22 -12 l-${w / 2} -18 l-${w / 2 - 22} 6 Z" fill="${c}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/><path d="M${w + 4} 30 l22 -12 v34 l-22 12 Z" fill="rgba(0,0,0,.25)"/><path d="M${w + 4} 30 l22 -12 l-${w / 2} -18 l-${w / 2 - 22} 6 Z" fill="rgba(0,0,0,.12)"/></svg>`;
+}
+
+function pawnPiece(c: string): string {
+  // pedina classica: base larga, corpo a campana, collarino e testa tonda
+  return `<svg viewBox="0 0 60 90"><ellipse cx="30" cy="83" rx="27" ry="6" fill="rgba(0,0,0,.28)"/><path d="M5 82 q0 -10 9 -12 q6 -2 8 -10 l2 -22 h12 l2 22 q2 8 8 10 q9 2 9 12 Z" fill="${c}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/><rect x="17" y="34" width="26" height="7" rx="3.5" fill="${c}" stroke="${INK}" stroke-width="3"/><circle cx="30" cy="20" r="14" fill="${c}" stroke="${INK}" stroke-width="3"/><circle cx="25" cy="15" r="4.5" fill="rgba(255,255,255,.6)"/><path d="M14 74 q16 5 32 0" stroke="rgba(0,0,0,.18)" stroke-width="3" fill="none"/></svg>`;
+}
+
+function tableHtml(): string {
+  const colors = board.groups.map((g) => g.color);
+  const g = (k: number) => colors[k % colors.length];
+  // [classe, left %, top %, larghezza px, rotazione, contenuto]
+  const props: [string, number, number, number, number, string][] = [
+    ['note', 2, 8, 150, -14, banknote(500, '#f2a65a')],
+    ['note', 5, 11, 150, -4, banknote(100, '#a8d5a2')],
+    ['note', 8, 14, 150, 8, banknote(50, '#9cc7e8')],
+    ['deed', 88, 6, 92, 12, deed(g(3))],
+    ['deed', 92, 12, 92, 24, deed(g(5))],
+    ['piece', 84, 76, 60, -6, piece(g(6))],
+    ['piece', 90, 82, 92, 10, piece(CRIMSON, true)],
+    ['piece', 4, 70, 52, 8, piece(g(2))],
+    ['figure', 12, 84, 46, 0, pawnPiece(g(4))],
+    ['figure', 78, 88, 40, 0, pawnPiece(GOLD)],
+  ];
+  return `<div class="bg-felt"></div><div class="bg-lamp"></div>
+    <div class="bg-board">${boardSvg()}</div>
+    ${props.map(([cls, x, y, w, r, svg]) => `<div class="bg-prop ${cls}" style="left:${x}%;top:${y}%;--w:${w}px;--r:${r}deg">${svg}</div>`).join('')}
+    <div class="bg-dice"><div class="die a">${die(5)}</div><div class="die b">${die(3)}</div></div>`;
+}
+
+// ---------- lo schermo come tabellone: il percorso delle caselle lungo i bordi ----------
+function cell(s: Space): string {
+  const c = groupColor(s);
+  if (c) return `<i style="--g:${c}"></i>`;
+  const mark = s.type === 'card' ? '?' : s.type === 'tax' ? 'Ƒ' : s.type === 'station' ? '🚉' : s.type === 'utility' ? '⚡' : '';
+  return `<i class="plain"><b>${mark}</b></i>`;
+}
+
+function trackHtml(): string {
+  const sp = board.spaces.slice(0, 40);
+  const corner = (k: number, cls: string) => {
+    const s = sp[k];
+    const mark = s.type === 'start' ? '➜' : s.type === 'jail' ? '▦' : s.type === 'free' ? 'Ƒ' : '★';
+    return `<div class="bg-corner ${cls} t-${s.type}"><b>${mark}</b></div>`;
+  };
+  const bottom = sp.slice(1, 10).reverse().map(cell).join('');
+  const left = sp.slice(11, 20).reverse().map(cell).join('');
+  const top = sp.slice(21, 30).map(cell).join('');
+  const right = sp.slice(31, 40).map(cell).join('');
+  const colors = board.groups.map((g) => g.color);
+  return `<div class="bg-paper"></div>
+    <div class="bg-track bottom">${bottom}</div><div class="bg-track left">${left}</div>
+    <div class="bg-track top">${top}</div><div class="bg-track right">${right}</div>
+    ${corner(0, 'br')}${corner(10, 'bl')}${corner(20, 'tl')}${corner(30, 'tr')}
+    <div class="bg-walker top"><div class="hop">${pawnPiece(CRIMSON)}</div></div>
+    <div class="bg-walker bottom"><div class="hop">${pawnPiece(colors[3 % colors.length])}</div></div>`;
 }
 
 export function backgroundHtml(kind: BackgroundId): string {
-  const colors = palette();
-  const inner = kind === 'festa' ? partyHtml(colors) : kind === 'strisce' ? stripesHtml(CANDY) : cityHtml(CANDY);
+  const inner = kind === 'tabellone' ? trackHtml() : tableHtml();
   return `<div class="setup-bg bg-${kind}" aria-hidden="true">${inner}</div>`;
 }
 

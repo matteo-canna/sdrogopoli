@@ -70,13 +70,19 @@ function propertyCount(): number {
 }
 
 
-// Titolo a lettere colorate che saltellano (solo decorazione: il testo vero è nascosto per i lettori di schermo).
-const TITLE_COLORS = ['#ff6b6b', '#ff9f43', '#feca57', '#1dd1a1', '#48dbfb', '#54a0ff', '#a55eea', '#ff6bcb'];
-function titleLetters(text: string): string {
+// Titolo su una targa come quella dei giochi da tavolo: le lettere entrano una alla volta
+// (solo decorazione: il testo vero è nascosto per i lettori di schermo).
+function titlePlate(text: string): string {
   let k = 0;
-  return `<span class="title-letters" aria-hidden="true">${[...text]
-    .map((ch) => (ch === ' ' ? '<span class="gap"> </span>' : `<span style="--c:${TITLE_COLORS[k % TITLE_COLORS.length]};--i:${k++}">${escapeHtml(ch)}</span>`))
+  return `<span class="title-plate" aria-hidden="true">${[...text]
+    .map((ch) => (ch === ' ' ? '<span class="gap"> </span>' : `<span style="--i:${k++}">${escapeHtml(ch)}</span>`))
     .join('')}</span>`;
+}
+
+// Fila dei colori dei quartieri, usata in alto nella finestra della pedina.
+function groupsStrip(): string {
+  const n = board.groups.length;
+  return `linear-gradient(90deg, ${board.groups.map((g, i) => `${g.color} ${((i * 100) / n).toFixed(2)}% ${(((i + 1) * 100) / n).toFixed(2)}%`).join(', ')})`;
 }
 
 // Pedina del posto i: tocco grande e rotondo (con la matita) che apre la finestra di scelta.
@@ -247,10 +253,10 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
   // 2) gli altri modi di giocare, 3) le informazioni sul gioco e i traguardi.
   app.innerHTML = `
     ${backgroundHtml(loadSettings().background)}
-    <main class="setup">
+    <main class="setup" style="--groups-strip:${groupsStrip()}">
       <header class="brand">
-        <div class="brand-houses" aria-hidden="true">${board.groups.map((g, i) => `<span style="--c:${g.color};--i:${i};--h:${18 + ((i * 5) % 4) * 6}px"></span>`).join('')}</div>
-        <h1><span class="visually-hidden">Gioco Folle!</span>${titleLetters('Gioco Folle!')}</h1>
+        <div class="brand-strip" aria-hidden="true">${board.groups.map((g, i) => `<span style="--c:${g.color};--i:${i}"></span>`).join('')}</div>
+        <h1><span class="visually-hidden">Gioco Folle!</span>${titlePlate('Gioco Folle!')}</h1>
         <p class="tagline">${t('setup.tagline', { min: MIN_PLAYERS, max: MAX_PLAYERS })}</p>
       </header>
       ${resume ? `<section class="card resume" aria-labelledby="resume-title">
