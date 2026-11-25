@@ -13,6 +13,7 @@ import { buildBoard } from './tiles';
 import { makeMarker, makeOwnerFlag, makeToken, reactionFor, type TokenView } from './pieces';
 import { City, makeHotel, makeHouse, skyAt, SKY_STEPS, type SkyMode } from './city';
 import { motionReduced } from '../motion';
+import { spaceName, t } from '../../i18n';
 
 export class Board3D {
   private renderer: THREE.WebGLRenderer;
@@ -71,6 +72,7 @@ export class Board3D {
   }
   set cameraMode(mode: CameraMode) {
     this.camMode = mode;
+    this.syncReset();
     this.wake();
   }
   // chiamata a ogni salto completato (per il suono)
@@ -101,8 +103,22 @@ export class Board3D {
     });
     this.resizeObserver.observe(container);
     this.resize();
-    this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown);
-    this.renderer.domElement.addEventListener('pointerup', this.onPointerUp);
+    const canvas = this.renderer.domElement;
+    canvas.addEventListener('pointerdown', this.onPointerDown);
+    canvas.addEventListener('pointermove', this.onPointerMove);
+    canvas.addEventListener('pointerup', this.onPointerUp);
+    canvas.addEventListener('pointercancel', this.onPointerCancel);
+    canvas.addEventListener('pointerleave', this.onPointerLeave);
+    canvas.addEventListener('wheel', this.onWheel, { passive: false });
+    // cartellino della casella e pulsante per tornare alla vista proposta, sopra la scena
+    this.tag.className = 'space-tag';
+    this.tag.hidden = true;
+    this.tag.setAttribute('aria-hidden', 'true');
+    this.resetBtn.type = 'button';
+    this.resetBtn.className = 'view3d-reset';
+    this.resetBtn.hidden = true;
+    this.resetBtn.addEventListener('click', () => this.resetView());
+    container.append(this.tag, this.resetBtn);
     this.renderer.domElement.addEventListener('webglcontextlost', this.onContextLost);
     this.loop();
   }
@@ -181,6 +197,7 @@ export class Board3D {
     }
     const prev = this.lastState;
     this.lastState = state;
+    this.fillTag();
 
     state.players.forEach((p, i) => {
       const view = this.tokens[i];
@@ -309,6 +326,7 @@ export class Board3D {
   private setSelected(spaceId: string | null): void {
     if (spaceId === this.selected) return;
     this.selected = spaceId;
+    this.fillTag();
     for (const tile of this.tiles) {
       const top = (tile.material as THREE.MeshStandardMaterial[])[2];
       top.emissive.setHex(tile.userData.spaceId === spaceId ? 0x2f6f4f : 0x000000);
@@ -411,6 +429,7 @@ export class Board3D {
     this.city.update(dt, this.reduceMotion);
     this.rig.update(dt, this.cameraMode === 'overview' ? null : this.tokens[this.focusPlayer]?.mesh ?? null, this.reduceMotion);
     this.renderer.render(this.scene, this.camera);
+    this.placeTag();
     // tutto fermo da qualche secondo (pedine, dadi, camera, cielo, reazioni): ci si ferma
     const calm =
       !moving &&
@@ -447,26 +466,165 @@ export class Board3D {
     this.rig.resize(w, h);
   }
 
-  // ---------- clic sulle caselle ----------
+  // ---------- gesti: tocco, trascinamento, pizzico, rotella ----------
 
+  private pointers = new Map<number, { x: number; y: number }>();
   private down = { x: 0, y: 0 };
+  private dragged = false;
+  private hovered: string | null = null;
+  private tag = document.createElement('div');
+  private resetBtn = document.createElement('button');
+
+  private tileAt(clientX: number, clientY: number): string | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    this.raycaster.setFromCamera(ndc, this.camera);
+    return this.raycaster.intersectObjects(this.tiles, false)[0]?.object.userData.spaceId ?? null;
+  }
+
   private onPointerDown = (e: PointerEvent): void => {
     this.wake();
-    this.down = { x: e.clientX, y: e.clientY };
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pointers.size === 1) {
+      this.down = { x: e.clientX, y: e.clientY };
+      this.dragged = false;
+    } else this.dragged = true;
+    this.renderer.domElement.setPointerCapture?.(e.pointerId);
   };
+
+  private onPointerMove = (e: PointerEvent): void => {
+    const before = this.pointers.get(e.pointerId);
+    if (!before) {
+      // il mouse che passa sopra una casella mostra il suo cartellino
+      if (e.pointerType === 'mouse') this.setHovered(this.tileAt(e.clientX, e.clientY));
+      return;
+    }
+    const others = [...this.pointers.entries()].filter(([id]) => id !== e.pointerId).map(([, p]) => p);
+    const now = { x: e.clientX, y: e.clientY };
+    if (others.length === 0) {
+      // un dito (o il mouse premuto): si gira intorno
+      if (!this.dragged && Math.hypot(now.x - this.down.x, now.y - this.down.y) <= 6) return;
+      this.dragged = true;
+      this.rig.rotate(-(now.x - before.x) * 0.008);
+    } else {
+      // due dita: pizzico per avvicinarsi, rotazione per girare
+      const o = others[0];
+      const d0 = Math.hypot(before.x - o.x, before.y - o.y);
+      const d1 = Math.hypot(now.x - o.x, now.y - o.y);
+      if (d0 > 0 && d1 > 0) this.rig.zoomBy(d0 / d1);
+      const a0 = Math.atan2(before.y - o.y, before.x - o.x);
+      const a1 = Math.atan2(now.y - o.y, now.x - o.x);
+      this.rig.rotate(Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0)));
+    }
+    this.pointers.set(e.pointerId, now);
+    this.syncReset();
+    this.wake();
+  };
+
   private onPointerUp = (e: PointerEvent): void => {
-    if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 6) return;
+    const was = this.pointers.delete(e.pointerId);
+    if (!was || this.dragged || this.pointers.size) return;
     // un tocco durante un'animazione la salta, invece di selezionare una casella
     if (this.busy) {
       this.skip();
       return;
     }
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
-    this.raycaster.setFromCamera(ndc, this.camera);
-    const hit = this.raycaster.intersectObjects(this.tiles, false)[0];
-    if (hit) this.onSpaceClick(hit.object.userData.spaceId);
+    const hit = this.tileAt(e.clientX, e.clientY);
+    if (hit) this.onSpaceClick(hit);
   };
+
+  private onPointerCancel = (e: PointerEvent): void => {
+    this.pointers.delete(e.pointerId);
+  };
+
+  private onPointerLeave = (e: PointerEvent): void => {
+    if (e.pointerType === 'mouse') this.setHovered(null);
+  };
+
+  private onWheel = (e: WheelEvent): void => {
+    e.preventDefault();
+    this.zoomBy(Math.exp(Math.max(-1, Math.min(1, e.deltaY / 300))));
+  };
+
+  // Anche dalla tastiera (+ e −, Maiusc con le frecce).
+  zoomBy(factor: number): void {
+    this.rig.zoomBy(factor);
+    this.syncReset();
+    this.wake();
+  }
+
+  rotateBy(radians: number): void {
+    this.rig.rotate(radians);
+    this.syncReset();
+    this.wake();
+  }
+
+  // Torna alla vista proposta (dietro la pedina, o d'insieme).
+  resetView(): void {
+    this.rig.reset();
+    this.syncReset();
+    this.wake();
+  }
+
+  get viewMoved(): boolean {
+    return this.rig.moved;
+  }
+
+  private syncReset(): void {
+    this.resetBtn.hidden = !this.rig.moved;
+    this.resetBtn.textContent = this.camMode === 'follow' ? `🎯 ${t('board3d.resetFollow')}` : `🎯 ${t('board3d.resetOverview')}`;
+  }
+
+  // ---------- cartellino della casella ----------
+
+  private setHovered(spaceId: string | null): void {
+    if (spaceId === this.hovered) return;
+    this.hovered = spaceId;
+    this.fillTag();
+    this.wake();
+  }
+
+  // Nome della casella e, sotto, il prezzo o di chi è.
+  private fillTag(): void {
+    const id = this.hovered ?? this.selected;
+    const space = id ? board.spaces.find((sp) => sp.id === id) : null;
+    if (!space) {
+      this.tag.hidden = true;
+      return;
+    }
+    const own = this.lastState?.ownership[space.id];
+    const owner = own ? this.lastState!.players[own.owner] : null;
+    let sub = '';
+    if (owner) sub = t('board3d.ownedBy', { name: owner.name }) + (own!.houses === 5 ? ' · 🏢' : own!.houses ? ` · 🏠${own!.houses}` : '') + (own!.mortgaged ? ` · ${t('space.mortgaged')}` : '');
+    else if ('price' in space) sub = t('board3d.forSale', { price: `${board.currency.symbol} ${space.price}` });
+    this.tag.replaceChildren();
+    const name = document.createElement('strong');
+    name.textContent = spaceName(space.id);
+    this.tag.append(name);
+    if (sub) {
+      const small = document.createElement('small');
+      small.textContent = sub;
+      this.tag.append(small);
+    }
+    this.tag.style.setProperty('--c', owner ? playerColor(owner) : 'transparent');
+    this.tag.dataset.tagSpace = space.id;
+    this.tag.hidden = false;
+  }
+
+  private tagPoint = new THREE.Vector3();
+  private placeTag(): void {
+    if (this.tag.hidden) return;
+    const tile = this.tiles.find((m) => m.userData.spaceId === this.tag.dataset.tagSpace);
+    if (!tile) return;
+    tile.getWorldPosition(this.tagPoint);
+    this.tagPoint.y += 0.35;
+    this.tagPoint.project(this.camera);
+    const off = this.tagPoint.z > 1 || Math.abs(this.tagPoint.x) > 1.05 || Math.abs(this.tagPoint.y) > 1.05;
+    this.tag.style.visibility = off ? 'hidden' : '';
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
+    this.tag.style.transform = `translate(${((this.tagPoint.x + 1) / 2) * w}px, ${((1 - this.tagPoint.y) / 2) * h}px) translate(-50%, -100%)`;
+  }
 
   private disposed = false;
 
