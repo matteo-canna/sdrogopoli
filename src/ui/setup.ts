@@ -122,7 +122,13 @@ function setLook(change: Partial<Appearance>): void {
   refreshLooks();
 }
 
-export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice: SetupChoice) => void): void {
+// Partita salvata da proporre in cima alla schermata.
+export interface ResumeOffer {
+  summary: string;
+  onContinue: () => void;
+}
+
+export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice: SetupChoice) => void, resume?: ResumeOffer): void {
   destroyPreview();
   editingSeat = null;
   app.innerHTML = `
@@ -134,7 +140,15 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       </header>
       <div class="setup-grid">
       <div class="setup-main">
-      <form id="setup-form" class="card">
+      ${resume ? `<section class="card resume" aria-labelledby="resume-title">
+        <h2 id="resume-title">Partita in corso</h2>
+        ${resume.summary}
+        <div class="resume-buttons">
+          <button type="button" class="primary" data-resume>▶ Continua la partita</button>
+          <button type="button" data-new-game>Nuova partita</button>
+        </div>
+      </section>` : ''}
+      <form id="setup-form" class="card" ${resume ? 'hidden' : ''}>
         <div class="form-head">
           <h2>Chi gioca?</h2>
           <p>Tocca il cerchio colorato per scegliere personaggio e colore. Lascia vuoto un nome per giocare in meno.</p>
@@ -191,6 +205,19 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     document.querySelector('#leaderboard-slot')!.innerHTML = '';
   });
   const form = document.querySelector<HTMLFormElement>('#setup-form')!;
+  if (resume) {
+    const box = document.querySelector<HTMLElement>('.resume')!;
+    box.querySelector('[data-resume]')!.addEventListener('click', resume.onContinue);
+    box.querySelector('[data-new-game]')!.addEventListener('click', () => {
+      // la partita salvata resta finché non se ne inizia un'altra
+      box.querySelector('h2')!.textContent = 'Partita salvata';
+      box.querySelector('[data-new-game]')!.remove();
+      box.querySelector<HTMLElement>('[data-resume]')!.classList.remove('primary');
+      form.hidden = false;
+      form.querySelector<HTMLInputElement>('input[name=p0]')?.focus();
+    });
+    (box.querySelector('[data-resume]') as HTMLElement).focus();
+  }
   const isDemo = () => form.querySelector<HTMLInputElement>('input[name=demo]')!.checked;
   // posti visibili e pulsante "Aggiungi giocatore" in base al limite (8, o 12 in demo)
   const syncSeats = () => {

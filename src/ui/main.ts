@@ -4,7 +4,7 @@
 import './style.css';
 import { board, cards } from '../data';
 import { actingPlayer, chooseBotAction, createGame, RuleError, type Action, type GameContext, type GameState } from '../engine';
-import { escapeHtml, renderBoard, renderDice, renderPlayers, renderSpaceDetails, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
+import { escapeHtml, playerBadge, renderBoard, renderDice, renderPlayers, renderSpaceCard, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
 import type { SkyMode } from './three/city';
 import { loadModel } from './three/characters3d';
@@ -42,6 +42,17 @@ let lastActorBot = false;
 // scambio che la persona di turno sta preparando
 let tradeDraft: TradeDraft | null = null;
 const tutorial = loadTutorial();
+// sul telefono il pannello laterale diventa un cassetto che si apre dalla barra in basso
+const phoneQuery = window.matchMedia('(max-width: 900px)');
+let drawerOpen = false;
+phoneQuery.addEventListener('change', () => {
+  drawerOpen = false;
+  // il 3D va ricostruito: cambia dove stanno i comandi
+  destroy3d();
+  if (session.state && !resumeOffered) render();
+});
+// con una partita salvata, all'avvio si sceglie tra "Continua" e "Nuova partita"
+let resumeOffered = !!session.state;
 
 const bots = new BotScheduler(
   () => !animating && botToPlay(),
@@ -59,10 +70,29 @@ function botToPlay(): boolean {
 
 function showSetup(): void {
   destroy3d();
-  renderSetup(app, tutorial.on, startGame);
+  const s = session.state;
+  const resume = s && resumeOffered
+    ? {
+        summary: resumeSummary(s),
+        onContinue: () => {
+          resumeOffered = false;
+          render();
+        },
+      }
+    : undefined;
+  renderSetup(app, tutorial.on, startGame, resume);
+}
+
+// Due righe sulla partita salvata: chi gioca, a che punto è e chi è in testa.
+function resumeSummary(s: GameState): string {
+  const alive = s.players.filter((p) => !p.bankrupt);
+  const who = s.players.map((p) => `${playerBadge(s, p.id, 'token')} ${escapeHtml(p.name)}`).join(' ');
+  const turn = s.phase === 'gameOver' ? 'Partita finita' : `Giro ${s.round}${s.rules?.maxRounds ? ` di ${s.rules.maxRounds}` : ''} · tocca a ${escapeHtml(s.players[actingPlayer(s)].name)}`;
+  return `<p class="resume-players">${who}</p><p class="resume-meta">${turn} · ${alive.length} in gioco</p>`;
 }
 
 function startGame(choice: SetupChoice): void {
+  resumeOffered = false;
   session.start(createGame(choice.players, ctx, choice.rules, randomSeed()));
   // riattivando i consigli si ricomincia da capo
   if (choice.tipsOn && !tutorial.on) tutorial.seen.clear();
@@ -91,27 +121,38 @@ function tipHtml(s: GameState): string {
     </div>`;
 }
 
-// Parte centrale: turno, azioni, cosa è appena successo, scheda della casella e registro.
-function hudHtml(s: GameState): string {
-  const p = s.players[s.phase === 'gameOver' && s.winner !== null ? s.winner : actingPlayer(s)];
-  const fresh = Math.min(Math.max((s.eventCount ?? 0) - newsFrom, 0), s.log.length, 8);
-  const news = fresh ? s.log.slice(-fresh) : [];
+// Riga del turno: chi gioca, giro, montepremi e ultimo lancio.
+function turnHtml(s: GameState): string {
+  const id = s.phase === 'gameOver' && s.winner !== null ? s.winner : actingPlayer(s);
+  const p = s.players[id];
   const total = s.lastRoll ? s.lastRoll[0] + s.lastRoll[1] : 0;
   return `
     <div class="turn" style="--c:${playerColor(p)}">
-      <span class="token big" style="background:${playerColor(p)}"></span>
+      ${playerBadge(s, id)}
       <span>${s.phase === 'gameOver' ? '<strong>Partita finita</strong>' : `Tocca a <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>`}</span>
       ${s.rules?.demo ? `<span class="pill demo" title="Modalità demo sperimentale">🧪 Demo</span>` : ''}
       ${s.rules?.maxRounds ? `<span class="pill">Giro ${s.round} di ${s.rules.maxRounds}</span>` : ''}
       ${s.rules?.parkPot ? `<span class="pill" title="Montepremi della Panchina del Parco">🪑 ${board.currency.symbol} ${s.pot}</span>` : ''}
       ${s.lastRoll ? `<span class="roll">${renderDice(s)}<span class="roll-total">${total}</span></span>` : ''}
-    </div>
+    </div>`;
+}
+
+// Pulsanti del turno (o modulo dello scambio), consiglio ed errore: la parte da tenere sempre a portata di dito.
+function controlsHtml(s: GameState): string {
+  return `
     ${tradeDraft ? renderTradeEditor(s, tradeDraft) : `<div class="actions">${renderTurnActions(s)}${undoButton()}</div>`}
-    ${tipHtml(s)}
-    ${s.phase === 'gameOver' ? renderSummary(s, ctx) : ''}
     ${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}
+    ${tipHtml(s)}`;
+}
+
+// Notizie, fine partita e registro: si leggono con calma.
+function infoHtml(s: GameState): string {
+  const fresh = Math.min(Math.max((s.eventCount ?? 0) - newsFrom, 0), s.log.length, 8);
+  const news = fresh ? s.log.slice(-fresh) : [];
+  return `
+    ${s.phase === 'gameOver' ? renderSummary(s, ctx) : ''}
     ${news.length ? `<div class="news" aria-live="polite"><h4>Cosa è successo</h4><ul>${news.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul></div>` : ''}
-    ${selected ? renderSpaceDetails(s, selected) : '<p class="hint">Tocca una casella per vedere i dettagli.</p>'}
+    ${selected ? '' : '<p class="hint">Tocca una casella per vedere i dettagli.</p>'}
     <details class="log-box"><summary>Registro della partita</summary>
       <ol class="log">${s.log.slice().reverse().map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ol>
     </details>`;
@@ -139,7 +180,7 @@ function viewButtons(): string {
 
 function render(): void {
   const s = session.state;
-  if (!s) return showSetup();
+  if (!s || resumeOffered) return showSetup();
   if (viewMode === '3d') render3d(s);
   else {
     animating = false;
@@ -153,42 +194,65 @@ function undoButton(): string {
   return `<button class="undo" data-action="undo" title="Annulla l'ultima mossa (non i dadi)">↩ Annulla</button>`;
 }
 
-function render2d(s: GameState): void {
-  destroy3d();
-  app.innerHTML = `
-    <div class="game">
-      <div class="board">
-        ${renderBoard(s, selected)}
-        <div class="center">
-          <h1 class="title">Sdrogopoli</h1>
-          ${hudHtml(s)}
-        </div>
+// Struttura della partita, uguale nel 2D e nel 3D: tabellone, pannello laterale e,
+// sul telefono, barra delle azioni in basso con il pannello laterale come cassetto.
+function gameShell(stage: string, mode: ViewMode): string {
+  return `
+    <div class="game game${mode} ${drawerOpen ? 'drawer-open' : ''}">
+      <div class="stage">
+        ${stage}
+        <div class="view-buttons overlay"></div>
+        <div class="card-slot"></div>
       </div>
-      <aside class="players">
-        <div class="view-buttons">${viewButtons()}</div>
-        ${renderPlayers(s)}
+      <aside class="side" aria-label="Giocatori e registro">
+        <button class="drawer-close" data-action="drawer">✕ Chiudi</button>
+        <div class="view-buttons in-drawer"></div>
+        <div class="hud"></div>
+        <div class="players-list"></div>
         <p class="saved">💾 La partita si salva da sola su questo dispositivo.</p>
         <button class="link" data-action="quit">Abbandona la partita</button>
       </aside>
+      <div class="action-bar"></div>
     </div>`;
+}
+
+// Riempie i pannelli: sul telefono i comandi vanno nella barra in basso, altrove in cima al pannello laterale.
+function fillPanels(s: GameState): void {
+  const phone = phoneQuery.matches;
+  const game = app.querySelector<HTMLElement>('.game')!;
+  game.classList.toggle('drawer-open', phone && drawerOpen);
+  game.classList.toggle('busy', animating);
+  app.querySelector('.hud')!.innerHTML = phone ? infoHtml(s) : turnHtml(s) + controlsHtml(s) + infoHtml(s);
+  app.querySelector('.action-bar')!.innerHTML = phone
+    ? `<div class="bar-head">${turnHtml(s)}<button class="drawer-btn" data-action="drawer" aria-expanded="${drawerOpen}">👥 Giocatori</button></div>${controlsHtml(s)}`
+    : '';
+  app.querySelector('.players-list')!.innerHTML = renderPlayers(s);
+  // sul telefono, nel 2D, i comandi della vista stanno nel cassetto
+  const toolsInDrawer = phone && viewMode === '2d';
+  app.querySelector('.view-buttons.overlay')!.innerHTML = toolsInDrawer ? '' : viewButtons();
+  app.querySelector('.view-buttons.in-drawer')!.innerHTML = toolsInDrawer ? viewButtons() : '';
+  app.querySelector('.card-slot')!.innerHTML = selected ? renderSpaceCard(s, selected) : '';
+}
+
+function render2d(s: GameState): void {
+  destroy3d();
+  app.innerHTML = gameShell(
+    `<div class="board">
+      ${renderBoard(s, selected)}
+      <div class="center">
+        <h1 class="title">Sdrogopoli</h1>
+        ${s.lastRoll ? `<span class="center-dice">${renderDice(s)}</span>` : ''}
+      </div>
+    </div>`,
+    '2d',
+  );
+  fillPanels(s);
 }
 
 function render3d(s: GameState): void {
   // la scena 3D si crea una sola volta: ridisegniamo solo i pannelli HTML
   if (!board3d) {
-    app.innerHTML = `
-      <div class="game game3d">
-        <div class="stage">
-          <div class="board3d"></div>
-          <div class="view-buttons overlay"></div>
-        </div>
-        <aside class="side">
-          <div class="hud"></div>
-          <div class="players-list"></div>
-          <p class="saved">💾 La partita si salva da sola su questo dispositivo.</p>
-          <button class="link" data-action="quit">Abbandona la partita</button>
-        </aside>
-      </div>`;
+    app.innerHTML = gameShell('<div class="board3d"></div>', '3d');
     board3d = new Board3D(
       app.querySelector<HTMLDivElement>('.board3d')!,
       (spaceId) => {
@@ -198,7 +262,7 @@ function render3d(s: GameState): void {
       },
       (busy) => {
         animating = busy;
-        app.querySelector('.hud')?.classList.toggle('busy', busy);
+        app.querySelector('.game')?.classList.toggle('busy', busy);
         if (!busy) bots.schedule();
       },
       () => {
@@ -214,9 +278,7 @@ function render3d(s: GameState): void {
     board3d.speed = speed.factor;
     board3d.onHop = () => audio.play('hop');
   }
-  app.querySelector('.hud')!.innerHTML = hudHtml(s);
-  app.querySelector('.players-list')!.innerHTML = renderPlayers(s);
-  app.querySelector('.view-buttons')!.innerHTML = viewButtons();
+  fillPanels(s);
   board3d.update(s, selected);
 }
 
@@ -246,8 +308,9 @@ function act(action: Action): void {
     const sfx = soundFor(prev, state, action);
     // il suono del lancio c'è già: dopo un attimo quello del risultato
     if (sfx && sfx !== 'dice') setTimeout(() => audio.play(sfx), action.type === 'roll' ? 450 / speed.factor : 0);
-    // dopo il lancio mostra la casella di arrivo
-    if (action.type === 'roll') selected = board.spaces[state.players[state.current].position]?.id ?? null;
+    // dopo il lancio, se la casella di arrivo si può comprare, compare la sua carta
+    if (action.type === 'roll') selected = state.phase === 'buy' ? board.spaces[state.players[state.current].position]?.id ?? null : null;
+    if (action.type === 'buy' || action.type === 'decline') selected = null;
     if (action.type === 'endTurn' || action.type === 'bankrupt') {
       selected = null;
       tradeDraft = null;
@@ -270,7 +333,7 @@ app.addEventListener('click', (e) => {
   const state = session.state;
   if (!target || !state) return;
   // mentre la pedina si muove le azioni del turno aspettano
-  if (target.closest('.hud.busy .actions')) return;
+  if (target.closest('.game.busy .actions')) return;
   // durante il turno del computer i pulsanti del turno non rispondono
   if (botToPlay() && target.closest('.actions')) return;
   const action = target.dataset.action;
@@ -281,6 +344,12 @@ app.addEventListener('click', (e) => {
     return render();
   }
   switch (action) {
+    case 'closeCard':
+      selected = null;
+      return render();
+    case 'drawer':
+      drawerOpen = !drawerOpen;
+      return render();
     case 'tipOk':
       tutorial.seen.add(target.dataset.tip ?? '');
       saveTutorial(tutorial);
@@ -411,6 +480,15 @@ function confirmTwice(button: HTMLElement): boolean {
   button.textContent = 'Tocca di nuovo per confermare';
   return false;
 }
+
+// Esc chiude la carta della casella o il cassetto.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !session.state || resumeOffered) return;
+  if (selected) selected = null;
+  else if (drawerOpen) drawerOpen = false;
+  else return;
+  render();
+});
 
 // Prima partenza: si disegna la pagina sotto la schermata di caricamento, poi si caricano
 // in anticipo i personaggi 3D che serviranno (quelli della partita salvata o della schermata iniziale).
