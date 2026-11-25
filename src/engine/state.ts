@@ -17,6 +17,15 @@ export interface Player {
   isBot: boolean;
   // aspetto della pedina scelto all'inizio (solo grafica: il motore lo conserva e basta)
   appearance?: Appearance;
+  // livello e carattere del computer (assente = normale ed equilibrato)
+  bot?: BotProfile;
+}
+
+export type BotLevel = 'facile' | 'normale' | 'difficile';
+export type BotStyle = 'equilibrato' | 'costruttore' | 'collezionista' | 'prudente' | 'mercante';
+export interface BotProfile {
+  level: BotLevel;
+  style: BotStyle;
 }
 
 // Aspetto del personaggio-pedina. Il motore non lo usa nelle regole.
@@ -74,6 +83,7 @@ export interface PlayerSetup {
   name: string;
   isBot?: boolean;
   appearance?: Appearance;
+  bot?: BotProfile;
 }
 
 export interface Ownership {
@@ -254,6 +264,7 @@ export function createGame(players: (string | PlayerSetup)[], gameCtx: GameConte
       name: setup.name,
       isBot: setup.isBot ?? false,
       ...(setup.appearance ? { appearance: { ...setup.appearance } } : {}),
+      ...(setup.isBot && setup.bot ? { bot: { ...setup.bot } } : {}),
       money: fullRules.startingMoney + id * fullRules.seatBonus,
       position: 0,
       inJail: false,

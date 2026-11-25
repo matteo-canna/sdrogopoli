@@ -1,6 +1,6 @@
 // Schermata iniziale: chi gioca, personaggi, regole della casa e classifica tra amici.
 import { board } from '../data';
-import { DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
+import { BOT_LEVELS, BOT_STYLES, type BotStyle, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
 import { webglAvailable } from './webgl';
 import { load3d } from './lazy3d';
 import { reportUrl } from './report';
@@ -228,7 +228,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
               <input name="p${i}" maxlength="16" aria-label="Nome giocatore ${i + 1}" placeholder="Giocatore ${i + 1}${i >= 2 ? ' (facoltativo)' : ''}" ${i < 2 ? `value="${i === 0 ? 'Giocatore 1' : 'Computer'}"` : ''}>
               <select name="t${i}" aria-label="Chi controlla il giocatore ${i + 1}">
                 <option value="human" ${i === 0 ? 'selected' : ''}>👤 Persona</option>
-                <option value="bot" ${i > 0 ? 'selected' : ''}>🤖 Computer</option>
+                ${BOT_LEVELS.map((l) => `<option value="${l.id}" ${i > 0 && l.id === 'normale' ? 'selected' : ''}>🤖 Computer ${l.label.toLowerCase()}</option>`).join('')}
               </select></div>`,
           )
           .join('')}
@@ -249,6 +249,12 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
               <option value="${DEMO_ROUNDS}">${DEMO_ROUNDS} giri</option>
               <option value="25">25 giri</option>
               <option value="40">40 giri</option>
+            </select>
+          </label>
+          <label>Carattere dei computer
+            <select name="styles">
+              <option value="mix">A sorpresa: ognuno il suo</option>
+              ${BOT_STYLES.map((x) => `<option value="${x.id}">Tutti ${x.label.toLowerCase()} (${x.text})</option>`).join('')}
             </select>
           </label>
           <label class="check"><input type="checkbox" name="tips" ${tipsOn ? 'checked' : ''}> Consigli durante la partita (utile la prima volta)</label>
@@ -410,8 +416,16 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     const data = new FormData(e.target as HTMLFormElement);
     const demo = data.get('demo') === 'on';
     const players = SEATS.filter((i) => i < (demo ? DEMO_MAX_PLAYERS : MAX_PLAYERS))
-      .map((i) => ({ name: String(data.get(`p${i}`) ?? '').trim(), isBot: data.get(`t${i}`) === 'bot', appearance: setupLooks[i] }))
+      .map((i) => {
+        const kind = String(data.get(`t${i}`) ?? 'human');
+        const level = BOT_LEVELS.find((l) => l.id === kind)?.id;
+        return { name: String(data.get(`p${i}`) ?? '').trim(), isBot: !!level, appearance: setupLooks[i], ...(level ? { bot: { level, style: 'equilibrato' as BotStyle } } : {}) };
+      })
       .filter((p) => p.name);
+    // carattere dei computer: uguale per tutti, o diverso per ciascuno (in ordine sparso)
+    const styleChoice = String(data.get('styles') ?? 'mix');
+    const mixed = [...BOT_STYLES.map((x) => x.id)].sort(() => Math.random() - 0.5);
+    players.filter((p) => p.bot).forEach((p, n) => (p.bot!.style = styleChoice === 'mix' ? mixed[n % mixed.length] : (styleChoice as BotStyle)));
     if (players.length < MIN_PLAYERS) {
       const form = e.target as HTMLFormElement;
       form.querySelector('.error')?.remove();
