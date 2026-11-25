@@ -1,6 +1,7 @@
 // Personaggi 3D animati usati come pedine (modelli KayKit, CC0).
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { Appearance } from '../../engine';
 import { characterDef } from '../characters';
@@ -28,7 +29,8 @@ const CLIPS: Record<Pose, string> = {
 export type Reaction = 'cheer' | 'hit' | 'collect' | 'build';
 const ONCE: Pose[] = ['jump', 'defeat', 'hit', 'collect', 'build'];
 
-const loader = new GLTFLoader();
+// i modelli sono compressi con gltfpack (Meshopt): vedi scripts/comprimi-modelli.sh
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const cache = new Map<string, Promise<GLTF>>();
 
 // Carica un modello una sola volta (le pedine uguali ne condividono i dati).
@@ -65,11 +67,14 @@ export class CharacterModel {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       mesh.castShadow = true;
+      // nei modelli compressi la mesh sta in un figlio senza nome (il caricatore lo chiama "mesh_N")
+      // del nodo che porta il nome: userData.name c'è solo sui nodi con un nome nel file
+      const named = o.userData.name ? o : (o.parent ?? o);
       // le mesh attaccate alle mani (handslot) sono armi e oggetti: si vede solo quello scelto
-      const inHand = o.parent?.name.startsWith('handslot') ?? false;
-      if (inHand) mesh.visible = o.name === look.item;
-      else if (o.name === def.hat) mesh.visible = look.hat;
-      else if (o.name === def.cape) {
+      const inHand = named.parent?.name.startsWith('handslot') ?? false;
+      if (inHand) mesh.visible = named.name === look.item;
+      else if (named.name === def.hat) mesh.visible = look.hat;
+      else if (named.name === def.cape) {
         mesh.visible = look.cape;
         // il mantello prende il colore del giocatore
         const mat = (mesh.material as THREE.MeshStandardMaterial).clone();

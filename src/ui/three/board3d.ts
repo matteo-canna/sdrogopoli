@@ -30,6 +30,10 @@ export class Board3D {
   private selected: string | null = null;
   private resizeObserver: ResizeObserver;
   private frame = 0;
+  // a scena ferma si smette di disegnare (la scheda grafica si riposa) fino al prossimo cambiamento
+  private sleeping = false;
+  private stillFor = 0;
+  private skyMoving = false;
   private busy = false;
   private dice!: Dice3D;
   private tokensWaitUntil = 0;
@@ -45,12 +49,26 @@ export class Board3D {
   private city = new City();
   private skyPhase = -1;
   private skyTarget = 0;
-  skyMode: SkyMode = 'cycle';
+  private sky: SkyMode = 'cycle';
+  get skyMode(): SkyMode {
+    return this.sky;
+  }
+  set skyMode(mode: SkyMode) {
+    this.sky = mode;
+    this.wake();
+  }
   private round = 1;
   private tokensKey = '';
   private lastState: GameState | null = null;
   private reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-  cameraMode: CameraMode = 'follow';
+  private camMode: CameraMode = 'follow';
+  get cameraMode(): CameraMode {
+    return this.camMode;
+  }
+  set cameraMode(mode: CameraMode) {
+    this.camMode = mode;
+    this.wake();
+  }
   // chiamata a ogni salto completato (per il suono)
   onHop: (() => void) | null = null;
 
@@ -73,7 +91,10 @@ export class Board3D {
     this.marker = makeMarker();
     this.scene.add(this.marker);
 
-    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.resizeObserver = new ResizeObserver(() => {
+      this.resize();
+      this.wake();
+    });
     this.resizeObserver.observe(container);
     this.resize();
     this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown);
@@ -107,6 +128,7 @@ export class Board3D {
 
   // Fa cadere e rotolare i dadi vicino alla pedina, fermandoli sul risultato del motore.
   showDice(values: [number, number], playerId: number): void {
+    this.wake();
     const token = this.tokens[playerId]?.mesh;
     const at = token ? token.position.clone().setY(0) : new THREE.Vector3();
     const fast = this.reduceMotion || !Number.isFinite(this.speed);
@@ -116,6 +138,7 @@ export class Board3D {
 
   // Salta le animazioni in corso: dadi fermi sul risultato e pedine già arrivate.
   skip(): void {
+    this.wake();
     this.dice.finish();
     this.tokensWaitUntil = 0;
     for (const t of this.tokens) {
@@ -139,6 +162,7 @@ export class Board3D {
   // ---------- aggiornamento dallo stato del motore ----------
 
   update(state: GameState, selected: string | null): void {
+    this.wake();
     // crea le pedine alla prima chiamata (o se cambia la partita)
     const key = JSON.stringify(state.players.map((p) => appearanceOf(p)));
     if (key !== this.tokensKey) {
@@ -295,11 +319,13 @@ export class Board3D {
     this.skyTarget = this.skyMode === 'day' ? 0 : this.skyMode === 'night' ? 2 : (this.round - 1) % SKY_STEPS;
     // prima di conoscere la partita si aspetta (update() fissa l'ora giusta)
     if (this.skyPhase < 0) return;
+    this.skyMoving = false;
     if (this.reduceMotion) this.skyPhase = this.skyTarget;
     else {
       // si va sempre avanti, come il tempo
       const ahead = (this.skyTarget - this.skyPhase + SKY_STEPS) % SKY_STEPS;
       if (ahead > 1e-3) this.skyPhase = (this.skyPhase + Math.min(ahead, dt * 0.35)) % SKY_STEPS;
+      this.skyMoving = ahead > 1e-3;
     }
     const k = skyAt(this.skyPhase);
     this.skyColor.setHex(k.bg);
@@ -381,7 +407,34 @@ export class Board3D {
     this.city.update(dt, this.reduceMotion);
     this.rig.update(dt, this.cameraMode === 'overview' ? null : this.tokens[this.focusPlayer]?.mesh ?? null, this.reduceMotion);
     this.renderer.render(this.scene, this.camera);
+    // tutto fermo da qualche secondo (pedine, dadi, camera, cielo, reazioni): ci si ferma
+    const calm =
+      !moving &&
+      !this.skyMoving &&
+      this.rig.settled &&
+      this.winner === null &&
+      this.dice.visibleUntil === 0 &&
+      !this.tokens.some((t) => t.pendingReaction || t.character?.reacting);
+    this.stillFor = calm ? this.stillFor + dt : 0;
+    if (this.stillFor > (this.reduceMotion ? 0.5 : 4)) {
+      this.sleeping = true;
+      cancelAnimationFrame(this.frame);
+    }
   };
+
+  // Riprende a disegnare dopo una pausa (nuovo stato, tocco, cambio di vista o di dimensione).
+  wake(): void {
+    this.stillFor = 0;
+    if (!this.sleeping || this.disposed) return;
+    this.sleeping = false;
+    this.clock.getDelta();
+    this.frame = requestAnimationFrame(this.loop);
+  }
+
+  // Vero se la scena è in pausa (per i test).
+  get isSleeping(): boolean {
+    return this.sleeping;
+  }
 
   private resize(): void {
     const w = this.container.clientWidth || 1;
@@ -394,6 +447,7 @@ export class Board3D {
 
   private down = { x: 0, y: 0 };
   private onPointerDown = (e: PointerEvent): void => {
+    this.wake();
     this.down = { x: e.clientX, y: e.clientY };
   };
   private onPointerUp = (e: PointerEvent): void => {
@@ -428,22 +482,4 @@ export class Board3D {
     this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
   }
-}
-
-// Vero se il browser supporta WebGL; altrimenti si usa il tabellone 2D.
-// Si controlla una volta sola: ogni prova apre un contesto WebGL, e il browser ne tiene pochi
-// (superato il limite spegne il più vecchio, cioè proprio il tabellone, che diventava bianco).
-let webglChecked: boolean | null = null;
-export function webglAvailable(): boolean {
-  if (webglChecked !== null) return webglChecked;
-  try {
-    const c = document.createElement('canvas');
-    const gl = (c.getContext('webgl2') || c.getContext('webgl')) as WebGLRenderingContext | null;
-    webglChecked = !!gl;
-    // libera subito il contesto di prova
-    gl?.getExtension('WEBGL_lose_context')?.loseContext();
-  } catch {
-    webglChecked = false;
-  }
-  return webglChecked;
 }

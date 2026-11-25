@@ -33,6 +33,11 @@ export class CameraRig {
     this.camera.lookAt(this.lookAt);
   }
 
+  // Vero quando la camera è arrivata dove deve stare.
+  get settled(): boolean {
+    return this.camera.position.distanceToSquared(this.pos) < 1e-4 && this.lookAt.distanceToSquared(this.target) < 1e-4;
+  }
+
   // Su schermi stretti allarga il campo visivo per vedere tutto il tabellone.
   resize(w: number, h: number): void {
     this.camera.aspect = w / h;

@@ -1,8 +1,9 @@
 // Schermata iniziale: chi gioca, personaggi, regole della casa e classifica tra amici.
 import { board } from '../data';
 import { DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
-import { webglAvailable } from './three/board3d';
-import { CharacterPreview } from './three/characters3d';
+import { webglAvailable } from './webgl';
+import { load3d } from './lazy3d';
+import type { CharacterPreview } from './three/characters3d';
 import { renderIntro } from './intro';
 import { version } from '../../package.json';
 import { renderLeaderboard } from './summary';
@@ -100,10 +101,20 @@ function refreshLooks(): void {
   slot.innerHTML = lookEditorHtml(editingSeat);
   const box = slot.querySelector<HTMLElement>('#look-preview')!;
   if (webglAvailable()) {
-    // l'anteprima 3D resta la stessa: si sposta nel nuovo editor
-    if (preview) preview.moveTo(box);
-    else preview = new CharacterPreview(box);
-    void preview.show(setupLooks[editingSeat]);
+    const seat = editingSeat;
+    // three.js si scarica la prima volta che si apre l'anteprima
+    void load3d()
+      .then((m) => {
+        // nel frattempo l'editor potrebbe essere stato chiuso o cambiato
+        if (editingSeat !== seat || !box.isConnected) return;
+        // l'anteprima 3D resta la stessa: si sposta nel nuovo editor
+        if (preview) preview.moveTo(box);
+        else preview = new m.CharacterPreview(box);
+        void preview.show(setupLooks[seat]);
+      })
+      .catch(() => {
+        box.innerHTML = `<span class="look-emoji">${characterDef(setupLooks[seat].character).emoji}</span>`;
+      });
   }
 }
 

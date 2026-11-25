@@ -98,3 +98,5 @@
   .swatch { min-width: 44px; }
   .link { display: inline-flex; align-items: center; }
 }
+/* mentre si scarica la grafica 3D */
+.loading-3d { display: grid; place-items: center; height: 100%; margin: 0; color: var(--muted); background: var(--board); }
