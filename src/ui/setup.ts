@@ -1,6 +1,6 @@
 // Schermata iniziale: chi gioca, personaggi, regole della casa e classifica tra amici.
 import { board } from '../data';
-import { BOT_LEVELS, BOT_STYLES, type BotStyle, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
+import { BOT_LEVELS, BOT_STYLES, PRESETS, estimatedMinutes, type BotStyle, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
 import { webglAvailable } from './webgl';
 import { load3d } from './lazy3d';
 import { reportUrl } from './report';
@@ -196,6 +196,18 @@ function onlineHtml(): string {
       </section>`;
 }
 
+// Obiettivo scelto nel menu → regole.
+function goalRules(goal: string): Partial<GameRules> {
+  const worth = /worth(\d+)/.exec(goal)?.[1];
+  const groups = /groups(\d)/.exec(goal)?.[1];
+  return { goalWorth: worth ? Number(worth) : null, goalGroups: groups ? Number(groups) : null, goalSide: goal === 'side' };
+}
+
+function goalValue(r: Partial<GameRules>): string {
+  if (r.goalSide) return 'side';
+  return `${r.goalGroups ? `groups${r.goalGroups}` : ''}${r.goalWorth ? `worth${r.goalWorth}` : ''}`;
+}
+
 export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice: SetupChoice) => void, resume?: ResumeOffer, slots?: SlotsOffer, online?: OnlineOffer): void {
   destroyPreview();
   editingSeat = null;
@@ -236,6 +248,14 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
         <label class="check demo-toggle"><input type="checkbox" name="demo">
           <span><strong>🧪 Modalità demo</strong> <span class="badge-demo">sperimentale</span><br>
           <small>Fino a ${DEMO_MAX_PLAYERS} giocatori. Per non aspettare troppo il proprio turno la partita dura ${DEMO_ROUNDS} giri (vince il patrimonio più alto) e il bonus del posto scende a ${board.currency.symbol} ${DEMO_SEAT_BONUS}.</small></span></label>
+        <fieldset class="presets">
+          <legend>Tipo di partita</legend>
+          <div class="preset-list" role="radiogroup">
+            ${PRESETS.map((p, i) => `<label class="preset"><input type="radio" name="preset" value="${p.id}" ${i === 0 ? 'checked' : ''}><span><strong>${p.label}</strong><small>${p.text}</small></span></label>`).join('')}
+            <label class="preset"><input type="radio" name="preset" value="custom"><span><strong>Personalizzata</strong><small>Scegli tu nelle regole della casa.</small></span></label>
+          </div>
+          <p class="hint" data-duration aria-live="polite"></p>
+        </fieldset>
         <div id="look-slot"></div>
         <details class="house-rules">
           <summary>⚙️ Regole della casa</summary>
@@ -260,6 +280,18 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
           <label class="check"><input type="checkbox" name="tips" ${tipsOn ? 'checked' : ''}> Consigli durante la partita (utile la prima volta)</label>
           <label class="check"><input type="checkbox" name="quick"> Partita rapida: ognuno parte con ${QUICK_START_PROPERTIES} proprietà a caso (${QUICK_START_TWO_PLAYERS} se si è in due, meno se si è in tanti: le proprietà sono ${board.spaces.filter((sp) => sp.type === 'property').length})</label>
           <label class="check"><input type="checkbox" name="bonus" checked> Chi gioca dopo parte con ${board.currency.symbol} <span data-bonus-amount>${SEAT_BONUS}</span> in più per ogni posto (compensa il vantaggio di chi inizia)</label>
+          <label class="check"><input type="checkbox" name="sprint"> 🎲 Dado Sprint: un terzo dado con passi in più, "Occasione" (si prosegue fino alla prossima proprietà in vendita) e "Affitto pieno" (+50%)</label>
+          <label>Obiettivo per vincere prima
+            <select name="goal">
+              <option value="">Nessuno</option>
+              <option value="worth3000">Patrimonio di ${board.currency.symbol} 3000</option>
+              <option value="worth4000">Patrimonio di ${board.currency.symbol} 4000</option>
+              <option value="groups2">2 quartieri completi</option>
+              <option value="groups3">3 quartieri completi</option>
+              <option value="groups2worth4000">2 quartieri o ${board.currency.symbol} 4000</option>
+              <option value="side">Un lato intero del tabellone</option>
+            </select>
+          </label>
           <label class="check"><input type="checkbox" name="pot"> Montepremi: tasse e multe vanno sulla Panchina del Parco e chi ci arriva le incassa</label>
         </details>
         <p class="hint" data-quick-note hidden>⚡ In due è attiva la partita rapida (${QUICK_START_TWO_PLAYERS} proprietà a testa): dura circa la metà. Si cambia nelle regole della casa.</p>
@@ -371,11 +403,54 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     const named = [...form.querySelectorAll<HTMLInputElement>('.setup-row:not([hidden]) input[name^=p]')].filter((i) => i.value.trim()).length;
     quick.checked = named === 2;
     form.querySelector<HTMLElement>('[data-quick-note]')!.hidden = named !== 2;
+    // in due si propone la partita rapida anche tra i tipi di partita
+    const preset = form.querySelector<HTMLInputElement>('input[name=preset]:checked')?.value;
+    if (preset === 'classica' || preset === 'rapida') form.querySelector<HTMLInputElement>(`input[name=preset][value=${named === 2 ? 'rapida' : 'classica'}]`)!.checked = true;
   };
   form.addEventListener('input', (e) => {
     if ((e.target as HTMLElement).matches('input[name^=p]')) syncQuick();
   });
   syncQuick();
+  // Tipo di partita: imposta le regole della casa; cambiandole a mano diventa "Personalizzata"
+  const field = <T extends HTMLElement>(name: string) => form.querySelector<T>(`[name=${name}]`)!;
+  const applyPreset = (id: string) => {
+    const p = PRESETS.find((x) => x.id === id);
+    if (!p) return;
+    const r = p.rules;
+    field<HTMLSelectElement>('rounds').value = r.maxRounds ? String(r.maxRounds) : '';
+    field<HTMLInputElement>('quick').checked = !!r.quickStart;
+    quickTouched = true;
+    field<HTMLInputElement>('sprint').checked = !!r.sprintDie;
+    field<HTMLSelectElement>('goal').value = goalValue(r);
+    field<HTMLInputElement>('pot').checked = false;
+    showDuration();
+  };
+  const showDuration = () => {
+    const id = form.querySelector<HTMLInputElement>('input[name=preset]:checked')?.value;
+    const p = PRESETS.find((x) => x.id === id);
+    const out = form.querySelector<HTMLElement>('[data-duration]')!;
+    if (!p) {
+      out.textContent = 'Durata: dipende dalle regole scelte.';
+      return;
+    }
+    const rows = [...form.querySelectorAll<HTMLElement>('.setup-row:not([hidden])')];
+    const named = rows.filter((r) => r.querySelector<HTMLInputElement>('input[name^=p]')!.value.trim());
+    const bots = named.filter((r) => r.querySelector<HTMLSelectElement>('select')!.value !== 'human').length;
+    const people = Math.max(1, named.length - bots);
+    out.textContent = `⏱ Circa ${p.rounds} giri: con ${people} ${people === 1 ? 'persona' : 'persone'}${bots ? ` e ${bots} ${bots === 1 ? 'computer' : 'computer'}` : ''} circa ${estimatedMinutes(p, people, bots)} minuti.`;
+  };
+  form.addEventListener('change', (e) => {
+    const t = e.target as HTMLInputElement;
+    if (t.name === 'preset') applyPreset(t.value);
+    else if (['rounds', 'quick', 'sprint', 'goal', 'pot', 'money'].includes(t.name)) {
+      form.querySelector<HTMLInputElement>('input[name=preset][value=custom]')!.checked = true;
+      showDuration();
+    } else if (t.matches('select[name^=t]')) showDuration();
+  });
+  form.addEventListener('input', (e) => {
+    if ((e.target as HTMLElement).matches('input[name^=p]')) showDuration();
+  });
+  showDuration();
   form.addEventListener('click', (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>('button');
     if (!t) return;
@@ -443,6 +518,8 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
         maxRounds: rounds,
         parkPot: data.get('pot') === 'on',
         quickStart: data.get('quick') === 'on',
+        sprintDie: data.get('sprint') === 'on',
+        ...goalRules(String(data.get('goal') ?? '')),
         seatBonus: data.get('bonus') === 'on' ? (demo ? DEMO_SEAT_BONUS : SEAT_BONUS) : 0,
       },
       tipsOn: data.get('tips') === 'on',

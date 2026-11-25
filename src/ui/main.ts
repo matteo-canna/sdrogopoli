@@ -3,7 +3,7 @@
 // e "Annulla" (session.ts), turni del computer (bots.ts), suoni (sounds.ts), preferenze (prefs.ts).
 import './style.css';
 import { board, cards } from '../data';
-import { actingPlayer, applyAction, chooseBotAction, createGame, raiseMoney, RuleError, SEAT_BONUS, type Action, type Appearance, type GameContext, type GameState, type SaveFile } from '../engine';
+import { actingPlayer, applyAction, chooseBotAction, createGame, raiseMoney, RuleError, SEAT_BONUS, type SprintFace, type Action, type Appearance, type GameContext, type GameState, type SaveFile } from '../engine';
 import { escapeHtml, playerBadge, renderBoard, renderDice, renderPlayers, renderSpaceCard, renderTable, renderTradeEditor, renderTurnActions, tradeSummaryHtml, type TradeDraft } from './view';
 import type { Board3D } from './three/board3d';
 import type { CameraMode } from './three/camera';
@@ -478,6 +478,18 @@ function tipHtml(s: GameState): string {
     </div>`;
 }
 
+// Obiettivo della partita, se c'è: quanto manca a chi gioca su questo schermo (o a chi è di turno).
+function goalPill(s: GameState): string {
+  const r = s.rules;
+  if (!r || (!r.goalWorth && !r.goalGroups && !r.goalSide)) return '';
+  const parts = [r.goalGroups ? `${r.goalGroups} quartieri` : '', r.goalWorth ? `${board.currency.symbol} ${r.goalWorth}` : '', r.goalSide ? 'un lato intero' : ''].filter(Boolean);
+  return `<span class="pill" title="Vince subito chi raggiunge l'obiettivo">🎯 ${parts.join(' o ')}</span>`;
+}
+
+function sprintLabel(face: SprintFace): string {
+  return typeof face === 'number' ? `+${face}` : face === 'occasione' ? '🛒' : '💥';
+}
+
 // Riga del turno: chi gioca, giro, montepremi e ultimo lancio.
 function turnHtml(s: GameState): string {
   const id = s.phase === 'gameOver' && s.winner !== null ? s.winner : actingPlayer(s);
@@ -491,7 +503,8 @@ function turnHtml(s: GameState): string {
       ${s.rules?.maxRounds ? `<span class="pill">Giro ${s.round} di ${s.rules.maxRounds}</span>` : ''}
       ${online ? `<span class="pill clock" data-clock aria-label="Tempo per la mossa" ${timeLeft() === null ? 'hidden' : ''}>⏱ ${clockText(timeLeft() ?? 0)}</span>` : ''}
       ${s.rules?.parkPot ? `<span class="pill" title="Montepremi della Panchina del Parco">🪑 ${board.currency.symbol} ${s.pot}</span>` : ''}
-      ${s.lastRoll ? `<span class="roll">${renderDice(s)}<span class="roll-total">${total}</span></span>` : ''}
+      ${goalPill(s)}
+      ${s.lastRoll ? `<span class="roll">${renderDice(s)}${s.lastSprint ? `<span class="sprint-die" title="Dado Sprint">${sprintLabel(s.lastSprint)}</span>` : ''}<span class="roll-total">${total + (typeof s.lastSprint === 'number' ? s.lastSprint : 0)}</span></span>` : ''}
     </div>`;
 }
 
