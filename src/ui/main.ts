@@ -3,7 +3,7 @@
 // e "Annulla" (session.ts), turni del computer (bots.ts), suoni (sounds.ts), preferenze (prefs.ts).
 import './style.css';
 import { board, cards } from '../data';
-import { actingPlayer, chooseBotAction, createGame, RuleError, type Action, type GameContext, type GameState } from '../engine';
+import { actingPlayer, chooseBotAction, createGame, RuleError, type Action, type GameContext, type GameState, type SaveFile } from '../engine';
 import { escapeHtml, playerBadge, renderBoard, renderDice, renderPlayers, renderSpaceCard, renderTable, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import type { Board3D } from './three/board3d';
 import type { CameraMode } from './three/camera';
@@ -22,6 +22,7 @@ import { soundFor } from './sounds';
 import { renderSetup, setupLooks, SEATS_SHOWN, type SetupChoice } from './setup';
 import { setupOffline } from './pwa';
 import { reportUrl } from './report';
+import { defaultSlotName, deleteSlot, downloadSave, FILE_EXT, listSlots, parseSaveText, saveSlot } from './slots';
 
 // senza "rng": i dadi vengono dal generatore della partita, che parte da un seme casuale
 const ctx: GameContext = { board, cards };
@@ -84,7 +85,37 @@ function showSetup(): void {
         },
       }
     : undefined;
-  renderSetup(app, tutorial.on, startGame, resume);
+  renderSetup(app, tutorial.on, startGame, resume, {
+    list: listSlots(),
+    onLoad: (id) => {
+      const slot = listSlots().find((x) => x.id === id);
+      const file = slot && parseSaveText(JSON.stringify(slot.file), ctx, randomSeed());
+      if (file) openFile(file);
+    },
+    onExport: (id) => {
+      const slot = listSlots().find((x) => x.id === id);
+      if (slot) downloadSave(slot.name, slot.file);
+    },
+    onDelete: (id) => deleteSlot(id),
+    onImport: async (f) => {
+      const file = parseSaveText(await f.text(), ctx, randomSeed());
+      if (!file) return false;
+      openFile(file);
+      return true;
+    },
+  });
+}
+
+// Apre una partita salvata con un nome o importata: prende il posto di quella in corso.
+function openFile(file: SaveFile): void {
+  bots.cancel();
+  session.open(file);
+  resumeOffered = false;
+  selected = null;
+  error = '';
+  newsFrom = file.state.eventCount ?? 0;
+  session.save();
+  render();
 }
 
 // Due righe sulla partita salvata: chi gioca, a che punto è e chi è in testa.
@@ -214,6 +245,18 @@ function gameShell(stage: string, mode: ViewMode): string {
         <div class="hud"></div>
         <div class="players-list"></div>
         <p class="saved">💾 La partita si salva da sola su questo dispositivo.</p>
+        <details class="slots-box">
+          <summary>Salva una copia o esporta</summary>
+          <form class="slot-form" data-slot-form>
+            <label for="slot-name">Nome del salvataggio</label>
+            <div class="slot-row">
+              <input id="slot-name" name="slotName" maxlength="60" placeholder="${escapeHtml(defaultSlotName())}" autocomplete="off">
+              <button type="submit">Salva copia</button>
+            </div>
+          </form>
+          <button data-action="exportGame">⬇️ Esporta in un file ${FILE_EXT}</button>
+          <p class="slot-msg" role="status" aria-live="polite"></p>
+        </details>
         <button class="link" data-action="quit">Abbandona la partita</button>
         <a class="report-link" data-report href="#" target="_blank" rel="noopener">🐞 Segnala un problema</a>
       </aside>
@@ -438,6 +481,12 @@ app.addEventListener('click', (e) => {
       error = '';
       session.save();
       return render();
+    case 'exportGame': {
+      const file = session.toFile();
+      const input = app.querySelector<HTMLInputElement>('#slot-name');
+      if (file) downloadSave(input?.value.trim() || input?.placeholder || 'partita', file);
+      return;
+    }
     case 'coverDebt':
       newsFrom = state.eventCount ?? 0;
       lastActorBot = false;
@@ -491,6 +540,21 @@ app.addEventListener('change', (e) => {
 });
 
 app.addEventListener('submit', (e) => {
+  const slotForm = (e.target as HTMLElement).closest<HTMLFormElement>('[data-slot-form]');
+  if (slotForm) {
+    e.preventDefault();
+    const file = session.toFile();
+    if (!file) return;
+    const input = slotForm.querySelector<HTMLInputElement>('input')!;
+    const result = saveSlot(input.value, file);
+    const msg = app.querySelector('.slot-msg')!;
+    msg.textContent = result.ok ? `✅ Salvata come "${input.value.trim() || input.placeholder}". La trovi nella schermata iniziale.` : result.reason;
+    if (result.ok) {
+      input.value = '';
+      input.placeholder = defaultSlotName();
+    }
+    return;
+  }
   if ((e.target as HTMLElement).id !== 'trade-form' || !tradeDraft) return;
   e.preventDefault();
   // legge anche i campi soldi non ancora confermati

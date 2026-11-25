@@ -11,6 +11,7 @@ export const KEYS = {
   leaderboard: 'sdrogopoli-classifica',
   sky: 'sdrogopoli-cielo',
   speed: 'sdrogopoli-velocita',
+  slots: 'sdrogopoli-salvataggi',
 } as const;
 
 export function readPref(key: string): string | null {

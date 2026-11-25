@@ -1,6 +1,6 @@
 // Partita in corso: stato attuale, stato iniziale con il registro delle azioni e "Annulla".
 // Non tocca la pagina: l'interfaccia chiama questi metodi e poi ridisegna.
-import { actingPlayer, applyAction, isUndoable, newSave, raiseMoney, readSave, SAVE_VERSION, type Action, type GameContext, type GameState } from '../engine';
+import { actingPlayer, applyAction, isUndoable, newSave, raiseMoney, readSave, SAVE_VERSION, type Action, type SaveFile, type GameContext, type GameState } from '../engine';
 import { KEYS, readPref, removePref, writePref } from './prefs';
 
 export function randomSeed(): number {
@@ -23,19 +23,30 @@ export class GameSession {
       const raw = readPref(KEYS.save);
       // le partite salvate senza seme ricevono un generatore nuovo
       const file = raw ? readSave(JSON.parse(raw), this.ctx, randomSeed()) : null;
-      if (!file) return;
-      this.state = file.state;
-      this.initial = file.initial;
-      this.actions = file.actions;
+      if (file) this.open(file);
     } catch {
       /* salvataggio rovinato: si parte dalla schermata iniziale */
     }
   }
 
+  // Apre una partita salvata con un nome o importata da un file.
+  open(file: SaveFile): void {
+    this.state = file.state;
+    this.initial = file.initial;
+    this.actions = file.actions;
+    this.undoStack = [];
+  }
+
+  // La partita in corso come file da salvare o esportare.
+  toFile(): SaveFile | null {
+    if (!this.state || !this.initial) return null;
+    return { version: SAVE_VERSION, initial: this.initial, actions: this.actions, state: this.state };
+  }
+
   save(): void {
-    if (this.state && this.initial) {
-      writePref(KEYS.save, JSON.stringify({ version: SAVE_VERSION, initial: this.initial, actions: this.actions, state: this.state }));
-    } else removePref(KEYS.save);
+    const file = this.toFile();
+    if (file) writePref(KEYS.save, JSON.stringify(file));
+    else removePref(KEYS.save);
   }
 
   start(state: GameState): void {
