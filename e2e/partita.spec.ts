@@ -20,6 +20,8 @@ for (const vista of ['2d', '3d']) {
       )
       .toBe(true);
     expect(errori).toEqual([]);
+    // in 20 giri qualcuno ha pagato o incassato: gli avvisi brevi sono comparsi
+    await expect(page.locator('#avvisi')).toBeAttached();
     // ricaricando si riprende la stessa partita
     const prima = await stato(page);
     await page.reload();

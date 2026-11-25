@@ -215,7 +215,7 @@ export function renderPlayers(state: GameState): string {
       const active = p.id === state.current && state.phase !== 'gameOver';
       const where = p.bankrupt ? t('player.bankrupt') : p.inJail ? `🚓 ${t('player.inJail')}` : `📍 ${escapeHtml(spaceName(board.spaces[p.position].id))}`;
       return `
-        <div class="player ${active ? 'active' : ''} ${p.bankrupt ? 'out' : ''}" style="--c:${playerColor(p)}">
+        <div class="player ${active ? 'active' : ''} ${p.bankrupt ? 'out' : ''}" data-seat="${p.id}" style="--c:${playerColor(p)}">
           <div class="player-head">
             ${playerBadge(state, p.id)}
             <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>

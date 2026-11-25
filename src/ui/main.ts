@@ -4,7 +4,7 @@
 import './style.css';
 import { board, cards } from '../data';
 import { actingPlayer, applyAction, chooseBotAction, createGame, raiseMoney, RuleError, SEAT_BONUS, type SprintFace, type Action, type Appearance, type GameContext, type GameState, type SaveFile } from '../engine';
-import { escapeHtml, playerBadge, renderBoard, spaceLabel, renderDice, renderPlayers, renderSpaceCard, renderTable, renderTradeEditor, renderTurnActions, tradeSummaryHtml, type TradeDraft } from './view';
+import { escapeHtml, money, playerBadge, renderBoard, spaceLabel, renderDice, renderPlayers, renderSpaceCard, renderTable, renderTradeEditor, renderTurnActions, tradeSummaryHtml, type TradeDraft } from './view';
 import type { Board3D } from './three/board3d';
 import type { CameraMode } from './three/camera';
 import type { SkyMode } from './three/city';
@@ -29,6 +29,7 @@ import { QUICK_SAYS, sayText } from '../net/chat';
 import { turnServers } from '../net/turn';
 import { GuestRoom } from '../net/guest';
 import { announce, moveAnnouncement } from './announce';
+import { animateMoney, bigMoments, momentText, moneyChanges, moneyNotices, showMoment, showNotices } from './moments';
 import { t, text, type MsgKey } from '../i18n';
 import { applySettings, LANG_EVENT, loadSettings, openSettings } from './settings';
 
@@ -836,6 +837,18 @@ function soleHuman(s: GameState): number | null {
 // Suoni, dadi, classifica e carta della casella dopo una mossa (fatta qui o arrivata dal tavolo).
 function afterMove(prev: GameState, state: GameState, action: Action, mine: boolean): void {
   announce(...moveAnnouncement(prev, state, online ? mySeat() : soleHuman(state)));
+  // soldi, avvisi e momenti forti si mostrano subito dopo il disegno della pagina
+  const changes = moneyChanges(prev, state);
+  const notices = moneyNotices(prev, state);
+  const moments = bigMoments(prev, state, ctx);
+  // la bancarotta è già nel registro; quartieri e palazzi si dicono a parte
+  announce(...moments.filter((m) => m.msg.k !== 'moment.bankrupt').map(momentText));
+  setTimeout(() => {
+    animateMoney(app, changes, money, (seat) => session.state?.players[seat]?.money ?? 0);
+    showNotices(notices, speed.factor);
+    const m = moments.at(-1);
+    if (m && state.phase !== 'gameOver') showMoment(m, playerColor(state.players[m.seat]));
+  }, 0);
   if (action.type === 'roll') {
     audio.play('dice');
     if (state.lastRoll) board3d?.showDice(state.lastRoll, prev.current);

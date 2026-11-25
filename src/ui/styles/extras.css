@@ -160,3 +160,43 @@
 .settings-dialog output { text-align: right; font-variant-numeric: tabular-nums; }
 .settings-dialog form[method=dialog] { display: flex; justify-content: flex-end; margin-top: 12px; }
 .settings-dialog .range input { width: 100%; margin: 0; }
+
+/* ---------- soldi che si muovono, avvisi brevi, momenti forti ---------- */
+.player-head { position: relative; }
+.money-delta {
+  position: absolute; right: 0; top: calc(100% + 2px); z-index: 2; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums;
+  font-weight: 800; font-size: 0.9em; padding: 1px 7px; border-radius: 999px;
+  animation: money-float 1.6s ease-out forwards;
+}
+.money-delta.up { color: var(--accent); background: var(--accent-soft); }
+.money-delta.down { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, var(--panel)); }
+.money-delta { box-shadow: 0 0 0 3px var(--panel); }
+@keyframes money-float { from { opacity: 0; transform: translateY(-6px); } 15% { opacity: 1; transform: none; } 75% { opacity: 1; } to { opacity: 0; } }
+
+.notices {
+  position: fixed; z-index: 150; left: 50%; transform: translateX(-50%);
+  top: calc(8px + env(safe-area-inset-top)); width: min(calc(100% - 24px), 440px);
+  display: grid; gap: 6px; pointer-events: none;
+}
+.notice {
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+  border-radius: var(--radius); padding: 7px 12px; box-shadow: var(--shadow); font-size: 0.92em;
+  animation: notice-in 0.25s ease-out;
+}
+@keyframes notice-in { from { opacity: 0; transform: translateY(-8px); } }
+
+.moment-layer { position: fixed; inset: 0; z-index: 160; display: grid; place-items: center; pointer-events: none; }
+.moment {
+  position: relative; overflow: hidden; max-width: min(calc(100% - 32px), 420px);
+  background: var(--panel); color: var(--ink); border: 3px solid var(--c, var(--accent)); border-radius: 18px;
+  padding: 18px 24px; text-align: center; box-shadow: var(--shadow);
+  animation: moment-pop 2.6s ease-out forwards;
+}
+.moment p { margin: 6px 0 0; font-weight: 700; font-size: 1.15em; }
+.moment-icon { font-size: 2.6em; display: block; line-height: 1; }
+@keyframes moment-pop { from { opacity: 0; transform: scale(0.7); } 12% { opacity: 1; transform: scale(1.06); } 20% { transform: scale(1); } 85% { opacity: 1; } to { opacity: 0; } }
+.confetto {
+  position: absolute; top: -10px; left: var(--x); width: 7px; height: 11px; border-radius: 2px;
+  background: hsl(var(--h) 75% 55%); animation: confetto-fall 1.6s ease-in var(--d) forwards; opacity: 0;
+}
+@keyframes confetto-fall { from { opacity: 1; transform: translateY(0) rotate(0); } to { opacity: 0; transform: translateY(160px) rotate(540deg); } }
