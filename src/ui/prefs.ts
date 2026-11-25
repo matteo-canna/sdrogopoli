@@ -13,6 +13,7 @@ export const KEYS = {
   speed: 'sdrogopoli-velocita',
   slots: 'sdrogopoli-salvataggi',
   onlineName: 'sdrogopoli-nome-online',
+  settings: 'sdrogopoli-impostazioni',
 } as const;
 
 export function readPref(key: string): string | null {

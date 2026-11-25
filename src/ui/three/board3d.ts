@@ -12,6 +12,7 @@ export type { CameraMode } from './camera';
 import { buildBoard } from './tiles';
 import { makeMarker, makeOwnerFlag, makeToken, reactionFor, type TokenView } from './pieces';
 import { City, makeHotel, makeHouse, skyAt, SKY_STEPS, type SkyMode } from './city';
+import { motionReduced } from '../motion';
 
 export class Board3D {
   private renderer: THREE.WebGLRenderer;
@@ -60,7 +61,10 @@ export class Board3D {
   private round = 1;
   private tokensKey = '';
   private lastState: GameState | null = null;
-  private reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  // letto a ogni fotogramma: la scelta nelle impostazioni vale subito
+  private get reduceMotion(): boolean {
+    return motionReduced();
+  }
   private camMode: CameraMode = 'follow';
   get cameraMode(): CameraMode {
     return this.camMode;

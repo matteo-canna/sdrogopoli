@@ -33,6 +33,9 @@ class AudioEngine {
   private beat = 0;
   sfxOn = readPref(PREF_SFX, true);
   musicOn = readPref(PREF_MUSIC, true);
+  // volumi da 0 a 1 (impostazioni): 1 è il livello di sempre
+  private sfxLevel = 1;
+  private musicLevel = 1;
 
   constructor() {
     // iPhone: con "playback" i suoni del gioco si sentono anche con l'interruttore silenzioso
@@ -59,11 +62,12 @@ class AudioEngine {
       if (!Ctor) return;
       this.ctx = new Ctor();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.6;
+      this.master.gain.value = 0.6 * this.sfxLevel;
       this.master.connect(this.ctx.destination);
+      // la musica ha un suo volume, separato da quello degli effetti
       this.musicGain = this.ctx.createGain();
-      this.musicGain.gain.value = 0.18;
-      this.musicGain.connect(this.master);
+      this.musicGain.gain.value = this.musicVolume();
+      this.musicGain.connect(this.ctx.destination);
       // mezzo secondo di rumore bianco per dadi e martelletto
       this.noise = this.ctx.createBuffer(1, this.ctx.sampleRate / 2, this.ctx.sampleRate);
       const data = this.noise.getChannelData(0);
@@ -77,6 +81,19 @@ class AudioEngine {
   setSfx(on: boolean): void {
     this.sfxOn = on;
     writePref(PREF_SFX, on);
+  }
+
+  // Volumi da 0 a 100, applicati subito anche alla musica che sta suonando.
+  setVolumes(sfx: number, music: number): void {
+    this.sfxLevel = Math.min(Math.max(sfx, 0), 100) / 100;
+    this.musicLevel = Math.min(Math.max(music, 0), 100) / 100;
+    if (!this.ctx || !this.master || !this.musicGain) return;
+    this.master.gain.setTargetAtTime(Math.max(0.6 * this.sfxLevel, 0.0001), this.ctx.currentTime, 0.05);
+    if (this.musicTimer) this.musicGain.gain.setTargetAtTime(this.musicVolume(), this.ctx.currentTime, 0.05);
+  }
+
+  private musicVolume(): number {
+    return Math.max(0.6 * 0.18 * this.musicLevel, 0.0001);
   }
 
   setMusic(on: boolean): void {
@@ -186,7 +203,7 @@ class AudioEngine {
   private startMusic(): void {
     if (!this.ctx || this.musicTimer) return;
     this.musicGain!.gain.cancelScheduledValues(this.ctx.currentTime);
-    this.musicGain!.gain.setValueAtTime(0.18, this.ctx.currentTime);
+    this.musicGain!.gain.setValueAtTime(this.musicVolume(), this.ctx.currentTime);
     this.nextBeat = this.ctx.currentTime + 0.1;
     // pianifica le note con un piccolo anticipo, come un sequencer
     this.musicTimer = setInterval(() => this.schedule(), 100);

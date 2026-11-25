@@ -4,7 +4,7 @@
 import './style.css';
 import { board, cards } from '../data';
 import { actingPlayer, applyAction, chooseBotAction, createGame, raiseMoney, RuleError, SEAT_BONUS, type SprintFace, type Action, type Appearance, type GameContext, type GameState, type SaveFile } from '../engine';
-import { escapeHtml, playerBadge, renderBoard, renderDice, renderPlayers, renderSpaceCard, renderTable, renderTradeEditor, renderTurnActions, tradeSummaryHtml, type TradeDraft } from './view';
+import { escapeHtml, playerBadge, renderBoard, spaceLabel, renderDice, renderPlayers, renderSpaceCard, renderTable, renderTradeEditor, renderTurnActions, tradeSummaryHtml, type TradeDraft } from './view';
 import type { Board3D } from './three/board3d';
 import type { CameraMode } from './three/camera';
 import type { SkyMode } from './three/city';
@@ -28,6 +28,8 @@ import { HostRoom, type HostSnapshot } from '../net/host';
 import { QUICK_SAYS, sayText } from '../net/chat';
 import { turnServers } from '../net/turn';
 import { GuestRoom } from '../net/guest';
+import { announce, moveAnnouncement } from './announce';
+import { applySettings, loadSettings, openSettings } from './settings';
 
 // senza "rng": i dadi vengono dal generatore della partita, che parte da un seme casuale
 const ctx: GameContext = { board, cards };
@@ -36,6 +38,10 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 type ViewMode = '3d' | '2d';
 
 const session = new GameSession(ctx);
+// impostazioni di comodità (testo, movimento, volumi): valgono da subito
+const startSettings = loadSettings();
+applySettings(startSettings);
+audio.setVolumes(startSettings.sfxVolume, startSettings.musicVolume);
 session.load();
 let selected: string | null = null;
 let error = '';
@@ -528,7 +534,7 @@ function infoHtml(s: GameState): string {
   const news = fresh ? s.log.slice(-fresh) : [];
   return `
     ${s.phase === 'gameOver' ? renderSummary(s, ctx) : ''}
-    ${news.length ? `<div class="news" aria-live="polite"><h4>Cosa è successo</h4><ul>${news.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul></div>` : ''}
+    ${news.length ? `<div class="news"><h4>Cosa è successo</h4><ul>${news.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul></div>` : ''}
     ${selected ? '' : '<p class="hint">Tocca una casella per vedere i dettagli.</p>'}
     <details class="log-box"><summary>Registro della partita</summary>
       <ol class="log">${s.log.slice().reverse().map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ol>
@@ -538,6 +544,10 @@ function infoHtml(s: GameState): string {
 function soundButtons(): string {
   return `<button data-action="toggleSfx" aria-pressed="${audio.sfxOn}" aria-label="Effetti sonori" title="Effetti sonori">${audio.sfxOn ? '🔊' : '🔇'}<span class="lbl"> Effetti</span></button>
     <button data-action="toggleMusic" aria-pressed="${audio.musicOn}" aria-label="Musica" title="Musica">${audio.musicOn ? '🎵' : '🚫'}<span class="lbl"> Musica</span></button>`;
+}
+
+function settingsButton(): string {
+  return `<button data-action="settings" aria-label="Impostazioni" title="Impostazioni: testo, movimento, volumi">⚙️<span class="lbl"> Impostazioni</span></button>`;
 }
 
 function viewButtons(): string {
@@ -552,19 +562,100 @@ function viewButtons(): string {
     ? `<button data-action="sky" aria-label="Cielo: ${label}" title="Cielo: ${label}">${icon}<span class="lbl"> ${label}</span></button>`
     : '';
   const speedBtn = `<button data-action="speed" aria-label="Velocità: ${speed.label}" title="Velocità di gioco: ${speed.label}">${speed.icon}<span class="lbl"> ${speed.label}</span></button>`;
-  return cam + sky + toggle + speedBtn + soundButtons();
+  return cam + sky + toggle + speedBtn + soundButtons() + settingsButton();
 }
 
 function render(): void {
   const s = session.state;
   if (online && !s) return showLobby();
   if (!s || resumeOffered) return showSetup();
+  const focus = focusKey();
   if (viewMode === '3d') render3d(s);
   else {
     animating = false;
     render2d(s);
   }
+  restoreFocus(focus);
   bots.schedule();
+}
+
+// ---------- tastiera (B43): il focus non si perde quando la pagina si ridisegna ----------
+
+// Ultimo modo usato per giocare: con la tastiera il focus segue il pulsante principale.
+let usingKeyboard = false;
+document.addEventListener('keydown', (e) => {
+  if (['Tab', 'Enter', ' ', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Escape'].includes(e.key)) usingKeyboard = true;
+}, true);
+document.addEventListener('pointerdown', () => (usingKeyboard = false), true);
+
+const FOCUS_ATTRS = ['data-action', 'data-space', 'data-option', 'data-amount', 'data-say', 'data-tip', 'name', 'id'];
+
+// Un selettore che ritrova "lo stesso" elemento dopo il ridisegno.
+function focusKey(): string | null {
+  const el = document.activeElement;
+  if (!el || el === document.body || !app.contains(el)) return usingKeyboard && el === document.body ? '' : null;
+  const parts = FOCUS_ATTRS.filter((a) => el.hasAttribute(a)).map((a) => `[${a}="${CSS.escape(el.getAttribute(a)!)}"]`);
+  if (el.matches('.board3d')) return '.board3d';
+  return parts.length ? el.tagName.toLowerCase() + parts.join('') : '';
+}
+
+function visible(el: Element): el is HTMLElement {
+  return el instanceof HTMLElement && el.getClientRects().length > 0 && !(el as HTMLButtonElement).disabled;
+}
+
+// key null: il focus era fuori dalla partita e non si tocca. Altrimenti si torna allo stesso elemento
+// o, se è sparito (un pulsante del turno appena usato), al pulsante principale del turno.
+function restoreFocus(key: string | null): void {
+  if (key === null || !usingKeyboard && key === '') return;
+  if (document.activeElement && document.activeElement !== document.body && app.contains(document.activeElement)) return;
+  const same = key ? [...app.querySelectorAll(key)].find(visible) : undefined;
+  const next = same
+    ?? [...app.querySelectorAll('.actions .primary, .actions button, .trade-editor input, .trade-editor button')].find(visible);
+  // se non c'è niente da usare (gioca il computer) il focus resta sulla pagina e torna al primo pulsante che compare
+  next?.focus({ preventScroll: true });
+}
+
+// Frecce sul tabellone: nel 2D si sposta il focus tra le caselle, nel 3D si sceglie la casella.
+function moveOnBoard(from: number, key: string): number | null {
+  const n = board.spaces.length;
+  if (key === 'ArrowRight' || key === 'ArrowDown') return (from + 1) % n;
+  if (key === 'ArrowLeft' || key === 'ArrowUp') return (from - 1 + n) % n;
+  if (key === 'Home') return 0;
+  if (key === 'End') return n - 1;
+  return null;
+}
+
+app.addEventListener('keydown', (e) => {
+  const s = session.state;
+  const el = e.target as HTMLElement;
+  if (!s || e.altKey || e.ctrlKey || e.metaKey) return;
+  const space = el.closest<HTMLElement>('.board [data-space]');
+  if (space) {
+    const i = moveOnBoard(board.spaces.findIndex((sp) => sp.id === space.dataset.space), e.key);
+    if (i === null) return;
+    e.preventDefault();
+    const nextBtn = app.querySelector<HTMLElement>(`.board [data-space="${board.spaces[i].id}"]`);
+    if (!nextBtn) return;
+    space.tabIndex = -1;
+    nextBtn.tabIndex = 0;
+    nextBtn.focus();
+    return;
+  }
+  if (el.matches('.board3d')) {
+    const from = selected ? board.spaces.findIndex((sp) => sp.id === selected) : s.players[s.current].position;
+    const i = moveOnBoard(from, e.key);
+    if (i === null) return;
+    e.preventDefault();
+    selectSpace(board.spaces[i].id);
+  }
+});
+
+// Seleziona una casella (o la deseleziona) e la descrive a voce.
+function selectSpace(spaceId: string | null): void {
+  selected = selected === spaceId ? null : spaceId;
+  error = '';
+  if (selected && session.state) announce(`${spaceLabel(session.state, board.spaces.findIndex((sp) => sp.id === selected))}. Carta aperta.`);
+  render();
 }
 
 function undoButton(): string {
@@ -641,7 +732,7 @@ let loading3d = false;
 function render3d(s: GameState): void {
   // la scena 3D si crea una sola volta: ridisegniamo solo i pannelli HTML
   if (!board3d) {
-    if (!app.querySelector('.game3d .board3d')) app.innerHTML = gameShell('<div class="board3d"><p class="loading-3d">Preparo il tabellone 3D…</p></div>', '3d');
+    if (!app.querySelector('.game3d .board3d')) app.innerHTML = gameShell('<div class="board3d" tabindex="0" role="region" aria-label="Tabellone 3D: usa le frecce per scegliere una casella, Esc per chiudere la carta"><p class="loading-3d">Preparo il tabellone 3D…</p></div>', '3d');
     fillPanels(s);
     if (loading3d) return;
     loading3d = true;
@@ -670,11 +761,7 @@ function create3d(Board3DClass: typeof Board3D): void {
   box.innerHTML = '';
   board3d = new Board3DClass(
     box,
-    (spaceId) => {
-      selected = selected === spaceId ? null : spaceId;
-      error = '';
-      render();
-    },
+    (spaceId) => selectSpace(spaceId),
     (busy) => {
       animating = busy;
       app.querySelector('.game')?.classList.toggle('busy', busy);
@@ -736,8 +823,15 @@ function act(action: Action): void {
   render();
 }
 
+// Il posto di chi gioca su questo dispositivo, se c'è una sola persona al tavolo.
+function soleHuman(s: GameState): number | null {
+  const people = s.players.filter((p) => !p.isBot);
+  return people.length === 1 ? people[0].id : null;
+}
+
 // Suoni, dadi, classifica e carta della casella dopo una mossa (fatta qui o arrivata dal tavolo).
 function afterMove(prev: GameState, state: GameState, action: Action, mine: boolean): void {
+  announce(...moveAnnouncement(prev, state, online ? mySeat() : soleHuman(state)));
   if (action.type === 'roll') {
     audio.play('dice');
     if (state.lastRoll) board3d?.showDice(state.lastRoll, prev.current);
@@ -775,11 +869,7 @@ app.addEventListener('click', (e) => {
   if (botToPlay() && target.closest('.actions')) return;
   const action = target.dataset.action;
   const spaceId = target.dataset.space;
-  if (!action && spaceId) {
-    selected = selected === spaceId ? null : spaceId;
-    error = '';
-    return render();
-  }
+  if (!action && spaceId) return selectSpace(spaceId);
   switch (action) {
     case 'closeCard':
       selected = null;
@@ -798,6 +888,9 @@ app.addEventListener('click', (e) => {
     case 'toggleSfx':
       audio.setSfx(!audio.sfxOn);
       return render();
+    case 'settings':
+      openSettings((next) => audio.setVolumes(next.sfxVolume, next.musicVolume));
+      return;
     case 'toggleMusic':
       audio.setMusic(!audio.musicOn);
       return render();

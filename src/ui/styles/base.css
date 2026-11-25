@@ -68,6 +68,13 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 /* anello di focus ben visibile per chi usa la tastiera */
 :where(button, input, select, summary, a, [tabindex]):focus-visible { outline: none; box-shadow: var(--focus); border-radius: var(--radius-s); }
 .space:focus-visible { box-shadow: inset 0 0 0 3px var(--info); }
+/* movimento ridotto: dal dispositivo, salvo scelta diversa nelle impostazioni del gioco */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition: none !important; animation: none !important; }
+  :root:not([data-motion="pieno"]) *, :root:not([data-motion="pieno"]) *::before, :root:not([data-motion="pieno"]) *::after { transition: none !important; animation: none !important; }
 }
+:root[data-motion="ridotto"] *, :root[data-motion="ridotto"] *::before, :root[data-motion="ridotto"] *::after { transition: none !important; animation: none !important; }
+/* dimensione del testo scelta nelle impostazioni: quasi tutto è misurato in em e rem */
+:root[data-text="grande"] { font-size: 112.5%; }
+:root[data-text="enorme"] { font-size: 125%; }
+/* testo solo per i lettori di schermo */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
