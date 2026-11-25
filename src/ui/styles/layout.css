@@ -1,0 +1,100 @@
+/* Struttura della partita (2D e 3D): tabellone, pannello laterale, carta della casella
+   e, sul telefono, barra delle azioni in basso con il pannello laterale come cassetto. */
+.game { grid-template-columns: minmax(0, 1fr) 340px; }
+.stage {
+  position: relative; min-height: 320px; height: calc(100vh - 32px); height: calc(100dvh - 32px);
+  border-radius: var(--radius-l); overflow: hidden;
+}
+.game3d .stage { box-shadow: var(--shadow); }
+/* il tabellone 2D è il quadrato più grande che entra nello spazio disponibile */
+.game2d .stage { container-type: size; display: grid; place-items: center; }
+.game2d .board { width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); }
+.game2d .center { justify-content: center; }
+.center-dice .dice { font-size: 3em; }
+/* nel 2D la barra dei comandi sta dentro il centro del tabellone, sotto l'angolo in alto a sinistra */
+.game2d .view-buttons.overlay {
+  --b: min(100cqw, 100cqh);
+  top: calc((100cqh - var(--b)) / 2 + var(--b) * 0.135 + 6px);
+  left: calc((100cqw - var(--b)) / 2 + var(--b) * 0.135 + 6px);
+  right: auto; box-shadow: var(--shadow-s);
+}
+.action-bar, .drawer-close { display: none; }
+
+/* carta della casella: compare sopra il tabellone */
+.card-slot:empty { display: none; }
+.space-card {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 5;
+  width: min(92%, 360px); max-height: calc(100% - 24px); overflow: auto;
+  background: var(--panel); border-radius: var(--radius-l); box-shadow: var(--shadow); padding: 4px 4px 8px;
+  animation: card-in 0.18s ease-out;
+}
+@keyframes card-in { from { opacity: 0; transform: translate(-50%, 12px); } }
+.space-card .details { box-shadow: none; width: 100%; padding: 10px 14px 4px; background: transparent; }
+.space-card .details h3 { padding-right: 44px; }
+.card-close {
+  position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border: none; background: transparent;
+  border-radius: 999px; font-size: 1.1rem; color: var(--muted);
+}
+.card-close:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.group-note { color: var(--muted); }
+.group-note.good { color: var(--accent); font-weight: 700; }
+.owner-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* partita salvata nella schermata iniziale */
+.resume { padding: 18px; margin-top: 24px; text-align: left; display: grid; gap: 8px; }
+.resume h2 { margin: 0; font-size: 1.15rem; }
+.resume p { margin: 0; }
+.resume-players { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.resume-meta { color: var(--muted); font-size: 0.9em; }
+.resume-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.resume-buttons button { flex: 1 1 160px; }
+.setup form[hidden] { display: none; }
+
+/* ---------- telefono e tablet in verticale: tutto in uno schermo, comandi in basso, giocatori nel cassetto ---------- */
+@media (max-width: 900px) {
+  .game {
+    display: flex; flex-direction: column; height: 100vh; height: 100dvh; gap: 6px;
+    padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) 0 max(6px, env(safe-area-inset-left));
+  }
+  .game .stage, .game2d .stage, .game3d .stage { flex: 1 1 auto; height: auto; min-height: 0; border-radius: var(--radius); }
+  .action-bar {
+    display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; max-height: 58vh; max-height: 58dvh; overflow-y: auto;
+    background: var(--board); border-radius: var(--radius-l) var(--radius-l) 0 0; box-shadow: var(--shadow);
+    padding: 8px 10px max(10px, env(safe-area-inset-bottom));
+    margin: 0 calc(-1 * max(6px, env(safe-area-inset-left))) 0;
+  }
+  .bar-head { display: flex; align-items: center; gap: 6px; }
+  .bar-head .turn { flex: 1 1 auto; justify-content: flex-start; font-size: 1em; }
+  .drawer-btn { flex: 0 0 auto; min-height: 44px; padding: 0 12px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel); }
+  .action-bar .actions { flex-direction: row; flex-wrap: wrap; }
+  .action-bar .actions > button, .action-bar .actions > .debt-panel { flex: 1 1 100%; }
+  .action-bar .actions > button:not(.primary):not(.danger) { flex: 1 1 40%; min-height: 48px; font-size: 1rem; }
+  .action-bar .tip { margin: 0; }
+  /* cassetto: il pannello laterale sale dal basso sopra il tabellone */
+  .side {
+    position: fixed; inset: 12vh 0 0 0; z-index: 20; overflow-y: auto; display: none;
+    background: var(--bg); border-radius: var(--radius-l) var(--radius-l) 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,.3);
+    padding: 8px 12px max(16px, env(safe-area-inset-bottom));
+  }
+  .game.drawer-open .side { display: flex; }
+  .drawer-close { display: block; align-self: flex-end; min-height: 44px; padding: 0 14px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel); }
+  .game.drawer-open::after { content: ''; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 19; }
+  .space-card { bottom: 8px; width: calc(100% - 16px); }
+  .view-buttons.overlay button { min-height: 44px; min-width: 44px; }
+  /* nel 2D i comandi della vista stanno nel cassetto, così il tabellone resta libero */
+  .game2d .view-buttons.overlay { display: none; }
+  .debt-options { max-height: 150px; }
+}
+.side .view-buttons.in-drawer:empty { display: none; }
+
+/* mentre la pedina si muove le azioni del turno aspettano */
+.game.busy .actions button { opacity: 0.5; pointer-events: none; }
+.game.busy .actions::after { content: 'Tocca il tabellone per saltare l\2019animazione'; width: 100%; text-align: center; font-size: 0.85rem; color: var(--muted, inherit); }
+
+/* ---------- obiettivi tattili di almeno 44 px sugli schermi touch ---------- */
+@media (pointer: coarse) {
+  .chip, .link, .drawer-btn, .swatch, .house-rules summary, .pick, .log-box summary, .view-buttons button, .tip-buttons button { min-height: 44px; }
+  .chip { display: inline-flex; align-items: center; }
+  .swatch { min-width: 44px; }
+  .link { display: inline-flex; align-items: center; }
+}

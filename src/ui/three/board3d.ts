@@ -3,14 +3,14 @@ import * as THREE from 'three';
 import { board } from '../../data';
 import type { GameState } from '../../engine';
 import { tokenScale, tokenSlot } from '../tokenLayout';
-import { appearanceOf, playerColor } from '../characters';
+import { appearanceOf, playerColor, playerMarks } from '../characters';
 import { createCharacter } from './characters3d';
 import { CHARACTER_HEIGHT, HOP_SECONDS, SIZE, restYaw, spaceCenter, textRotation, turnTowards } from './layout';
 import { DICE_SECONDS, Dice3D } from './dice3d';
 import { CameraRig, type CameraMode } from './camera';
 export type { CameraMode } from './camera';
 import { buildBoard } from './tiles';
-import { makeMarker, makeToken, reactionFor, type TokenView } from './pieces';
+import { makeMarker, makeOwnerFlag, makeToken, reactionFor, type TokenView } from './pieces';
 import { City, makeHotel, makeHouse, skyAt, SKY_STEPS, type SkyMode } from './city';
 
 export class Board3D {
@@ -248,14 +248,12 @@ export class Board3D {
       group.userData.key = key;
       group.clear();
       if (!own) return;
-      // bordino del colore del proprietario
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.06, 0.025, 8, 16),
-        new THREE.MeshStandardMaterial({ color: playerColor(state.players[own.owner]), transparent: own.mortgaged, opacity: own.mortgaged ? 0.35 : 1 }),
-      );
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.set(0.36, 0.03, 0.36);
-      group.add(ring);
+      // bandierina del proprietario: il suo colore e la sua sigla, così si riconosce anche senza i colori
+      const flag = makeOwnerFlag(playerColor(state.players[own.owner]), playerMarks(state.players)[own.owner], own.mortgaged);
+      // nell'angolo esterno della casella, lontano dalle case
+      flag.position.set(0.3, 0, 0.64);
+      this.placeOnBand(flag, i);
+      group.add(flag);
       if (own.houses === 5) {
         const hotel = makeHotel();
         this.placeOnBand(hotel, i);

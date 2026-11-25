@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import type { GameState } from '../../engine';
 import type { CharacterModel, Reaction } from './characters3d';
+import { inkOn } from '../characters';
 
 export interface Hop {
   from: THREE.Vector3;
@@ -112,3 +113,45 @@ export function makeMarker(): THREE.Mesh {
   return m;
 }
 
+
+// Bandierina sulla casella posseduta: colore e sigla del proprietario (sbiadita se ipotecata).
+const flagTextures = new Map<string, THREE.CanvasTexture>();
+function flagTexture(color: string, mark: string): THREE.CanvasTexture {
+  const key = `${color}|${mark}`;
+  let tex = flagTextures.get(key);
+  if (!tex) {
+    const c = document.createElement('canvas');
+    c.width = 96;
+    c.height = 64;
+    const g = c.getContext('2d')!;
+    g.fillStyle = color;
+    g.fillRect(0, 0, 96, 64);
+    g.strokeStyle = 'rgba(255,255,255,0.9)';
+    g.lineWidth = 6;
+    g.strokeRect(3, 3, 90, 58);
+    g.fillStyle = inkOn(color);
+    g.font = `bold ${mark.length > 1 ? 34 : 44}px system-ui, sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(mark, 48, 35);
+    tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    flagTextures.set(key, tex);
+  }
+  return tex;
+}
+
+export function makeOwnerFlag(color: string, mark: string, mortgaged: boolean): THREE.Group {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.5, 6), new THREE.MeshStandardMaterial({ color: 0xeeeeee }));
+  pole.position.y = 0.25;
+  const cloth = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.34, 0.24),
+    new THREE.MeshStandardMaterial({ map: flagTexture(color, mark), side: THREE.DoubleSide, transparent: mortgaged, opacity: mortgaged ? 0.4 : 1 }),
+  );
+  cloth.position.set(-0.17, 0.37, 0);
+  pole.castShadow = true;
+  g.add(pole, cloth);
+  // la bandierina si gira verso chi guarda il tabellone dall'esterno
+  return g;
+}

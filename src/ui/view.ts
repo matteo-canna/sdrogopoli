@@ -1,7 +1,15 @@
 // Funzioni di rendering: trasformano lo stato del motore in HTML.
 import { board, cards } from '../data';
 import { actingPlayer, computeRent, debtOptions, liquidationValue, MIN_BID, netWorth, unmortgageCost, type GameState, type Space, type TradeSide } from '../engine';
-import { playerColor } from './characters';
+import { inkOn, playerColor, playerMarks } from './characters';
+
+// Dischetto con il colore e la sigla del giocatore (la sigla lo distingue anche senza colori).
+export function playerBadge(state: GameState, playerId: number, cls = 'token big'): string {
+  const p = state.players[playerId];
+  const c = playerColor(p);
+  const mark = playerMarks(state.players)[playerId];
+  return `<span class="${cls} mark" style="background:${c};color:${inkOn(c)}" aria-hidden="true">${escapeHtml(mark)}</span>`;
+}
 
 const SYMBOL = board.currency.symbol;
 
@@ -56,12 +64,12 @@ export function renderBoard(state: GameState, selected: string | null): string {
       .map((p) => `<span class="token" style="background:${playerColor(p)}" title="${escapeHtml(p.name)}"></span>`)
       .join('');
     const houses = own && own.houses > 0 ? `<span class="houses">${own.houses === 5 ? '🏢' : '🏠'.repeat(own.houses)}</span>` : '';
-    const owner = own ? `<span class="owner" style="background:${playerColor(state.players[own.owner])}"></span>` : '';
+    const owner = own ? playerBadge(state, own.owner, 'owner') : '';
     const price = 'price' in space ? `<span class="price">${space.price}</span>` : '';
     const icon = ICONS[space.type] ? `<span class="icon">${ICONS[space.type]}</span>` : '';
     return `
       <button class="space ${side(i)} ${selected === space.id ? 'selected' : ''} ${own?.mortgaged ? 'mortgaged' : ''}"
-        style="grid-row:${row};grid-column:${col}" data-space="${space.id}" aria-label="${escapeHtml(space.name)}">
+        style="grid-row:${row};grid-column:${col}" data-space="${space.id}" aria-label="${escapeHtml(space.name)}${own ? `, di ${escapeHtml(state.players[own.owner].name)}` : ''}">
         ${color ? `<span class="band" style="background:${color}"></span>` : ''}
         ${owner}
         ${icon}
@@ -71,6 +79,30 @@ export function renderBoard(state: GameState, selected: string | null): string {
       </button>`;
   });
   return cells.join('');
+}
+
+// Quante vie del quartiere ha chi è di turno, e se comprando questa lo completerebbe.
+function groupNote(state: GameState, group: string, spaceId: string): string {
+  const me = state.current;
+  const streets = board.spaces.filter((sp) => sp.type === 'property' && sp.group === group);
+  const mine = streets.filter((sp) => state.ownership[sp.id]?.owner === me).length;
+  const own = state.ownership[spaceId];
+  if (!own && mine === streets.length - 1) return `<p class="group-note good">⭐ Comprandola completi il quartiere: affitto doppio e puoi costruire.</p>`;
+  if (own && own.owner !== me && streets.every((sp) => state.ownership[sp.id]?.owner === own.owner)) {
+    return `<p class="group-note">Quartiere completo di ${escapeHtml(state.players[own.owner].name)}: affitto doppio.</p>`;
+  }
+  if (mine > 0) return `<p class="group-note">Hai ${mine} vie su ${streets.length} di questo quartiere.</p>`;
+  return '';
+}
+
+// Carta della casella selezionata, che compare sopra il tabellone.
+export function renderSpaceCard(state: GameState, spaceId: string): string {
+  const space = board.spaces.find((s) => s.id === spaceId);
+  if (!space) return '';
+  return `<div class="space-card" role="dialog" aria-label="${escapeHtml(space.name)}">
+    <button class="card-close" data-action="closeCard" aria-label="Chiudi la carta">✕</button>
+    ${renderSpaceDetails(state, spaceId)}
+  </div>`;
 }
 
 // Scheda della casella selezionata, con i comandi per il giocatore di turno.
@@ -93,10 +125,11 @@ export function renderSpaceDetails(state: GameState, spaceId: string): string {
   }
   if (own) {
     const ownerName = escapeHtml(state.players[own.owner].name);
-    const rent = computeRent(state, { board, cards, rng: Math.random }, space.id, 7);
-    lines.push(`<p>Proprietario: <strong>${ownerName}</strong>${own.mortgaged ? ' (ipotecata)' : ''}</p>`);
+    const rent = computeRent(state, { board, cards }, space.id, 7);
+    lines.push(`<p class="owner-line">Proprietario: ${playerBadge(state, own.owner, 'token')} <strong>${ownerName}</strong>${own.mortgaged ? ' (ipotecata)' : ''}</p>`);
     if (space.type !== 'utility') lines.push(`<p>Affitto attuale: ${money(rent)}</p>`);
   }
+  if (space.type === 'property' && state.phase !== 'gameOver') lines.push(groupNote(state, space.group, space.id));
 
   const buttons: string[] = [];
   const canManage = own && own.owner === state.current && state.phase !== 'gameOver';
@@ -136,7 +169,7 @@ export function renderPlayers(state: GameState): string {
       return `
         <div class="player ${active ? 'active' : ''} ${p.bankrupt ? 'out' : ''}" style="--c:${playerColor(p)}">
           <div class="player-head">
-            <span class="token big" style="background:${playerColor(p)}"></span>
+            ${playerBadge(state, p.id)}
             <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>
             ${active ? '<span class="badge">di turno</span>' : ''}
             <span class="money ${p.money < 0 ? 'negative' : ''}" title="Contanti">${money(p.money)}</span>
