@@ -4,7 +4,7 @@
 import './style.css';
 import { board, cards } from '../data';
 import { actingPlayer, chooseBotAction, createGame, RuleError, type Action, type GameContext, type GameState } from '../engine';
-import { escapeHtml, playerBadge, renderBoard, renderDice, renderPlayers, renderSpaceCard, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
+import { escapeHtml, playerBadge, renderBoard, renderDice, renderPlayers, renderSpaceCard, renderTable, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
 import type { SkyMode } from './three/city';
 import { loadModel } from './three/characters3d';
@@ -239,10 +239,7 @@ function render2d(s: GameState): void {
   app.innerHTML = gameShell(
     `<div class="board">
       ${renderBoard(s, selected)}
-      <div class="center">
-        <h1 class="title">Sdrogopoli</h1>
-        ${s.lastRoll ? `<span class="center-dice">${renderDice(s)}</span>` : ''}
-      </div>
+      <div class="center">${renderTable(s)}</div>
     </div>`,
     '2d',
   );

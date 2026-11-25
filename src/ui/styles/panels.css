@@ -38,8 +38,6 @@
 .demo-toggle input { flex: 0 0 20px; width: 20px; height: 20px; min-height: 0; padding: 0; margin-top: 2px; }
 .demo-toggle small { color: var(--muted); }
 .badge-demo, .pill.demo { background: var(--gold); color: #1d1d1b; border-radius: 999px; padding: 1px 8px; font-size: 0.8em; font-weight: 700; }
-/* in tanti (modalità demo) i dischetti del 2D sono più piccoli */
-.tokens.many .token { width: 7px; height: 7px; border-width: 1px; }
 .setup form { min-width: 0; }
 .setup form { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 600px) { .view-buttons .lbl { display: none; } .view-buttons.overlay button { min-width: 44px; font-size: 1.1rem; } }

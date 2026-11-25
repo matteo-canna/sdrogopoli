@@ -1,0 +1,55 @@
+/* Tabellone 2D leggibile: di chi è ogni via, quante case ha e dove sono le pedine, senza aprire nulla. */
+.game2d .board { --tile: calc(min(100cqw, 100cqh) / 12.4); }
+.board { --tile: 40px; }
+
+/* via di qualcuno: casella tinta col suo colore e bordo esterno pieno */
+.space.owned { background: color-mix(in srgb, var(--own) 16%, var(--space)); }
+.space.owned.bottom { box-shadow: inset 0 -5px 0 var(--own); }
+.space.owned.top { box-shadow: inset 0 5px 0 var(--own); }
+.space.owned.left { box-shadow: inset 5px 0 0 var(--own); }
+.space.owned.right { box-shadow: inset -5px 0 0 var(--own); }
+/* ipotecata: righe diagonali al posto della trasparenza, così il testo resta leggibile */
+.space.mortgaged::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--ink) 18%, transparent) 6px 8px);
+}
+.space.mortgaged .owner { opacity: 0.6; text-decoration: line-through; }
+
+/* case e palazzo dentro la fascia colorata */
+.band { display: flex; align-items: center; justify-content: center; }
+.pips { display: flex; gap: 2px; height: 100%; align-items: center; }
+.pips i { display: block; height: 70%; min-height: 5px; aspect-ratio: 1; background: #1e9e4a; border: 1px solid #fff; border-radius: 2px; }
+.pips i.hotel { aspect-ratio: 2.2; background: #d6332a; }
+.band:has(.pips) { min-height: 8px; }
+
+/* pedine: dischi grandi con la sigla; chi è di turno ha un anello che pulsa */
+.pawns {
+  position: absolute; left: 0; right: 0; bottom: 6%; display: flex; justify-content: center; align-items: flex-end;
+  pointer-events: none; padding: 0 2px;
+}
+.pawn {
+  --size: clamp(12px, calc(var(--tile) * 0.46), 26px);
+  width: var(--size); height: var(--size); border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: calc(var(--size) * 0.5); font-weight: 800; line-height: 1;
+  border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+.pawn + .pawn { margin-left: calc(var(--size) * -0.3); }
+.pawns.crowd .pawn + .pawn { margin-left: calc(var(--size) * -0.55); }
+.pawn.now { position: relative; z-index: 1; box-shadow: 0 0 0 2px var(--ink), 0 1px 4px rgba(0, 0, 0, 0.5); animation: pawn-now 1.4s ease-in-out infinite; }
+@keyframes pawn-now { 50% { transform: translateY(-3px); } }
+/* nelle caselle dei lati la pedina non copre il nome */
+.space.left .pawns, .space.right .pawns { bottom: 3%; }
+
+/* centro del tavolo */
+.table-turn { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.1em; }
+.table-log { list-style: none; margin: 0; padding: 0; width: min(100%, 420px); display: grid; gap: 4px; }
+.table-log li {
+  background: color-mix(in srgb, var(--panel) 80%, transparent); border-radius: var(--radius-s); padding: 4px 10px;
+  font-size: 0.9em; color: var(--muted); text-align: center;
+}
+.table-log li:first-child { color: var(--ink); font-weight: 600; }
+@media (max-width: 600px) {
+  .table-log li:nth-child(n + 2) { display: none; }
+  .table-turn { font-size: 1em; }
+}
