@@ -92,6 +92,10 @@ export default defineConfig({
   // Percorso base per GitHub Pages (https://matteo-canna.github.io/sdrogopoli/)
   base: '/sdrogopoli/',
   plugins: [offline()],
+  // momento della build: si mostra accanto alla versione, così si vede subito se il sito è aggiornato
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   test: {
     include: ['tests/**/*.test.ts'],
   },

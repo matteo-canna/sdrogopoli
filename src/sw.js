@@ -35,7 +35,8 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
   // la pagina: prima la rete (per vedere subito una versione nuova), se manca quella salvata
   if (req.mode === 'navigate') {
-    event.respondWith(fetch(req).catch(() => caches.match('./', { ignoreSearch: true, ignoreVary: true })));
+    // cache: 'no-cache' scavalca la copia del browser (GitHub Pages la tiene 10 minuti)
+    event.respondWith(fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).catch(() => caches.match('./', { ignoreSearch: true, ignoreVary: true })));
     return;
   }
   // tutto il resto ha il nome con l'impronta o non cambia: prima la copia salvata.
