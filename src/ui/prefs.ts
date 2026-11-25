@@ -18,6 +18,7 @@ export const KEYS = {
   settings: 'sdrogopoli-impostazioni',
   profile: 'sdrogopoli-profilo',
   preset: 'sdrogopoli-tipo-partita',
+  daily: 'sdrogopoli-partita-del-giorno',
 } as const;
 
 export function readPref(key: string): string | null {

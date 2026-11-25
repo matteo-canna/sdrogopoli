@@ -31,6 +31,9 @@ import { turnServers } from '../net/turn';
 import { GuestRoom } from '../net/guest';
 import { announce, moveAnnouncement } from './announce';
 import { animateMoney, bigMoments, momentText, moneyChanges, moneyNotices, showMoment, showNotices } from './moments';
+import { shareResult } from './share';
+import { dailyResult } from './daily';
+import { Replay, REPLAY_SPEEDS, type ReplaySpeed } from './replay';
 import { t, text, type MsgKey } from '../i18n';
 import { applySettings, LANG_EVENT, loadSettings, openSettings } from './settings';
 
@@ -460,7 +463,9 @@ function resumeSummary(s: GameState): string {
 
 function startGame(choice: SetupChoice): void {
   resumeOffered = false;
-  session.start(createGame(choice.players, ctx, choice.rules, randomSeed()));
+  // la partita del giorno parte dal seme del giorno: stessi dadi e stesse carte per tutti
+  dailyDay = choice.daily ?? null;
+  session.start(createGame(choice.players, ctx, choice.rules, choice.seed ?? randomSeed()));
   // riattivando i consigli si ricomincia da capo
   if (choice.tipsOn && !tutorial.on) tutorial.seen.clear();
   tutorial.on = choice.tipsOn;
@@ -537,7 +542,7 @@ function infoHtml(s: GameState): string {
   const fresh = Math.min(Math.max((s.eventCount ?? 0) - newsFrom, 0), s.log.length, 8);
   const news = fresh ? s.log.slice(-fresh) : [];
   return `
-    ${s.phase === 'gameOver' ? renderSummary(s, ctx, { titles: myTitles(s), unlocked: newGoals }) : ''}
+    ${s.phase === 'gameOver' ? renderSummary(s, ctx, { titles: myTitles(s), unlocked: newGoals, canReplay: !!session.toFile() }) : ''}
     ${news.length ? `<div class="news"><h4>${t('news.title')}</h4><ul>${news.map((l) => `<li>${escapeHtml(text(l))}</li>`).join('')}</ul></div>` : ''}
     ${selected ? '' : `<p class="hint">${t('hint.tapSpace')}</p>`}
     <details class="log-box"><summary>${t('log.title')}</summary>
@@ -849,6 +854,9 @@ function soleHuman(s: GameState): number | null {
   return people.length === 1 ? people[0].id : null;
 }
 
+// giorno della partita del giorno in corso (null se è una partita normale)
+let dailyDay: string | null = null;
+
 // I posti giocati da una persona su questo dispositivo (online è solo il proprio).
 function mySeats(s: GameState): number[] {
   if (online) {
@@ -884,6 +892,71 @@ function myTitles(s: GameState): Record<number, string> {
   return Object.fromEntries(mySeats(s).map((seat) => [seat, titleLabel(title)]));
 }
 
+
+// ---------- rivedi la partita ----------
+
+let replay: Replay | null = null;
+
+// Finestra con il tabellone 2D che rigioca la partita dal primo lancio.
+function openReplay(): void {
+  const file = session.toFile();
+  if (!file) return;
+  document.querySelector('.replay-dialog')?.remove();
+  const dialog = document.createElement('dialog');
+  dialog.className = 'replay-dialog';
+  dialog.setAttribute('aria-label', t('replay.title'));
+  dialog.innerHTML = `
+    <div class="replay-board"></div>
+    <div class="replay-bar">
+      <button type="button" data-replay="back" aria-label="${t('replay.back')}">⏪</button>
+      <button type="button" class="primary" data-replay="toggle">⏸ ${t('replay.pause')}</button>
+      <button type="button" data-replay="forward" aria-label="${t('replay.forward')}">⏩</button>
+      <input type="range" min="0" max="1000" value="0" data-replay="seek" aria-label="${t('replay.title')}">
+      <span class="replay-step" data-replay="step"></span>
+      <label class="replay-speed">${t('replay.speed')}
+        <select data-replay="speed">${REPLAY_SPEEDS.map((v) => `<option value="${v}" ${v === 2 ? 'selected' : ''}>${v}×</option>`).join('')}</select>
+      </label>
+      <button type="button" data-replay="close">${t('replay.close')}</button>
+    </div>`;
+  document.body.append(dialog);
+  const boardBox = dialog.querySelector<HTMLElement>('.replay-board')!;
+  const seek = dialog.querySelector<HTMLInputElement>('[data-replay=seek]')!;
+  const toggle = dialog.querySelector<HTMLButtonElement>('[data-replay=toggle]')!;
+  const stepLabel = dialog.querySelector<HTMLElement>('[data-replay=step]')!;
+  const draw = (v: { state: GameState; progress: number; done: boolean }) => {
+    boardBox.innerHTML = `<div class="board">${renderBoard(v.state, null)}<div class="center">${renderTable(v.state)}</div></div>`;
+    seek.value = String(Math.round(v.progress * 1000));
+    stepLabel.textContent = t('replay.step', { n: Math.round(v.progress * (replay!.length - 1)) + 1, all: replay!.length });
+    toggle.textContent = replay!.playing ? `⏸ ${t('replay.pause')}` : `▶ ${t('replay.play')}`;
+  };
+  replay = Replay.from(file, ctx, (v) => draw(v));
+  draw(replay.view());
+  dialog.addEventListener('click', (e) => {
+    const what = (e.target as HTMLElement).closest<HTMLElement>('[data-replay]')?.dataset.replay;
+    if (!replay) return;
+    if (what === 'toggle') replay.playing ? replay.pause() : replay.play();
+    else if (what === 'back') replay.step(-1);
+    else if (what === 'forward') replay.step(1);
+    else if (what === 'close') dialog.close();
+    else return;
+    draw(replay.view());
+  });
+  dialog.addEventListener('input', (e) => {
+    const el = e.target as HTMLInputElement;
+    if (!replay) return;
+    if (el.dataset.replay === 'seek') replay.seek(Number(el.value) / 1000);
+    if (el.dataset.replay === 'speed') replay.speed = Number(el.value) as ReplaySpeed;
+  });
+  dialog.addEventListener('close', () => {
+    replay?.stop();
+    replay = null;
+    dialog.remove();
+  });
+  dialog.showModal();
+  replay.play();
+  draw(replay.view());
+}
+
 // Suoni, dadi, classifica e carta della casella dopo una mossa (fatta qui o arrivata dal tavolo).
 function afterMove(prev: GameState, state: GameState, action: Action, mine: boolean): void {
   announce(...moveAnnouncement(prev, state, online ? mySeat() : soleHuman(state)));
@@ -907,6 +980,9 @@ function afterMove(prev: GameState, state: GameState, action: Action, mine: bool
   if (prev.phase !== 'gameOver' && state.phase === 'gameOver') {
     saveLeaderboard(addResult(loadLeaderboard(), state, ctx));
     checkGoals(state);
+    // partita del giorno: si ricorda come è andata, per confrontarla con gli amici
+    const seat = mySeats(state)[0];
+    if (dailyDay !== null && seat !== undefined) writePref(KEYS.daily, JSON.stringify(dailyResult(state, ctx, seat, dailyDay)));
   }
   const sfx = soundFor(prev, state, action);
   // il suono del lancio c'è già: dopo un attimo quello del risultato
@@ -958,6 +1034,14 @@ app.addEventListener('click', (e) => {
     case 'toggleSfx':
       audio.setSfx(!audio.sfxOn);
       return render();
+    case 'share':
+      void shareResult(state, ctx).then((how) => {
+        if (how === 'downloaded') showNotices([{ k: 'share.done' }]);
+      });
+      return;
+    case 'replay':
+      openReplay();
+      return;
     case 'settings':
       openSettings((next) => {
         audio.setVolumes(next.sfxVolume, next.musicVolume);

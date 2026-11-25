@@ -21,6 +21,15 @@ test('i traguardi si sbloccano a fine partita e restano', async ({ page }, info)
       { timeout: 200_000, intervals: [100] },
     )
     .toBe(true);
+  // dal riepilogo si rivede la partita
+  await page.click('[data-action=replay]');
+  const finestra = page.locator('.replay-dialog');
+  await expect(finestra.locator('.board')).toBeVisible();
+  await expect(finestra.locator('.replay-step')).toContainText('Mossa');
+  await finestra.locator('[data-replay=forward]').click();
+  await finestra.locator('[data-replay=close]').click();
+  await expect(finestra).toHaveCount(0);
+
   // il riepilogo mostra i traguardi appena raggiunti
   await expect(page.locator('.new-goals li').first()).toBeVisible();
   const sbloccati = await page.evaluate(() => JSON.parse(localStorage.getItem('sdrogopoli-profilo') ?? '{}'));
