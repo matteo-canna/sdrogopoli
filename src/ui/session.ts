@@ -1,6 +1,7 @@
 // Partita in corso: stato attuale, stato iniziale con il registro delle azioni e "Annulla".
 // Non tocca la pagina: l'interfaccia chiama questi metodi e poi ridisegna.
-import { actingPlayer, applyAction, isUndoable, newSave, raiseMoney, readSave, SAVE_VERSION, type Action, type SaveFile, type GameContext, type GameState } from '../engine';
+import { actingPlayer, applyAction, fileBoard, isUndoable, newSave, raiseMoney, readSave, SAVE_VERSION, type Action, type SaveFile, type GameContext, type GameState } from '../engine';
+import { board, currentBoard, setBoard } from '../data';
 import { KEYS, readPref, removePref, writePref } from './prefs';
 
 export function randomSeed(): number {
@@ -17,12 +18,21 @@ export class GameSession {
 
   constructor(private ctx: GameContext) {}
 
+  // Il tabellone della partita: lo mette anche nel contesto, che è condiviso con l'interfaccia.
+  private useBoard(id?: string): void {
+    setBoard(id);
+    this.ctx.board = board;
+  }
+
   // Riprende la partita salvata nel browser, se c'è.
   load(): void {
     try {
       const raw = readPref(KEYS.save);
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      // il tabellone va scelto prima di leggere lo stato: i dati servono già per completarlo
+      if (parsed) this.useBoard(fileBoard(parsed));
       // le partite salvate senza seme ricevono un generatore nuovo
-      const file = raw ? readSave(JSON.parse(raw), this.ctx, randomSeed()) : null;
+      const file = parsed ? readSave(parsed, this.ctx, randomSeed()) : null;
       if (file) this.open(file);
     } catch {
       /* salvataggio rovinato: si parte dalla schermata iniziale */
@@ -31,6 +41,7 @@ export class GameSession {
 
   // Apre una partita salvata con un nome o importata da un file.
   open(file: SaveFile): void {
+    this.useBoard(file.board);
     this.state = file.state;
     this.initial = file.initial;
     this.actions = file.actions;
@@ -40,7 +51,7 @@ export class GameSession {
   // La partita in corso come file da salvare o esportare.
   toFile(): SaveFile | null {
     if (!this.state || !this.initial) return null;
-    return { version: SAVE_VERSION, initial: this.initial, actions: this.actions, state: this.state };
+    return { version: SAVE_VERSION, initial: this.initial, actions: this.actions, state: this.state, board: currentBoard() };
   }
 
   save(): void {
@@ -50,7 +61,7 @@ export class GameSession {
   }
 
   start(state: GameState): void {
-    ({ initial: this.initial, actions: this.actions } = newSave(state));
+    ({ initial: this.initial, actions: this.actions } = newSave(state, currentBoard()));
     this.state = state;
     this.undoStack = [];
   }

@@ -2,9 +2,8 @@
 // la lingua e si compongono le frasi con i loro valori ({name}, {amount}, ...).
 // I nomi delle vie e dei quartieri sono nomi propri della città e restano in italiano; le altre
 // caselle (Partenza, Caserma, fermate...) e le carte hanno la traduzione in src/data/*.en.json.
-import { board, cards } from '../data';
+import { BOARDS, board, cards } from '../data';
 import cardsEn from '../data/cards.en.json';
-import boardEn from '../data/board.en.json';
 import { it, type MsgKey } from './it';
 import { en } from './en';
 
@@ -48,10 +47,20 @@ export function detectLang(languages: readonly string[]): Lang {
   return 'en';
 }
 
+// I nomi delle caselle di tutti i tabelloni insieme: gli id sono diversi da un tabellone all'altro,
+// così una riga del registro si legge anche se riguarda una partita su un altro tabellone.
 const SPACE_NAMES: Record<Lang, Record<string, string>> = {
-  it: Object.fromEntries(board.spaces.map((sp) => [sp.id, sp.name])),
-  en: boardEn as Record<string, string>,
+  it: Object.fromEntries(BOARDS.flatMap((b) => b.data.spaces.map((sp) => [sp.id, sp.name]))),
+  en: Object.assign({}, ...BOARDS.map((b) => b.names)) as Record<string, string>,
 };
+
+// Nomi dei quartieri di tutti i tabelloni (restano in italiano: sono nomi propri).
+const GROUP_NAMES: Record<string, string> = Object.fromEntries(BOARDS.flatMap((b) => b.data.groups.map((g) => [g.id, g.name])));
+
+// Il ruolo a cui punta una carta ("lusso") diventa la casella del tabellone in uso.
+const CARD_TARGET: Record<string, string> = Object.fromEntries(
+  cards.cards.flatMap((c) => (c.effect.kind === 'moveTo' ? [[c.id, c.effect.space]] : [])),
+);
 
 export function spaceName(spaceId: string, lang: Lang = current): string {
   return SPACE_NAMES[lang][spaceId] ?? SPACE_NAMES.it[spaceId] ?? spaceId;
@@ -62,7 +71,11 @@ export function deckName(deck: string, lang: Lang = current): string {
 }
 
 export function cardText(cardId: string, lang: Lang = current): string {
-  return CARD_TEXT[lang][cardId]?.text ?? CARD_TEXT.it[cardId]?.text ?? cardId;
+  const raw = CARD_TEXT[lang][cardId]?.text ?? CARD_TEXT.it[cardId]?.text ?? cardId;
+  // alcune carte nominano la casella dove mandano: cambia col tabellone, quindi si scrive al momento
+  if (!raw.includes('{space}')) return raw;
+  const role = CARD_TARGET[cardId];
+  return raw.replace('{space}', spaceName(board.targets?.[role] ?? role, lang));
 }
 
 export function cardOption(cardId: string, option: number, lang: Lang = current): string {
@@ -75,7 +88,7 @@ function value(name: string, v: string | number | undefined, lang: Lang): string
   if (v === undefined) return `{${name}}`;
   const s = String(v);
   if (name === 'space') return spaceName(s, lang);
-  if (name === 'group') return board.groups.find((g) => g.id === s)?.name ?? s;
+  if (name === 'group') return GROUP_NAMES[s] ?? s;
   if (name === 'card') return cardText(s, lang);
   if (name === 'choice') {
     const [id, i] = s.split('#');

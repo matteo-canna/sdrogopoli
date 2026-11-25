@@ -1,6 +1,7 @@
 // Partite salvate con un nome (fino a cinque) ed esportate in un file .sdrogo da reimportare.
 // La partita in corso si salva comunque da sola: questi sono salvataggi in più, scelti da chi gioca.
-import { readSave, type GameContext, type GameState, type SaveFile } from '../engine';
+import { fileBoard, readSave, type GameContext, type GameState, type SaveFile } from '../engine';
+import { setBoard } from '../data';
 import { KEYS, readPref } from './prefs';
 import { getLang, t } from '../i18n';
 
@@ -63,9 +64,12 @@ export function deleteSlot(id: string): void {
 }
 
 // Legge un file esportato (o un vecchio salvataggio): null se non è una partita di Sdrogopoli.
+// Il tabellone del file va scelto prima di leggere lo stato, perché i suoi dati servono già qui.
 export function parseSaveText(text: string, ctx: GameContext, seed: number): SaveFile | null {
   try {
-    return readSave(JSON.parse(text), ctx, seed);
+    const raw: unknown = JSON.parse(text);
+    ctx.board = setBoard(fileBoard(raw));
+    return readSave(raw, ctx, seed);
   } catch {
     return null;
   }

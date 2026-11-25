@@ -1,0 +1,15 @@
+{
+  "v-partenza": "Start",
+  "v-quartiere-1": "Local Gossip",
+  "v-quartiere-2": "Local Gossip",
+  "v-sorte-1": "Stroke of Luck",
+  "v-sorte-2": "Stroke of Luck",
+  "v-tassa-1": "Fake Snow Tax",
+  "v-tassa-2": "Fine for Reckless Sledding",
+  "v-fermata-funivia": "Meadow Cable Car",
+  "v-fermata-trenino": "Valley Train",
+  "v-baita": "Ranger Hut (just visiting)",
+  "v-centralina": "Valley Power Hut",
+  "v-belvedere": "Viewpoint",
+  "v-vai-in-baita": "Stopped by the Rangers"
+}

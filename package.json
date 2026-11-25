@@ -14,7 +14,8 @@
     "simula": "vite-node scripts/simula.ts",
     "livelli": "vite-node scripts/livelli.ts",
     "preset": "vite-node scripts/preset.ts",
-    "squadre": "vite-node scripts/squadre.ts"
+    "squadre": "vite-node scripts/squadre.ts",
+    "simula:valle": "vite-node scripts/simula.ts -- 300 4 docs/bilanciamento-valle.md valle"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",

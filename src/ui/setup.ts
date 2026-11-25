@@ -1,5 +1,5 @@
 // Schermata iniziale: chi gioca, personaggi, regole della casa e classifica tra amici.
-import { board } from '../data';
+import { BOARDS, DEFAULT_BOARD, board, currentBoard, setBoard } from '../data';
 import { BOT_LEVELS, BOT_STYLES, PRESETS, estimatedMinutes, type BotStyle, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
 import { webglAvailable } from './webgl';
 import { load3d } from './lazy3d';
@@ -32,6 +32,8 @@ export interface SetupChoice {
   // seme fissato (partita del giorno) e giorno a cui appartiene
   seed?: number;
   daily?: string;
+  // tabellone scelto (id in src/data/boards.ts)
+  boardId?: string;
 }
 
 // aspetto scelto per ciascuno dei posti nella schermata iniziale (ricordato per la prossima partita)
@@ -54,6 +56,10 @@ function loadLooks(): Appearance[] {
     if (look.item && !(look.item in characterDef(look.character).items)) look.item = '';
     return look;
   });
+}
+
+function propertyCount(): number {
+  return board.spaces.filter((sp) => sp.type === 'property').length;
 }
 
 // ---------- schermata iniziale ----------
@@ -313,6 +319,13 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
         <label class="check demo-toggle"><input type="checkbox" name="demo">
           <span><strong>🧪 ${t('setup.demo')}</strong> <span class="badge-demo">${t('setup.experimental')}</span><br>
           <small>${t('setup.demoText', { n: DEMO_MAX_PLAYERS, rounds: DEMO_ROUNDS, bonus: `${board.currency.symbol} ${DEMO_SEAT_BONUS}` })}</small></span></label>
+        ${BOARDS.length > 1 ? `
+        <fieldset class="presets boards">
+          <legend>${t('setup.board')}</legend>
+          <div class="preset-list" role="radiogroup">
+            ${BOARDS.map((b) => `<label class="preset"><input type="radio" name="board" value="${b.id}" ${b.id === currentBoard() ? 'checked' : ''}><span><strong>${t(`board.${b.id}` as MsgKey)}</strong><small>${t(`boardText.${b.id}` as MsgKey)}</small></span></label>`).join('')}
+          </div>
+        </fieldset>` : ''}
         <fieldset class="presets">
           <legend>${t('setup.gameType')}</legend>
           <div class="preset-list" role="radiogroup">
@@ -343,7 +356,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
             </select>
           </label>
           <label class="check"><input type="checkbox" name="tips" ${tipsOn ? 'checked' : ''}> ${t('rules.tips')}</label>
-          <label class="check"><input type="checkbox" name="quick"> ${t('rules.quick', { n: QUICK_START_PROPERTIES, two: QUICK_START_TWO_PLAYERS, total: board.spaces.filter((sp) => sp.type === 'property').length })}</label>
+          <label class="check"><input type="checkbox" name="quick"> ${t('rules.quick', { n: QUICK_START_PROPERTIES, two: QUICK_START_TWO_PLAYERS, total: `<span data-board-props>${propertyCount()}</span>` })}</label>
           <label class="check"><input type="checkbox" name="bonus" checked> ${t('rules.bonus', { amount: `${board.currency.symbol} <span data-bonus-amount>${SEAT_BONUS}</span>` })}</label>
           <label class="check"><input type="checkbox" name="sprint"> 🎲 ${t('rules.sprint')}</label>
           <label>${t('rules.goal')}
@@ -401,7 +414,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       const name = form.querySelector<HTMLInputElement>('input[name=p0]')?.value.trim() || t('setup.playerN', { n: 1 });
       const day = dayId();
       destroyPreview();
-      onStart({ players: dailyPlayers(name), rules: { maxRounds: DAILY_ROUNDS }, tipsOn: form.querySelector<HTMLInputElement>('input[name=tips]')?.checked ?? tipsOn, seed: dailySeed(day), daily: day });
+      onStart({ players: dailyPlayers(name), rules: { maxRounds: DAILY_ROUNDS }, tipsOn: form.querySelector<HTMLInputElement>('input[name=tips]')?.checked ?? tipsOn, seed: dailySeed(day), daily: day, boardId: DEFAULT_BOARD });
       return;
     }
     if (el.closest('[data-daily-copy]')) {
@@ -566,6 +579,12 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
   };
   form.addEventListener('change', (e) => {
     const t = e.target as HTMLInputElement;
+    if (t.name === 'board') {
+      setBoard(t.value);
+      writePref(KEYS.board, t.value);
+      const props = form.querySelector<HTMLElement>('[data-board-props]');
+      if (props) props.textContent = String(propertyCount());
+    }
     if (t.name === 'preset') applyPreset(t.value);
     else if (['rounds', 'quick', 'sprint', 'goal', 'pot', 'money'].includes(t.name)) {
       form.querySelector<HTMLInputElement>('input[name=preset][value=custom]')!.checked = true;
@@ -657,6 +676,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
         seatBonus: data.get('bonus') === 'on' ? (demo ? DEMO_SEAT_BONUS : SEAT_BONUS) : 0,
       },
       tipsOn: data.get('tips') === 'on',
+      boardId: String(data.get('board') ?? currentBoard()),
     });
   });
 }

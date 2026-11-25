@@ -1,7 +1,7 @@
 // Giocatore controllato dal computer: sceglie sempre un'azione valida in base allo stato.
 // Il livello (facile, normale, difficile) e il carattere (costruttore, collezionista…) cambiano
 // alcune manopole: riserva di soldi, voglia di comprare e costruire, offerte e scambi.
-import { actingPlayer, computeRent, interestOn, ownsWholeGroup, sameTeam, unmortgageCost, HOTEL, MAX_COUNTERS, MIN_BID, type Action } from './rules';
+import { actingPlayer, computeRent, interestOn, ownsWholeGroup, sameTeam, targetSpace, unmortgageCost, HOTEL, MAX_COUNTERS, MIN_BID, type Action } from './rules';
 import type { BotLevel, BotProfile, BotStyle, GameContext, GameState, Player, TradeSide } from './state';
 import { JAIL_FINE } from './state';
 import type { PropertySpace, Space } from './types';
@@ -390,7 +390,7 @@ export function chooseBotAction(state: GameState, ctx: GameContext): Action {
           salary: start && 'salary' in start ? start.salary : 200,
           position: me.position,
           size: ctx.board.spaces.length,
-          indexOf: (id) => ctx.board.spaces.findIndex((sp) => sp.id === id),
+          indexOf: (id) => ctx.board.spaces.findIndex((sp) => sp.id === targetSpace(ctx.board, id)),
           jailIsSafe: Object.keys(state.ownership).length >= 20,
         }),
       );

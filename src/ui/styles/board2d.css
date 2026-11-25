@@ -1,5 +1,5 @@
 /* Tabellone 2D leggibile: di chi è ogni via, quante case ha e dove sono le pedine, senza aprire nulla. */
-.game2d .board { --tile: calc(min(100cqw, 100cqh) / 12.4); }
+.game2d .board { --tile: calc(min(100cqw, 100cqh) / (var(--cells) + 1.4)); }
 .board { --tile: 40px; }
 
 /* via di qualcuno: casella tinta col suo colore e bordo esterno pieno */

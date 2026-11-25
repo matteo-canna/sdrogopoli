@@ -15,7 +15,9 @@ export class CameraRig {
   private pos = new THREE.Vector3(0, 14, 11);
   private lookAt = new THREE.Vector3();
 
-  constructor(private camera: THREE.PerspectiveCamera) {
+  // "spread" = quanto è grande il tabellone rispetto a quello da 40 caselle: la vista
+  // d'insieme si avvicina sui tabelloni più corti, così riempiono lo schermo allo stesso modo.
+  constructor(private camera: THREE.PerspectiveCamera, private spread = 1) {
     camera.position.copy(this.pos);
   }
 
@@ -23,7 +25,7 @@ export class CameraRig {
   update(dt: number, token: THREE.Object3D | null, reduceMotion: boolean): void {
     if (!token) {
       this.target.set(0, 0, 0);
-      this.pos.set(0, 12, 9.5);
+      this.pos.set(0, 12 * this.spread, 9.5 * this.spread);
     } else {
       // la camera sta all'esterno del tabellone, alle spalle della pedina, e guarda verso il centro
       const p = token.position;

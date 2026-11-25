@@ -1,12 +1,15 @@
 // Simulazione di bilanciamento: il computer gioca contro sé stesso molte partite
 // e scrive un rapporto su durata, vantaggio del primo giocatore e rendita dei quartieri.
-// Uso: npm run simula -- [partite] [giocatori]
+// Uso: npm run simula -- [partite] [giocatori] [file] [tabellone]
 import { writeFileSync } from 'node:fs';
-import { board, cards } from '../src/data';
+import { board, cards, setBoard } from '../src/data';
 import { QUICK_START_PROPERTIES, applyAction, chooseBotAction, computeRent, createGame, seededRng, type GameContext, type GameState } from '../src/engine';
 
 const GAMES = Number(process.argv[2] ?? 400);
 const PLAYERS = Number(process.argv[3] ?? 4);
+// il tabellone va scelto prima di leggere "board": gli altri valori si calcolano da lì
+const BOARD = process.argv[5] ?? 'citta';
+setBoard(BOARD);
 const MAX_ROUNDS = 150;
 
 interface Stats {
@@ -86,7 +89,7 @@ const totalLandings = stats.landings.reduce((a, b) => a + b, 0);
 const lines: string[] = [];
 lines.push(`# Rapporto di bilanciamento`);
 lines.push('');
-lines.push(`${GAMES} partite tra ${PLAYERS} giocatori computer, massimo ${MAX_ROUNDS} giri. Generato con \`npm run simula -- ${GAMES} ${PLAYERS}\`.`);
+lines.push(`${GAMES} partite tra ${PLAYERS} giocatori computer sul tabellone "${BOARD}" (${board.spaces.length} caselle), massimo ${MAX_ROUNDS} giri. Generato con \`npm run simula -- ${GAMES} ${PLAYERS} ${process.argv[4] ?? 'docs/bilanciamento.md'} ${BOARD}\`.`);
 lines.push('');
 lines.push(`## Durata`);
 lines.push(`- Partite finite con un vincitore: **${stats.finished} su ${GAMES} (${pct(stats.finished, GAMES)})**`);
@@ -112,8 +115,11 @@ for (const g of board.groups) {
 }
 const stationRent = board.spaces.filter((s) => s.type === 'station').reduce((sum, sp) => sum + (stats.rentBySpace[sp.id] ?? 0), 0) / GAMES;
 const utilityRent = board.spaces.filter((s) => s.type === 'utility').reduce((sum, sp) => sum + (stats.rentBySpace[sp.id] ?? 0), 0) / GAMES;
-lines.push(`| Fermate (4) | | | ${Math.round(stationRent)} | 800 | ${(stationRent / 800).toFixed(2)} |`);
-lines.push(`| Servizi (2) | | | ${Math.round(utilityRent)} | 300 | ${(utilityRent / 300).toFixed(2)} |`);
+// fermate e servizi: quanti sono e quanto costano cambia col tabellone
+const cost = (type: 'station' | 'utility') => board.spaces.reduce((sum, sp) => (sp.type === type && 'price' in sp ? sum + sp.price : sum), 0);
+const count = (type: 'station' | 'utility') => board.spaces.filter((sp) => sp.type === type).length;
+lines.push(`| Fermate (${count('station')}) | | | ${Math.round(stationRent)} | ${cost('station')} | ${(stationRent / cost('station')).toFixed(2)} |`);
+lines.push(`| Servizi (${count('utility')}) | | | ${Math.round(utilityRent)} | ${cost('utility')} | ${(utilityRent / cost('utility')).toFixed(2)} |`);
 lines.push('');
 lines.push(`## Caselle più visitate`);
 const top = stats.landings.map((n, i) => ({ n, i })).sort((a, b) => b.n - a.n).slice(0, 8);

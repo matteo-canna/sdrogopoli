@@ -5,7 +5,7 @@ import type { GameState } from '../../engine';
 import { tokenScale, tokenSlot } from '../tokenLayout';
 import { appearanceOf, playerColor, playerMarks } from '../characters';
 import { createCharacter } from './characters3d';
-import { CHARACTER_HEIGHT, HOP_SECONDS, SIZE, restYaw, spaceCenter, textRotation, turnTowards } from './layout';
+import { CHARACTER_HEIGHT, HOP_SECONDS, boardSide, boardSize, restYaw, spaceCenter, textRotation, turnTowards } from './layout';
 import { DICE_SECONDS, Dice3D } from './dice3d';
 import { CameraRig, type CameraMode } from './camera';
 export type { CameraMode } from './camera';
@@ -28,7 +28,7 @@ export class Board3D {
   private playerCount = 0;
   private raycaster = new THREE.Raycaster();
   private clock = new THREE.Clock();
-  private rig = new CameraRig(this.camera);
+  private rig = new CameraRig(this.camera, boardSide() / 11);
   private focusPlayer = 0;
   private selected: string | null = null;
   private resizeObserver: ResizeObserver;
@@ -158,6 +158,8 @@ export class Board3D {
     sc.left = sc.bottom = -8;
     sc.right = sc.top = 8;
     this.scene.add(sun);
+    // le decorazioni sono disegnate per il centro del tabellone grande: si riducono con lui
+    this.city.group.scale.setScalar((boardSide() - 2) / 9);
     this.scene.add(this.city.group);
 
     const { tiles, buildings } = buildBoard(this.scene, this.renderer);
@@ -284,6 +286,7 @@ export class Board3D {
   // Prepara i salti casella per casella. Indietro di poche caselle (carte) si cammina all'indietro;
   // verso la Caserma si fa un unico grande salto.
   private enqueueMove(view: TokenView, playerId: number, from: number, to: number, jailed: boolean): void {
+    const SIZE = boardSize();
     const forward = (to - from + SIZE) % SIZE;
     const backward = (from - to + SIZE) % SIZE;
     const path: number[] = [];

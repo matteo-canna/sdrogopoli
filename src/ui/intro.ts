@@ -5,7 +5,8 @@ import { JAIL_FINE, MAX_PLAYERS, MIN_PLAYERS } from '../engine';
 import { escapeHtml } from './view';
 import { deckName, t, type MsgKey } from '../i18n';
 
-const SYMBOL = board.currency.symbol;
+// il simbolo si legge al momento: cambia col tabellone
+const SYMBOL = () => board.currency.symbol;
 
 export interface District {
   id: string;
@@ -33,8 +34,8 @@ export function gameFacts(): { value: string; label: string }[] {
     { value: String(board.spaces.length), label: t('facts.spaces') },
     { value: String(board.groups.length), label: t('facts.groups') },
     { value: String(cards.cards.length), label: t('facts.cards') },
-    { value: `${SYMBOL} ${board.startingMoney}`, label: t('facts.start') },
-    { value: `${SYMBOL} ${salary}`, label: t('facts.salary') },
+    { value: `${SYMBOL()} ${board.startingMoney}`, label: t('facts.start') },
+    { value: `${SYMBOL()} ${salary}`, label: t('facts.salary') },
   ];
 }
 
@@ -61,10 +62,10 @@ export function renderIntro(): string {
       <details class="rules-more">
         <summary>${t('intro.rules')}</summary>
         <ul>
-          <li>🏁 ${t('intro.rule1', { amount: `${SYMBOL} ${salary}` })}</li>
+          <li>🏁 ${t('intro.rule1', { amount: `${SYMBOL()} ${salary}` })}</li>
           <li>❓ ${t('intro.rule2', { decks: deckNames() })}</li>
           <li>🚋 ${t('intro.rule3')}</li>
-          <li>👮 ${t('intro.rule4', { amount: `${SYMBOL} ${JAIL_FINE}` })}</li>
+          <li>👮 ${t('intro.rule4', { amount: `${SYMBOL()} ${JAIL_FINE}` })}</li>
           <li>🤝 ${t('intro.rule5')}</li>
           <li>🏦 ${t('intro.rule6')}</li>
           <li>⏱️ ${t('intro.rule7')}</li>
@@ -77,7 +78,7 @@ export function renderIntro(): string {
         ${gameFacts().map((f) => `<li><strong>${f.value}</strong><span>${f.label}</span></li>`).join('')}
       </ul>
       <ul class="districts">
-        ${districts().map((d) => `<li style="--g:${d.color}"><span class="district-name">${escapeHtml(d.name)}</span><span class="district-price">${t('intro.streets', { n: d.streets })} · ${SYMBOL} ${d.minPrice}${d.maxPrice !== d.minPrice ? `-${d.maxPrice}` : ''}</span></li>`).join('')}
+        ${districts().map((d) => `<li style="--g:${d.color}"><span class="district-name">${escapeHtml(d.name)}</span><span class="district-price">${t('intro.streets', { n: d.streets })} · ${SYMBOL()} ${d.minPrice}${d.maxPrice !== d.minPrice ? `-${d.maxPrice}` : ''}</span></li>`).join('')}
       </ul>
     </section>`;
 }

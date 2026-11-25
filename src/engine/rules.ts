@@ -1,7 +1,7 @@
 // Regole di gioco: ogni azione produce un nuovo stato senza modificare quello precedente.
 import { rollDice } from './dice';
 import { defaultRules, emptyStats, withRng, JAIL_FINE, MAX_JAIL_ATTEMPTS, SPRINT_FACES, type GameContext, type SprintFace, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
-import type { Card, CardEffect, DeckId, PropertySpace, Space } from './types';
+import type { BoardData, Card, CardEffect, DeckId, PropertySpace, Space } from './types';
 import { format, type MsgKey, type Params } from '../i18n';
 
 export type Action =
@@ -50,6 +50,12 @@ export class RuleError extends Error {
 }
 
 const BOARD_SIZE_FALLBACK = 40;
+
+// L'id vero della casella a cui punta una carta: le carte usano un ruolo ("lusso"),
+// ogni tabellone dice qual è la sua casella (board.targets). Senza ruolo vale l'id così com'è.
+export function targetSpace(board: BoardData, id: string): string {
+  return board.targets?.[id] ?? id;
+}
 export const HOTEL = 5;
 export const MAX_LOG = 50;
 
@@ -326,7 +332,7 @@ function applyCardEffect(state: GameState, ctx: GameContext, effect: CardEffect)
       sendToJail(state, ctx);
       break;
     case 'moveTo': {
-      const idx = ctx.board.spaces.findIndex((s) => s.id === effect.space);
+      const idx = ctx.board.spaces.findIndex((s) => s.id === targetSpace(ctx.board, effect.space));
       moveForwardTo(state, ctx, idx);
       resolveLanding(state, ctx);
       break;
