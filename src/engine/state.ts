@@ -125,6 +125,8 @@ export interface TradeOffer {
   to: number;
   give: TradeSide;
   get: TradeSide;
+  // controproposte già fatte in questa trattativa
+  counters?: number;
 }
 
 export interface GameState {

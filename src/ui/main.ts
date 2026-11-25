@@ -4,7 +4,7 @@
 import './style.css';
 import { board, cards } from '../data';
 import { actingPlayer, applyAction, chooseBotAction, createGame, raiseMoney, RuleError, SEAT_BONUS, type Action, type Appearance, type GameContext, type GameState, type SaveFile } from '../engine';
-import { escapeHtml, playerBadge, renderBoard, renderDice, renderPlayers, renderSpaceCard, renderTable, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
+import { escapeHtml, playerBadge, renderBoard, renderDice, renderPlayers, renderSpaceCard, renderTable, renderTradeEditor, renderTurnActions, tradeSummaryHtml, type TradeDraft } from './view';
 import type { Board3D } from './three/board3d';
 import type { CameraMode } from './three/camera';
 import type { SkyMode } from './three/city';
@@ -803,6 +803,14 @@ app.addEventListener('click', (e) => {
       else online.room.say(target.dataset.say ?? '');
       saysOpen = false;
       return render();
+    case 'counterTrade': {
+      const t = state.trade;
+      if (!t) return;
+      // si parte dallo scambio ricevuto, girato dal proprio punto di vista
+      tradeDraft = { to: t.from, give: { money: t.get.money, spaces: [...t.get.spaces] }, get: { money: t.give.money, spaces: [...t.give.spaces] }, counter: true };
+      error = '';
+      return render();
+    }
     case 'closeTrade':
       tradeDraft = null;
       return render();
@@ -909,6 +917,7 @@ app.addEventListener('change', (e) => {
   const side = field === 'give-space' ? tradeDraft.give : tradeDraft.get;
   const id = el.value;
   side.spaces = (el as HTMLInputElement).checked ? [...side.spaces, id] : side.spaces.filter((x) => x !== id);
+  refreshTradeSummary();
 });
 
 app.addEventListener('submit', (e) => {
@@ -936,10 +945,20 @@ app.addEventListener('submit', (e) => {
     side.money = Math.max(0, Math.floor(Number(input.value) || 0));
   }
   const draft = tradeDraft;
-  act({ type: 'proposeTrade', offer: { to: draft.to, give: draft.give, get: draft.get } });
+  if (draft.counter) act({ type: 'counterTrade', offer: { give: draft.give, get: draft.get } });
+  else act({ type: 'proposeTrade', offer: { to: draft.to, give: draft.give, get: draft.get } });
   if (!error) tradeDraft = null;
   render();
 });
+
+// Aggiorna "chi completa quale quartiere" mentre si prepara lo scambio, senza ridisegnare il modulo.
+function refreshTradeSummary(): void {
+  const s = session.state;
+  if (!s || !tradeDraft) return;
+  const me = tradeDraft.counter && s.trade ? s.trade.to : s.current;
+  const html = tradeSummaryHtml(s, { from: me, to: tradeDraft.to, give: tradeDraft.give, get: tradeDraft.get });
+  app.querySelectorAll('[data-trade-summary]').forEach((el) => (el.innerHTML = html));
+}
 
 // Azioni che non si annullano: il primo tocco chiede conferma, il secondo esegue.
 function confirmTwice(button: HTMLElement): boolean {

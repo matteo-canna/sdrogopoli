@@ -19,9 +19,13 @@ export type Action =
   | { type: 'pass' }
   | { type: 'proposeTrade'; offer: Omit<TradeOffer, 'from'> }
   | { type: 'acceptTrade' }
-  | { type: 'rejectTrade' };
+  | { type: 'rejectTrade' }
+  // chi riceve lo scambio risponde con condizioni diverse (dal suo punto di vista: cosa dà, cosa chiede)
+  | { type: 'counterTrade'; offer: { give: TradeSide; get: TradeSide } };
 
 export const MIN_BID = 10;
+// controproposte per trattativa: chi riceve ne fa una, chi ha proposto può rispondere con un'altra
+export const MAX_COUNTERS = 2;
 
 // Chi deve agire adesso: di solito il giocatore di turno, ma durante un'asta
 // rilancia chi è di mano, e con uno scambio in sospeso risponde il destinatario.
@@ -534,6 +538,35 @@ function doAcceptTrade(state: GameState, ctx: GameContext): void {
   log(state, `${state.players[t.to].name} accetta lo scambio.`);
 }
 
+function doCounterTrade(state: GameState, ctx: GameContext, offer: { give: TradeSide; get: TradeSide }): void {
+  const t = state.trade;
+  if (!t) throw new RuleError('Nessuno scambio in sospeso.');
+  const counters = t.counters ?? 0;
+  if (counters >= MAX_COUNTERS) throw new RuleError('Basta controproposte: accetta o rifiuta.');
+  const counter = { from: t.to, to: t.from, give: offer.give, get: offer.get };
+  const empty = (x: TradeSide) => x.money === 0 && x.spaces.length === 0;
+  if (empty(offer.give) && empty(offer.get)) throw new RuleError('Lo scambio è vuoto.');
+  validateSide(state, ctx, counter.from, counter.give);
+  validateSide(state, ctx, counter.to, counter.get);
+  validateInterest(state, ctx, counter);
+  state.trade = { ...counter, give: { ...offer.give, spaces: [...offer.give.spaces] }, get: { ...offer.get, spaces: [...offer.get.spaces] }, counters: counters + 1 };
+  log(state, `${state.players[counter.from].name} risponde con una controproposta.`);
+}
+
+// Quartieri che ciascuno completerebbe se lo scambio andasse in porto.
+export function tradeCompletions(state: GameState, ctx: GameContext, t: { from: number; to: number; give: TradeSide; get: TradeSide }): { player: number; group: string }[] {
+  const after: GameState = { ...state, ownership: { ...state.ownership } };
+  for (const id of t.give.spaces) if (after.ownership[id]) after.ownership[id] = { ...after.ownership[id], owner: t.to };
+  for (const id of t.get.spaces) if (after.ownership[id]) after.ownership[id] = { ...after.ownership[id], owner: t.from };
+  const out: { player: number; group: string }[] = [];
+  for (const g of ctx.board.groups) {
+    for (const who of [t.from, t.to]) {
+      if (ownsWholeGroup(after, ctx, who, g.id) && !ownsWholeGroup(state, ctx, who, g.id)) out.push({ player: who, group: g.id });
+    }
+  }
+  return out;
+}
+
 function doRejectTrade(state: GameState): void {
   const t = state.trade;
   if (!t) throw new RuleError('Nessuno scambio in sospeso.');
@@ -769,7 +802,7 @@ function doBankrupt(state: GameState, ctx: GameContext): void {
 export function applyAction(state: GameState, action: Action, gameCtx: GameContext): GameState {
   if (state.phase === 'gameOver') throw new RuleError('La partita è finita.');
   // con uno scambio in sospeso si può solo accettare o rifiutare
-  if (state.trade && action.type !== 'acceptTrade' && action.type !== 'rejectTrade') {
+  if (state.trade && action.type !== 'acceptTrade' && action.type !== 'rejectTrade' && action.type !== 'counterTrade') {
     throw new RuleError('Prima si deve rispondere allo scambio.');
   }
   const next = structuredClone(state);
@@ -797,6 +830,7 @@ export function applyAction(state: GameState, action: Action, gameCtx: GameConte
     case 'proposeTrade': doProposeTrade(next, ctx, action.offer); break;
     case 'acceptTrade': doAcceptTrade(next, ctx); break;
     case 'rejectTrade': doRejectTrade(next); break;
+    case 'counterTrade': doCounterTrade(next, ctx, action.offer); break;
   }
   // si tengono solo gli ultimi eventi: lo stato resta piccolo da copiare e salvare
   if (next.log.length > MAX_LOG) next.log.splice(0, next.log.length - MAX_LOG);

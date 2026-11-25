@@ -1,6 +1,6 @@
 // Funzioni di rendering: trasformano lo stato del motore in HTML.
 import { board, cards } from '../data';
-import { actingPlayer, BOT_LEVELS, BOT_STYLES, computeRent, debtOptions, liquidationValue, MIN_BID, netWorth, unmortgageCost, type BotProfile, type GameState, type Space, type TradeSide } from '../engine';
+import { actingPlayer, BOT_LEVELS, MAX_COUNTERS, tradeCompletions, BOT_STYLES, computeRent, debtOptions, liquidationValue, MIN_BID, netWorth, unmortgageCost, type BotProfile, type GameState, type Space, type TradeSide } from '../engine';
 import { inkOn, playerColor, playerMarks } from './characters';
 
 // Dischetto con il colore e la sigla del giocatore (la sigla lo distingue anche senza colori).
@@ -228,6 +228,7 @@ export function renderTurnActions(state: GameState): string {
   const b: string[] = [banner];
   if (state.trade) {
     b.push(`<button class="primary" data-action="acceptTrade">Accetta</button>`);
+    if ((state.trade.counters ?? 0) < MAX_COUNTERS) b.push(`<button data-action="counterTrade">↩️ Controproponi</button>`);
     b.push(`<button data-action="rejectTrade">Rifiuta</button>`);
     return b.join('');
   }
@@ -289,9 +290,12 @@ function renderTradeOffer(state: GameState): string {
   const from = escapeHtml(state.players[t.from].name);
   const to = escapeHtml(state.players[t.to].name);
   return `<div class="offer">
-    <h4>🤝 ${from} propone uno scambio a ${to}</h4>
-    <p><strong>${from} dà:</strong> ${sideText(t.give)}</p>
-    <p><strong>${from} chiede:</strong> ${sideText(t.get)}</p>
+    <h4>${t.counters ? `↩️ ${from} risponde a ${to} con una controproposta` : `🤝 ${from} propone uno scambio a ${to}`}</h4>
+    <div class="offer-cols">
+      <div><span class="offer-label">${from} dà</span>${sideText(t.give)}</div>
+      <div><span class="offer-label">${from} chiede</span>${sideText(t.get)}</div>
+    </div>
+    ${tradeSummaryHtml(state, t)}
   </div>`;
 }
 
@@ -342,6 +346,20 @@ export interface TradeDraft {
   to: number;
   give: TradeSide;
   get: TradeSide;
+  // risposta a uno scambio ricevuto: chi scrive è il destinatario, e l'altro non si cambia
+  counter?: boolean;
+}
+
+// Chi completa quale quartiere se lo scambio va in porto: la cosa da guardare prima di accettare.
+export function tradeSummaryHtml(state: GameState, t: { from: number; to: number; give: TradeSide; get: TradeSide }): string {
+  const done = tradeCompletions(state, { board, cards }, t);
+  if (!done.length) return '<p class="trade-note">Nessuno completa un quartiere con questo scambio.</p>';
+  return done
+    .map((d) => {
+      const g = board.groups.find((x) => x.id === d.group)!;
+      return `<p class="trade-note complete" style="--g:${g.color}">✨ <strong>${escapeHtml(state.players[d.player].name)}</strong> completa il quartiere <strong>${escapeHtml(g.name)}</strong> e può costruire.</p>`;
+    })
+    .join('');
 }
 
 function tradeableSpaces(state: GameState, owner: number): string[] {
@@ -356,7 +374,7 @@ function tradeableSpaces(state: GameState, owner: number): string[] {
 }
 
 export function renderTradeEditor(state: GameState, d: TradeDraft): string {
-  const me = state.players[state.current];
+  const me = state.players[d.counter && state.trade ? state.trade.to : state.current];
   const others = state.players.filter((o) => o.id !== me.id && !o.bankrupt);
   const list = (owner: number, side: 'give' | 'get') => {
     const ids = tradeableSpaces(state, owner);
@@ -373,10 +391,10 @@ export function renderTradeEditor(state: GameState, d: TradeDraft): string {
   };
   const other = state.players[d.to];
   return `<form class="trade-editor" id="trade-form">
-    <h4>🤝 Proponi uno scambio</h4>
-    <label class="row">Con
+    <h4>${d.counter ? `↩️ Controproposta a ${escapeHtml(other.name)}` : '🤝 Proponi uno scambio'}</h4>
+    ${d.counter ? '<p class="hint">Cambia quello che dai e quello che chiedi, poi manda la tua proposta.</p>' : `<label class="row">Con
       <select data-trade="to">${others.map((o) => `<option value="${o.id}" ${o.id === d.to ? 'selected' : ''}>${o.isBot ? '🤖 ' : ''}${escapeHtml(o.name)}</option>`).join('')}</select>
-    </label>
+    </label>`}
     <div class="trade-cols">
       <fieldset><legend>Tu dai</legend>
         ${list(me.id, 'give')}
@@ -387,8 +405,9 @@ export function renderTradeEditor(state: GameState, d: TradeDraft): string {
         <label class="row">Soldi <input type="number" inputmode="numeric" min="0" max="${Math.max(other.money, 0)}" step="10" value="${d.get.money}" data-trade="get-money"></label>
       </fieldset>
     </div>
+    <div data-trade-summary aria-live="polite">${tradeSummaryHtml(state, { from: me.id, to: d.to, give: d.give, get: d.get })}</div>
     <div class="actions">
-      <button class="primary" type="submit">Proponi</button>
+      <button class="primary" type="submit">${d.counter ? 'Manda la controproposta' : 'Proponi'}</button>
       <button type="button" data-action="closeTrade">Annulla</button>
     </div>
   </form>`;
