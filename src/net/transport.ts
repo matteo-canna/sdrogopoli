@@ -38,8 +38,8 @@ export class FakeNetwork {
     for (const [id, peer] of this.peers) {
       if (id === from || (to && id !== to)) continue;
       this.later(() => {
-        // chi è uscito nel frattempo non riceve più nulla
-        if (!this.peers.has(id) || !this.peers.has(from)) return;
+        // chi è uscito nel frattempo non riceve più nulla (quello che si è mandato prima di uscire arriva)
+        if (!this.peers.has(id)) return;
         this.delivered++;
         peer.emitMessage(JSON.parse(raw), from);
       });

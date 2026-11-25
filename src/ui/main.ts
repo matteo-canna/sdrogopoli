@@ -3,7 +3,7 @@
 // e "Annulla" (session.ts), turni del computer (bots.ts), suoni (sounds.ts), preferenze (prefs.ts).
 import './style.css';
 import { board, cards } from '../data';
-import { actingPlayer, chooseBotAction, createGame, RuleError, type Action, type GameContext, type GameState, type SaveFile } from '../engine';
+import { actingPlayer, applyAction, chooseBotAction, createGame, raiseMoney, RuleError, SEAT_BONUS, type Action, type Appearance, type GameContext, type GameState, type SaveFile } from '../engine';
 import { escapeHtml, playerBadge, renderBoard, renderDice, renderPlayers, renderSpaceCard, renderTable, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
 import type { Board3D } from './three/board3d';
 import type { CameraMode } from './three/camera';
@@ -23,6 +23,9 @@ import { renderSetup, setupLooks, SEATS_SHOWN, type SetupChoice } from './setup'
 import { setupOffline } from './pwa';
 import { reportUrl } from './report';
 import { defaultSlotName, deleteSlot, downloadSave, FILE_EXT, listSlots, parseSaveText, saveSlot } from './slots';
+import { cleanCode, codeFromHash, openTransport, renderLobby, tableCode, updateLobby, type LobbyView } from './online';
+import { HostRoom } from '../net/host';
+import { GuestRoom } from '../net/guest';
 
 // senza "rng": i dadi vengono dal generatore della partita, che parte da un seme casuale
 const ctx: GameContext = { board, cards };
@@ -59,6 +62,182 @@ phoneQuery.addEventListener('change', () => {
 // con una partita salvata, all'avvio si sceglie tra "Continua" e "Nuova partita"
 let resumeOffered = !!session.state;
 
+// ---------- tavolo online ----------
+// Durante una partita online session.state è lo stato mandato da chi ha creato il tavolo:
+// niente salvataggio automatico (resta quello della partita sul dispositivo) e niente "Annulla".
+type Online = { role: 'host'; room: HostRoom; code: string } | { role: 'guest'; room: GuestRoom; code: string };
+let online: Online | null = null;
+let lobbyShown = false;
+let lobbyStatus = '';
+let onlineName = readPref(KEYS.onlineName) ?? '';
+let onlineLook: Appearance = setupLooks[0];
+
+// posto di chi usa questo schermo (null: guarda soltanto)
+function mySeat(): number | null {
+  if (!online) return null;
+  return online.role === 'host' ? online.room.hostSeat : online.room.seat;
+}
+
+// salva la partita in corso, tranne quelle online
+function persist(): void {
+  if (!online) session.save();
+}
+
+function lobbyView(): LobbyView {
+  const o = online!;
+  return {
+    role: o.role,
+    code: o.code,
+    meId: o.role === 'host' ? 'oste' : o.room.myId,
+    name: onlineName,
+    look: onlineLook,
+    members: o.room.members,
+    computers: o.room.computers,
+    connected: o.role === 'host' || o.room.connected,
+    ready: o.role === 'guest' && o.room.ready,
+    status: lobbyStatus,
+  };
+}
+
+function showLobby(): void {
+  destroy3d();
+  if (lobbyShown && app.querySelector('.lobby')) {
+    updateLobby(app, lobbyView());
+    return;
+  }
+  lobbyShown = true;
+  renderLobby(app, lobbyView(), {
+    onProfile: (name, look) => {
+      onlineName = name;
+      onlineLook = look;
+      writePref(KEYS.onlineName, name);
+      if (online?.role === 'host') online.room.setHostProfile(name, look);
+      else if (online) {
+        online.room.name = name;
+        online.room.look = look;
+        online.room.setReady(online.room.ready);
+      }
+    },
+    onComputers: (n) => online?.role === 'host' && online.room.setComputers(n),
+    onReady: (ready) => {
+      if (online?.role !== 'guest') return;
+      online.room.setReady(ready);
+      render();
+    },
+    onStart: (maxRounds) => {
+      if (online?.role !== 'host') return;
+      online.room.start({ maxRounds, seatBonus: SEAT_BONUS }, randomSeed());
+    },
+    onLeave: leaveTable,
+  });
+  app.querySelector<HTMLInputElement>('[data-lobby-name]')?.focus();
+}
+
+// Stato nuovo arrivato dal tavolo (o calcolato qui, se il tavolo è nostro).
+function onTableChange(prev: GameState | null, next: GameState, action: Action | null): void {
+  session.state = next;
+  // partita appena iniziata (o appena raggiunta): si lascia la sala d'attesa
+  if (lobbyShown) {
+    lobbyShown = false;
+    selected = null;
+    error = '';
+    newsFrom = next.eventCount ?? 0;
+    lastActorBot = false;
+  }
+  if (prev && action) {
+    const mine = actingPlayer(prev) === mySeat();
+    // le mie mosse azzerano le notizie; quelle degli altri si accumulano
+    if (mine || !lastActorBot) newsFrom = prev.eventCount ?? 0;
+    lastActorBot = !mine;
+    if (mine) error = '';
+    afterMove(prev, next, action, mine);
+  }
+  render();
+}
+
+async function enterTable(role: 'host' | 'guest', code: string): Promise<void> {
+  bots.cancel();
+  destroy3d();
+  // la partita su questo dispositivo resta salvata: si riprende uscendo dal tavolo
+  session.clear();
+  resumeOffered = false;
+  lobbyStatus = '';
+  lobbyShown = false;
+  selected = null;
+  tradeDraft = null;
+  error = '';
+  const name = onlineName || (role === 'host' ? 'Oste' : 'Ospite');
+  let transport;
+  try {
+    transport = await openTransport(code);
+  } catch {
+    lobbyStatus = 'Non riesco ad aprire il collegamento: controlla la connessione e riprova.';
+    online = null;
+    session.load();
+    resumeOffered = !!session.state;
+    render();
+    return;
+  }
+  if (role === 'host') {
+    const room = new HostRoom(transport, ctx, name, onlineLook);
+    online = { role, room, code };
+    room.onLobby = () => render();
+    room.onChange = onTableChange;
+  } else {
+    const room = new GuestRoom(transport, name, onlineLook);
+    online = { role, room, code };
+    room.onLobby = () => render();
+    room.onChange = onTableChange;
+    room.onError = (reason) => {
+      if (room.closed) lobbyStatus = room.closed;
+      if (session.state) error = reason;
+      else lobbyStatus = reason;
+      audio.play('error');
+      render();
+    };
+    room.onHostLeft = () => {
+      const msg = 'Chi ha creato il tavolo è uscito: la partita si ferma qui.';
+      lobbyStatus = msg;
+      error = msg;
+      render();
+    };
+    // se dopo un po' nessuno risponde, lo si dice
+    setTimeout(() => {
+      if (online?.room === room && !room.connected && !room.closed) {
+        lobbyStatus = 'Ancora nessuna risposta. Controlla il codice, o chiedi a chi ha creato il tavolo di tenere aperta la pagina.';
+        render();
+      }
+    }, 15000);
+    history.replaceState(null, '', `#tavolo=${code}`);
+  }
+  render();
+}
+
+function leaveTable(): void {
+  if (!online) return;
+  bots.cancel();
+  if (online.role === 'host') online.room.close();
+  else online.room.leave();
+  online = null;
+  lobbyShown = false;
+  lobbyStatus = '';
+  error = '';
+  selected = null;
+  tradeDraft = null;
+  destroy3d();
+  history.replaceState(null, '', location.pathname + location.search);
+  session.clear();
+  session.load();
+  resumeOffered = !!session.state;
+  newsFrom = session.state?.eventCount ?? 0;
+  render();
+}
+
+window.addEventListener('pagehide', () => {
+  if (online?.role === 'host') online.room.close();
+  else online?.room.leave();
+});
+
 const bots = new BotScheduler(
   () => !animating && botToPlay(),
   // con la velocità istantanea il computer gioca senza pause
@@ -68,7 +247,15 @@ const bots = new BotScheduler(
 
 function botToPlay(): boolean {
   const s = session.state;
-  return !!s && s.phase !== 'gameOver' && !!s.players[actingPlayer(s)].isBot;
+  if (!s || s.phase === 'gameOver') return false;
+  // online il computer lo muove solo chi ha creato il tavolo, anche per chi si è scollegato
+  if (online) return online.role === 'host' && online.room.isComputerSeat(actingPlayer(s));
+  return !!s.players[actingPlayer(s)].isBot;
+}
+
+// Online, tocca a chi sta su questo schermo?
+function myTurn(s: GameState): boolean {
+  return !online || actingPlayer(s) === mySeat();
 }
 
 // ---------- schermata iniziale ----------
@@ -102,6 +289,13 @@ function showSetup(): void {
       if (!file) return false;
       openFile(file);
       return true;
+    },
+  }, {
+    onCreate: () => void enterTable('host', tableCode()),
+    onJoin: (raw) => {
+      const code = cleanCode(raw);
+      if (code) void enterTable('guest', code);
+      return !!code;
     },
   });
 }
@@ -174,8 +368,13 @@ function turnHtml(s: GameState): string {
 
 // Pulsanti del turno (o modulo dello scambio), consiglio ed errore: la parte da tenere sempre a portata di dito.
 function controlsHtml(s: GameState): string {
+  // online, quando tocca a un altro, al posto dei pulsanti si dice chi sta giocando
+  const waiting = s.phase !== 'gameOver' && !myTurn(s);
+  const actions = waiting
+    ? `<div class="actions waiting"><p class="wait">${mySeat() === null ? '👀 Stai guardando la partita' : `⏳ Aspetta il tuo turno: gioca <strong>${escapeHtml(s.players[actingPlayer(s)].name)}</strong>`}</p></div>`
+    : `<div class="actions">${renderTurnActions(s)}${undoButton()}</div>`;
   return `
-    ${tradeDraft ? renderTradeEditor(s, tradeDraft) : `<div class="actions">${renderTurnActions(s)}${undoButton()}</div>`}
+    ${tradeDraft && !waiting ? renderTradeEditor(s, tradeDraft) : actions}
     ${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}
     ${tipHtml(s)}`;
 }
@@ -215,6 +414,7 @@ function viewButtons(): string {
 
 function render(): void {
   const s = session.state;
+  if (online && !s) return showLobby();
   if (!s || resumeOffered) return showSetup();
   if (viewMode === '3d') render3d(s);
   else {
@@ -225,7 +425,7 @@ function render(): void {
 }
 
 function undoButton(): string {
-  if (!session.canUndo) return '';
+  if (online || !session.canUndo) return '';
   return `<button class="undo" data-action="undo" title="Annulla l'ultima mossa (non i dadi)">↩ Annulla</button>`;
 }
 
@@ -244,7 +444,7 @@ function gameShell(stage: string, mode: ViewMode): string {
         <div class="view-buttons in-drawer"></div>
         <div class="hud"></div>
         <div class="players-list"></div>
-        <p class="saved">💾 La partita si salva da sola su questo dispositivo.</p>
+        ${online ? `<p class="saved">🌐 Partita online · tavolo <strong>${online.code}</strong>. Le partite online non si salvano.</p>` : `<p class="saved">💾 La partita si salva da sola su questo dispositivo.</p>
         <details class="slots-box">
           <summary>Salva una copia o esporta</summary>
           <form class="slot-form" data-slot-form>
@@ -256,8 +456,8 @@ function gameShell(stage: string, mode: ViewMode): string {
           </form>
           <button data-action="exportGame">⬇️ Esporta in un file ${FILE_EXT}</button>
           <p class="slot-msg" role="status" aria-live="polite"></p>
-        </details>
-        <button class="link" data-action="quit">Abbandona la partita</button>
+        </details>`}
+        <button class="link" data-action="quit">${online ? 'Esci dal tavolo' : 'Abbandona la partita'}</button>
         <a class="report-link" data-report href="#" target="_blank" rel="noopener">🐞 Segnala un problema</a>
       </aside>
       <div class="action-bar"></div>
@@ -360,38 +560,57 @@ function destroy3d(): void {
 function act(action: Action): void {
   const before = session.state;
   if (!before) return;
+  if (online) {
+    // quando tocca a un altro non si manda niente (il computer lo muove solo chi ha creato il tavolo)
+    if (!myTurn(before) && !botToPlay()) return;
+    // online la mossa la controlla e la applica chi ha creato il tavolo; lo stato nuovo arriva in onTableChange
+    if (online.role === 'guest') online.room.send(action);
+    else {
+      const reason = online.room.act(action);
+      if (reason) {
+        error = reason;
+        audio.play('error');
+        render();
+      }
+    }
+    return;
+  }
   const actorBot = !!before.players[actingPlayer(before)].isBot;
   // le azioni di una persona azzerano le notizie; quelle del computer si accumulano
   if (!actorBot || !lastActorBot) newsFrom = before.eventCount ?? 0;
   lastActorBot = actorBot;
   try {
     const prev = session.apply(action);
-    const state = session.state!;
     error = '';
-    if (action.type === 'roll') {
-      audio.play('dice');
-      if (state.lastRoll) board3d?.showDice(state.lastRoll, prev.current);
-    }
-    // partita appena finita: il risultato entra nella classifica tra amici
-    if (prev.phase !== 'gameOver' && state.phase === 'gameOver') saveLeaderboard(addResult(loadLeaderboard(), state, ctx));
-    const sfx = soundFor(prev, state, action);
-    // il suono del lancio c'è già: dopo un attimo quello del risultato
-    if (sfx && sfx !== 'dice') setTimeout(() => audio.play(sfx), action.type === 'roll' ? 450 / speed.factor : 0);
-    // dopo il lancio, se la casella di arrivo si può comprare, compare la sua carta
-    if (action.type === 'roll') selected = state.phase === 'buy' ? board.spaces[state.players[state.current].position]?.id ?? null : null;
-    if (action.type === 'buy' || action.type === 'decline') selected = null;
-    if (action.type === 'endTurn' || action.type === 'bankrupt') {
-      selected = null;
-      tradeDraft = null;
-    }
+    afterMove(prev, session.state!, action, !actorBot);
   } catch (e) {
     if (e instanceof RuleError) {
       error = e.message;
       audio.play('error');
     } else throw e;
   }
-  session.save();
+  persist();
   render();
+}
+
+// Suoni, dadi, classifica e carta della casella dopo una mossa (fatta qui o arrivata dal tavolo).
+function afterMove(prev: GameState, state: GameState, action: Action, mine: boolean): void {
+  if (action.type === 'roll') {
+    audio.play('dice');
+    if (state.lastRoll) board3d?.showDice(state.lastRoll, prev.current);
+  }
+  // partita appena finita: il risultato entra nella classifica tra amici
+  if (prev.phase !== 'gameOver' && state.phase === 'gameOver') saveLeaderboard(addResult(loadLeaderboard(), state, ctx));
+  const sfx = soundFor(prev, state, action);
+  // il suono del lancio c'è già: dopo un attimo quello del risultato
+  if (sfx && sfx !== 'dice') setTimeout(() => audio.play(sfx), action.type === 'roll' ? 450 / speed.factor : 0);
+  // dopo il lancio, se la casella di arrivo si può comprare, compare la sua carta
+  if (action.type === 'roll' && (mine || !online)) selected = state.phase === 'buy' ? board.spaces[state.players[state.current].position]?.id ?? null : null;
+  if (action.type === 'buy' || action.type === 'decline') selected = null;
+  if (action.type === 'endTurn' || action.type === 'bankrupt') {
+    selected = null;
+    tradeDraft = null;
+  }
 }
 
 // Un solo gestore di clic per tutta la pagina.
@@ -475,11 +694,12 @@ app.addEventListener('click', (e) => {
     case 'newGame':
     case 'quit':
       if (action === 'quit' && !confirmTwice(target)) return;
+      if (online) return leaveTable();
       bots.cancel();
       session.clear();
       selected = null;
       error = '';
-      session.save();
+      persist();
       return render();
     case 'exportGame': {
       const file = session.toFile();
@@ -488,18 +708,31 @@ app.addEventListener('click', (e) => {
       return;
     }
     case 'coverDebt':
+      if (online) {
+        // online si mandano una dopo l'altra le stesse mosse che farebbe il computer
+        let s = state;
+        const steps: Action[] = [];
+        for (let i = 0; i < 200 && s.players[s.current].money < 0; i++) {
+          const step = raiseMoney(s, ctx);
+          if (!step) break;
+          s = applyAction(s, step, ctx);
+          steps.push(step);
+        }
+        steps.forEach(act);
+        return;
+      }
       newsFrom = state.eventCount ?? 0;
       lastActorBot = false;
       session.coverDebt();
       error = '';
       audio.play('coin');
-      session.save();
+      persist();
       return render();
     case 'undo':
-      if (!session.undo()) return;
+      if (online || !session.undo()) return;
       error = '';
       selected = null;
-      session.save();
+      persist();
       return render();
     case 'build':
     case 'sell':
@@ -579,7 +812,7 @@ function confirmTwice(button: HTMLElement): boolean {
 
 // Esc chiude la carta della casella o il cassetto.
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape' || !session.state || resumeOffered) return;
+  if (e.key !== 'Escape' || !session.state || resumeOffered || (online && lobbyShown)) return;
   if (selected) selected = null;
   else if (drawerOpen) drawerOpen = false;
   else return;
@@ -587,6 +820,17 @@ document.addEventListener('keydown', (e) => {
 });
 
 setupOffline();
+
+// link di un tavolo (#tavolo=CODICE): si entra subito
+const linkCode = codeFromHash(location.hash);
+if (linkCode) void enterTable('guest', linkCode);
+window.addEventListener('hashchange', () => {
+  const code = codeFromHash(location.hash);
+  if (code && code !== online?.code) {
+    if (online) leaveTable();
+    void enterTable('guest', code);
+  }
+});
 
 // Prima partenza: si disegna la pagina sotto la schermata di caricamento, poi si caricano
 // in anticipo i personaggi 3D che serviranno (quelli della partita salvata o della schermata iniziale).

@@ -12,6 +12,7 @@ export const KEYS = {
   sky: 'sdrogopoli-cielo',
   speed: 'sdrogopoli-velocita',
   slots: 'sdrogopoli-salvataggi',
+  onlineName: 'sdrogopoli-nome-online',
 } as const;
 
 export function readPref(key: string): string | null {

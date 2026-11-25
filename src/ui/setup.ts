@@ -171,7 +171,32 @@ export interface ResumeOffer {
   onContinue: () => void;
 }
 
-export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice: SetupChoice) => void, resume?: ResumeOffer, slots?: SlotsOffer): void {
+// Gioco online: creare un tavolo o entrare con un codice.
+export interface OnlineOffer {
+  onCreate: () => void;
+  // false se il codice non è valido
+  onJoin: (code: string) => boolean;
+}
+
+function onlineHtml(): string {
+  return `<section class="card online-card" aria-labelledby="online-title">
+        <h2 id="online-title">🌐 Gioca online con gli amici</h2>
+        <p>Ognuno dal suo telefono o computer, gratis e senza account. Chi crea il tavolo manda il link agli altri.</p>
+        <div class="online-buttons">
+          <button type="button" class="primary" data-online-create>Crea un tavolo</button>
+          <form class="online-join" data-online-join>
+            <label for="online-code">Hai un codice?</label>
+            <div class="slot-row">
+              <input id="online-code" name="code" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC234">
+              <button type="submit">Entra</button>
+            </div>
+          </form>
+        </div>
+        <p class="error" role="alert" data-online-error hidden>Il codice ha 6 caratteri, lettere e numeri. Controllalo e riprova.</p>
+      </section>`;
+}
+
+export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice: SetupChoice) => void, resume?: ResumeOffer, slots?: SlotsOffer, online?: OnlineOffer): void {
   destroyPreview();
   editingSeat = null;
   app.innerHTML = `
@@ -179,7 +204,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       <header class="brand">
         <div class="brand-strip" aria-hidden="true">${board.groups.map((g) => `<span style="background:${g.color}"></span>`).join('')}</div>
         <h1>Sdrogopoli</h1>
-        <p>Compra le vie della città, costruisci case e manda in rovina gli amici. Da ${MIN_PLAYERS} a ${MAX_PLAYERS} giocatori sullo stesso dispositivo (fino a ${DEMO_MAX_PLAYERS} nella modalità demo).</p>
+        <p>Compra le vie della città, costruisci case e manda in rovina gli amici. Da ${MIN_PLAYERS} a ${MAX_PLAYERS} giocatori sullo stesso dispositivo (fino a ${DEMO_MAX_PLAYERS} nella modalità demo) oppure online, ognuno dal suo.</p>
       </header>
       <div class="setup-grid">
       <div class="setup-main">
@@ -234,6 +259,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
         <p class="hint" data-quick-note hidden>⚡ In due è attiva la partita rapida (${QUICK_START_TWO_PLAYERS} proprietà a testa): dura circa la metà. Si cambia nelle regole della casa.</p>
         <button class="primary" type="submit">Inizia la partita</button>
       </form>
+      ${online ? onlineHtml() : ''}
       <div id="leaderboard-slot">${renderLeaderboard(loadLeaderboard())}</div>
       </div>
       <aside class="setup-info">${renderIntro()}</aside>
@@ -244,12 +270,13 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       </footer>
       <dialog class="credits-dialog" aria-labelledby="credits-title">
         <h2 id="credits-title">Crediti e licenze</h2>
-        <p>Sdrogopoli è un gioco originale e gratuito: niente pubblicità, niente acquisti, niente account. Le partite e le preferenze restano solo su questo dispositivo.</p>
+        <p>Sdrogopoli è un gioco originale e gratuito: niente pubblicità, niente acquisti, niente account. Le partite e le preferenze restano solo su questo dispositivo; online, la partita passa direttamente tra i dispositivi al tavolo.</p>
         <h3>Cosa c'è dentro</h3>
         <ul>
           <li><strong>Tabellone, nomi, carte, icone, suoni e musica</strong>: originali di Sdrogopoli. I suoni e la musica si generano al momento nel browser.</li>
           <li><strong>Personaggi 3D</strong>: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit Adventurers di Kay Lousberg</a>, licenza CC0 (pubblico dominio).</li>
           <li><strong>Grafica 3D</strong>: <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a>, licenza MIT.</li>
+          <li><strong>Gioco online</strong>: <a href="https://github.com/dmotz/trystero" target="_blank" rel="noopener">Trystero</a>, licenza MIT. I dispositivi si collegano direttamente tra loro; per trovarsi usano relay Nostr pubblici e gratuiti.</li>
         </ul>
         <p><a href="${import.meta.env.BASE_URL}licenze.txt" target="_blank" rel="noopener">Testo completo delle licenze</a> · <a href="https://github.com/matteo-canna/sdrogopoli" target="_blank" rel="noopener">Codice sorgente</a></p>
         <form method="dialog"><button class="primary">Chiudi</button></form>
@@ -262,6 +289,19 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
   });
   document.querySelector('[data-credits]')!.addEventListener('click', () => document.querySelector<HTMLDialogElement>('.credits-dialog')!.showModal());
   const form = document.querySelector<HTMLFormElement>('#setup-form')!;
+  const onlineBox = document.querySelector<HTMLElement>('.online-card');
+  if (online && onlineBox) {
+    onlineBox.querySelector('[data-online-create]')!.addEventListener('click', () => {
+      destroyPreview();
+      online.onCreate();
+    });
+    onlineBox.querySelector('[data-online-join]')!.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const code = String(new FormData(e.target as HTMLFormElement).get('code') ?? '');
+      destroyPreview();
+      onlineBox.querySelector<HTMLElement>('[data-online-error]')!.hidden = online.onJoin(code);
+    });
+  }
   const savedBox = document.querySelector<HTMLElement>('.saved-games');
   if (slots && savedBox) {
     let list = slots.list;
