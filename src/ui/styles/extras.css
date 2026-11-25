@@ -301,3 +301,12 @@
   .be-space { grid-template-columns: 1.6em minmax(0, 1fr); }
   .be-space > :last-child { grid-column: 2; }
 }
+
+/* ---------- quote di quartiere ed edifici speciali ---------- */
+.extras { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 6px; }
+.extras h4 { margin: 2px 0 4px; font-size: 0.95em; }
+.extras p { margin: 4px 0; font-size: 0.92em; }
+.landmark-pick { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 6px; }
+.landmark-pick li { display: grid; gap: 2px; justify-items: center; text-align: center; }
+.landmark-pick small { color: var(--muted); }
+.band .lm { font-size: 0.8em; line-height: 1; margin-left: 2px; filter: drop-shadow(0 0 1px #fff); }

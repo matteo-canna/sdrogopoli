@@ -1,9 +1,9 @@
 // Giocatore controllato dal computer: sceglie sempre un'azione valida in base allo stato.
 // Il livello (facile, normale, difficile) e il carattere (costruttore, collezionista…) cambiano
 // alcune manopole: riserva di soldi, voglia di comprare e costruire, offerte e scambi.
-import { actingPlayer, computeRent, interestOn, ownsWholeGroup, sameTeam, targetSpace, unmortgageCost, HOTEL, MAX_COUNTERS, MIN_BID, type Action } from './rules';
+import { actingPlayer, computeRent, groupHasBuildings, interestOn, landmarkPrice, ownsWholeGroup, sameTeam, sharePrice, sharesOf, targetSpace, unmortgageCost, HOTEL, MAX_COUNTERS, MIN_BID, type Action } from './rules';
 import type { BotLevel, BotProfile, BotStyle, GameContext, GameState, Player, TradeSide } from './state';
-import { JAIL_FINE } from './state';
+import { JAIL_FINE, SHARES_PER_GROUP, THEATRE_MIN_RENT, type LandmarkId } from './state';
 import type { PropertySpace, Space } from './types';
 import { cardValue } from './cards';
 
@@ -178,6 +178,11 @@ function wantsToBuy(state: GameState, ctx: GameContext, space: Space, k: Knobs):
 // Cerca di coprire un debito: prima vende case, poi ipoteca ciò che rende meno.
 // Serve anche al pulsante "Copri il debito automaticamente" delle persone.
 export function raiseMoney(state: GameState, ctx: GameContext): Action | null {
+  // prima le quote e gli edifici speciali, poi le case e le ipoteche
+  const share = Object.entries(state.shares ?? {}).find(([, h]) => h.includes(state.current));
+  if (share) return { type: 'sellShare', group: share[0] };
+  const lm = Object.entries(state.landmarks ?? {}).find(([, l]) => l.owner === state.current);
+  if (lm) return { type: 'sellLandmark', group: lm[0] };
   const holdings = myHoldings(state, ctx);
   const withHouses = holdings
     .filter((h) => h.space.type === 'property' && h.own.houses > 0)
@@ -201,8 +206,7 @@ function mortgageCandidates(state: GameState, ctx: GameContext) {
     .filter((h) => !h.own.mortgaged && 'mortgage' in h.space)
     .filter((h) => {
       if (h.space.type !== 'property') return true;
-      const group = h.space.group;
-      return ctx.board.spaces.every((s) => s.type !== 'property' || s.group !== group || (state.ownership[s.id]?.houses ?? 0) === 0);
+      return !groupHasBuildings(state, ctx, h.space.group);
     })
     .sort((a, b) => score(a) - score(b));
 
@@ -238,6 +242,50 @@ function tryBuild(state: GameState, ctx: GameContext, k: Knobs): Action | null {
     return { type: 'build', spaceId: candidates[Math.floor(chance(state, 3) * candidates.length)].id };
   }
   return { type: 'build', spaceId: candidates[0].id };
+}
+
+// Edificio speciale: quando il quartiere ha già almeno 3 case per via (o quando le case sono
+// finite), se i soldi bastano. Fontana dove gli affitti sono alti, teatro dove sono bassi,
+// mercato coperto in mezzo.
+function tryLandmark(state: GameState, ctx: GameContext, k: Knobs): Action | null {
+  if (!state.rules?.landmarks) return null;
+  const money = state.players[state.current].money;
+  for (const g of ctx.board.groups) {
+    if (state.landmarks?.[g.id] || !ownsWholeGroup(state, ctx, state.current, g.id)) continue;
+    const streets = groupOf(ctx, g.id);
+    const owns = streets.map((sp) => state.ownership[sp.id]);
+    if (owns.some((o) => o.mortgaged) || owns.some((o) => o.houses < 3)) continue;
+    if (money - landmarkPrice(ctx, g.id) < Math.max(k.buildReserve, reserveFor(state, ctx, k) / 2)) continue;
+    if (k.mistakes && chance(state, 5) < k.mistakes) return null;
+    const rent = streets.reduce((a, sp) => a + computeRent(state, ctx, sp.id, 7), 0) / streets.length;
+    const landmark: LandmarkId = rent >= 240 ? 'fontana' : rent < THEATRE_MIN_RENT * 1.5 ? 'teatro' : 'mercato';
+    return { type: 'buildLandmark', group: g.id, landmark };
+  }
+  return null;
+}
+
+// Quota di quartiere: dove gli avversari incassano di più, se avanzano soldi (il doppio della
+// riserva) e se non ne ha già due di quel quartiere.
+function tryBuyShare(state: GameState, ctx: GameContext, k: Knobs): Action | null {
+  if (!state.rules?.shares) return null;
+  const me = state.current;
+  const money = state.players[me].money;
+  let best: { group: string; value: number } | null = null;
+  for (const g of ctx.board.groups) {
+    const holders = sharesOf(state, g.id);
+    if (holders.length >= SHARES_PER_GROUP || holders.filter((h) => h === me).length >= 2) continue;
+    if (money - sharePrice(ctx, g.id) < reserveFor(state, ctx, k) * 2) continue;
+    // affitto che gli altri incassano nel quartiere: lì le quote rendono
+    let value = 0;
+    for (const sp of groupOf(ctx, g.id)) {
+      const own = state.ownership[sp.id];
+      if (!own || own.owner === me || sameTeam(state, me, own.owner)) continue;
+      value += computeRent(state, ctx, sp.id, 7);
+    }
+    if (value / sharePrice(ctx, g.id) < 0.5) continue;
+    if (!best || value > best.value) best = { group: g.id, value };
+  }
+  return best ? { type: 'buyShare', group: best.group } : null;
 }
 
 // Ipoteca una via sparsa per avere i soldi di una casa sul quartiere completo (fino a 3 case).
@@ -402,7 +450,15 @@ export function chooseBotAction(state: GameState, ctx: GameContext): Action {
     }
     case 'endTurn':
       if (me.money < 0) return raiseMoney(state, ctx) ?? { type: 'bankrupt' };
-      return tryUnmortgage(state, ctx, k) ?? tryProposeTrade(state, ctx, k) ?? tryBuild(state, ctx, k) ?? tryMortgageToBuild(state, ctx, k) ?? { type: 'endTurn' };
+      return (
+        tryUnmortgage(state, ctx, k) ??
+        tryProposeTrade(state, ctx, k) ??
+        tryLandmark(state, ctx, k) ??
+        tryBuild(state, ctx, k) ??
+        tryMortgageToBuild(state, ctx, k) ??
+        tryBuyShare(state, ctx, k) ??
+        { type: 'endTurn' }
+      );
     default:
       throw new Error('La partita è finita');
   }

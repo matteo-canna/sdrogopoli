@@ -3,7 +3,7 @@
 // e "Annulla" (session.ts), turni del computer (bots.ts), suoni (sounds.ts), preferenze (prefs.ts).
 import './style.css';
 import { DEFAULT_BOARD, board, cards, currentBoard, setBoard } from '../data';
-import { actingPlayer, applyAction, chooseBotAction, createGame, emptyStats, openRound, raiseMoney, RuleError, SEAT_BONUS, type SprintFace, type Action, type Appearance, type GameContext, type GameState, type SaveFile } from '../engine';
+import { actingPlayer, applyAction, chooseBotAction, createGame, emptyStats, openRound, raiseMoney, RuleError, SEAT_BONUS, type SprintFace, type Action, type LandmarkId, type Appearance, type GameContext, type GameState, type SaveFile } from '../engine';
 import { escapeHtml, money, playerBadge, renderBoardBox, renderEvents, spaceLabel, renderDice, renderPlayers, renderSpaceCard, renderTradeEditor, renderTurnActions, tradeSummaryHtml, type TradeDraft } from './view';
 import type { Board3D } from './three/board3d';
 import type { CameraMode } from './three/camera';
@@ -616,7 +616,7 @@ document.addEventListener('keydown', (e) => {
 }, true);
 document.addEventListener('pointerdown', () => (usingKeyboard = false), true);
 
-const FOCUS_ATTRS = ['data-action', 'data-space', 'data-option', 'data-amount', 'data-say', 'data-tip', 'name', 'id'];
+const FOCUS_ATTRS = ['data-action', 'data-space', 'data-group', 'data-landmark', 'data-option', 'data-amount', 'data-say', 'data-tip', 'name', 'id'];
 
 // Un selettore che ritrova "lo stesso" elemento dopo il ridisegno.
 function focusKey(): string | null {
@@ -1165,6 +1165,12 @@ app.addEventListener('click', (e) => {
     case 'mortgage':
     case 'unmortgage':
       return act({ type: action, spaceId: spaceId! });
+    case 'buyShare':
+    case 'sellShare':
+    case 'sellLandmark':
+      return act({ type: action, group: target.dataset.group ?? '' });
+    case 'buildLandmark':
+      return act({ type: action, group: target.dataset.group ?? '', landmark: (target.dataset.landmark ?? 'fontana') as LandmarkId });
     case 'roll':
     case 'buy':
     case 'decline':

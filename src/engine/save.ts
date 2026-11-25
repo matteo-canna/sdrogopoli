@@ -98,7 +98,7 @@ export function replay(initial: GameState, actions: Action[], ctx: GameContext):
 
 // Azioni che una persona può annullare: non estraggono numeri a caso e non coinvolgono
 // altri giocatori. Non si torna mai prima di un lancio dei dadi.
-const UNDOABLE = new Set<Action['type']>(['buy', 'build', 'sell', 'mortgage', 'unmortgage', 'payJailFine', 'useJailCard']);
+const UNDOABLE = new Set<Action['type']>(['buy', 'build', 'sell', 'mortgage', 'unmortgage', 'payJailFine', 'useJailCard', 'buyShare', 'sellShare', 'buildLandmark', 'sellLandmark']);
 export function isUndoable(action: Action): boolean {
   return UNDOABLE.has(action.type);
 }

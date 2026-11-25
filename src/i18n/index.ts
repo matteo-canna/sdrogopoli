@@ -108,6 +108,7 @@ function value(name: string, v: string | number | undefined, lang: Lang): string
   const s = String(v);
   if (name === 'space') return spaceName(s, lang);
   if (name === 'group') return groupName(s);
+  if (name === 'landmark') return format(lang, `landmark.${s}` as MsgKey);
   if (name === 'card') return cardText(s, lang);
   if (name === 'choice') {
     const [id, i] = s.split('#');

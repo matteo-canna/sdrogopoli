@@ -1,7 +1,7 @@
 // Schermata iniziale: chi gioca, personaggi, regole della casa e classifica tra amici.
 import { BOARDS, DEFAULT_BOARD, board, currentBoard, setBoard } from '../data';
 import { savedBoards } from './boardStore';
-import { BOT_LEVELS, BOT_STYLES, PRESETS, WHEEL_EVERY, estimatedMinutes, type BotStyle, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
+import { BOT_LEVELS, BOT_STYLES, PRESETS, SHARE_CUT, SHARES_PER_GROUP, WHEEL_EVERY, estimatedMinutes, type BotStyle, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
 import { webglAvailable } from './webgl';
 import { load3d } from './lazy3d';
 import { reportUrl } from './report';
@@ -399,6 +399,8 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
           <label class="check"><input type="checkbox" name="pot"> ${t('rules.pot')}</label>
           <label class="check"><input type="checkbox" name="events"> 🎪 ${t('rules.events')}</label>
           <label class="check"><input type="checkbox" name="wheel"> 🎡 ${t('rules.wheel', { n: WHEEL_EVERY })}</label>
+          <label class="check"><input type="checkbox" name="shares"> 📈 ${t('rules.shares', { n: SHARES_PER_GROUP, pct: Math.round(SHARE_CUT * 100) })}</label>
+          <label class="check"><input type="checkbox" name="landmarks"> 🏛️ ${t('rules.landmarks')}</label>
           <label class="check"><input type="checkbox" name="teams"> ${t('rules.teams')}</label>
           <p class="hint">${t('rules.teamsHint')}</p>
         </details>
@@ -590,6 +592,8 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     field<HTMLInputElement>('pot').checked = false;
     field<HTMLInputElement>('events').checked = !!r.events;
     field<HTMLInputElement>('wheel').checked = !!r.wheel;
+    field<HTMLInputElement>('shares').checked = !!r.shares;
+    field<HTMLInputElement>('landmarks').checked = !!r.landmarks;
     showDuration();
   };
   const showDuration = () => {
@@ -698,6 +702,8 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
         parkPot: data.get('pot') === 'on',
         events: data.get('events') === 'on',
         wheel: data.get('wheel') === 'on',
+        shares: data.get('shares') === 'on',
+        landmarks: data.get('landmarks') === 'on',
         // le squadre vogliono un numero pari di giocatori, almeno quattro
         teams: data.get('teams') === 'on' && players.length >= 4 && players.length % 2 === 0,
         quickStart: data.get('quick') === 'on',
