@@ -20,6 +20,7 @@ export const PRESETS: Preset[] = [
   { id: 'sprint', label: 'Sprint', text: 'Partita rapida con il Dado Sprint: occasioni e affitti pieni.', rules: { quickStart: true, sprintDie: true }, rounds: 26 },
   { id: 'obiettivo', label: 'Obiettivo', text: 'Vince chi per primo completa 2 quartieri o arriva a 4000 di patrimonio.', rules: { goalGroups: 2, goalWorth: 4000 }, rounds: 21 },
   { id: 'breve', label: 'Breve', text: '15 giri, poi vince il patrimonio più alto.', rules: { quickStart: true, maxRounds: 15 }, rounds: 15 },
+  { id: 'festa', label: 'Festa', text: 'Eventi di quartiere a ogni giro e Ruota del Mercato ogni cinque.', rules: { events: true, wheel: true }, rounds: 46 },
 ];
 
 // Minuti stimati per una partita con queste persone (i computer giocano in pochi secondi).

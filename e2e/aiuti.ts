@@ -21,7 +21,13 @@ export async function nuovaPartita(page: Page): Promise<void> {
 }
 
 // Stato della partita salvata.
-export async function stato(page: Page): Promise<{ round: number; phase: string; players: { bankrupt: boolean }[] }> {
+export async function stato(page: Page): Promise<{
+  round: number;
+  phase: string;
+  players: { bankrupt: boolean }[];
+  event?: { id: string; group: string; round: number } | null;
+  market?: { id: string; from: number; until: number } | null;
+}> {
   return page.evaluate(() => JSON.parse(localStorage.getItem('sdrogopoli-partita') ?? 'null')?.state);
 }
 

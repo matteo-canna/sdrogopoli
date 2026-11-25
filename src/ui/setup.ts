@@ -1,6 +1,6 @@
 // Schermata iniziale: chi gioca, personaggi, regole della casa e classifica tra amici.
 import { BOARDS, DEFAULT_BOARD, board, currentBoard, setBoard } from '../data';
-import { BOT_LEVELS, BOT_STYLES, PRESETS, estimatedMinutes, type BotStyle, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
+import { BOT_LEVELS, BOT_STYLES, PRESETS, WHEEL_EVERY, estimatedMinutes, type BotStyle, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
 import { webglAvailable } from './webgl';
 import { load3d } from './lazy3d';
 import { reportUrl } from './report';
@@ -371,6 +371,8 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
             </select>
           </label>
           <label class="check"><input type="checkbox" name="pot"> ${t('rules.pot')}</label>
+          <label class="check"><input type="checkbox" name="events"> 🎪 ${t('rules.events')}</label>
+          <label class="check"><input type="checkbox" name="wheel"> 🎡 ${t('rules.wheel', { n: WHEEL_EVERY })}</label>
           <label class="check"><input type="checkbox" name="teams"> ${t('rules.teams')}</label>
           <p class="hint">${t('rules.teamsHint')}</p>
         </details>
@@ -560,6 +562,8 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     field<HTMLInputElement>('sprint').checked = !!r.sprintDie;
     field<HTMLSelectElement>('goal').value = goalValue(r);
     field<HTMLInputElement>('pot').checked = false;
+    field<HTMLInputElement>('events').checked = !!r.events;
+    field<HTMLInputElement>('wheel').checked = !!r.wheel;
     showDuration();
   };
   const showDuration = () => {
@@ -668,6 +672,8 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
         startingMoney: Number(data.get('money')) || board.startingMoney,
         maxRounds: rounds,
         parkPot: data.get('pot') === 'on',
+        events: data.get('events') === 'on',
+        wheel: data.get('wheel') === 'on',
         // le squadre vogliono un numero pari di giocatori, almeno quattro
         teams: data.get('teams') === 'on' && players.length >= 4 && players.length % 2 === 0,
         quickStart: data.get('quick') === 'on',

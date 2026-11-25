@@ -3,8 +3,8 @@
 // e "Annulla" (session.ts), turni del computer (bots.ts), suoni (sounds.ts), preferenze (prefs.ts).
 import './style.css';
 import { DEFAULT_BOARD, board, cards, currentBoard, setBoard } from '../data';
-import { actingPlayer, applyAction, chooseBotAction, createGame, emptyStats, raiseMoney, RuleError, SEAT_BONUS, type SprintFace, type Action, type Appearance, type GameContext, type GameState, type SaveFile } from '../engine';
-import { escapeHtml, money, playerBadge, renderBoardBox, spaceLabel, renderDice, renderPlayers, renderSpaceCard, renderTradeEditor, renderTurnActions, tradeSummaryHtml, type TradeDraft } from './view';
+import { actingPlayer, applyAction, chooseBotAction, createGame, emptyStats, openRound, raiseMoney, RuleError, SEAT_BONUS, type SprintFace, type Action, type Appearance, type GameContext, type GameState, type SaveFile } from '../engine';
+import { escapeHtml, money, playerBadge, renderBoardBox, renderEvents, spaceLabel, renderDice, renderPlayers, renderSpaceCard, renderTradeEditor, renderTurnActions, tradeSummaryHtml, type TradeDraft } from './view';
 import type { Board3D } from './three/board3d';
 import type { CameraMode } from './three/camera';
 import type { SkyMode } from './three/city';
@@ -477,7 +477,7 @@ function startGame(choice: SetupChoice): void {
   dailyDay = choice.daily ?? null;
   useBoard(choice.boardId);
   writePref(KEYS.board, currentBoard());
-  session.start(createGame(choice.players, ctx, choice.rules, choice.seed ?? randomSeed()));
+  session.start(openRound(createGame(choice.players, ctx, choice.rules, choice.seed ?? randomSeed()), ctx));
   // riattivando i consigli si ricomincia da capo
   if (choice.tipsOn && !tutorial.on) tutorial.seen.clear();
   tutorial.on = choice.tipsOn;
@@ -550,11 +550,13 @@ function controlsHtml(s: GameState): string {
 }
 
 // Notizie, fine partita e registro: si leggono con calma.
+// Nel 2D l'evento del quartiere sta al centro del tabellone; nel 3D lì non c'è posto, quindi
+// compare nel pannello di fianco.
 function infoHtml(s: GameState): string {
   const fresh = Math.min(Math.max((s.eventCount ?? 0) - newsFrom, 0), s.log.length, 8);
   const news = fresh ? s.log.slice(-fresh) : [];
   return `
-    ${s.phase === 'gameOver' ? renderSummary(s, ctx, { titles: myTitles(s), unlocked: newGoals, canReplay: !!session.toFile() }) : ''}
+    ${s.phase === 'gameOver' ? renderSummary(s, ctx, { titles: myTitles(s), unlocked: newGoals, canReplay: !!session.toFile() }) : viewMode === '3d' ? renderEvents(s) : ''}
     ${news.length ? `<div class="news"><h4>${t('news.title')}</h4><ul>${news.map((l) => `<li>${escapeHtml(text(l))}</li>`).join('')}</ul></div>` : ''}
     ${selected ? '' : `<p class="hint">${t('hint.tapSpace')}</p>`}
     <details class="log-box"><summary>${t('log.title')}</summary>

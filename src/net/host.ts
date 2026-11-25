@@ -1,7 +1,7 @@
 // L'oste: raccoglie chi entra al tavolo, avvia la partita, controlla che ogni mossa arrivi da chi
 // deve giocare e manda lo stato a tutti. Muove il computer per i posti dei computer, per chi si è
 // scollegato e per chi ha lasciato scadere il tempo della mossa.
-import { actingPlayer, applyAction, BOT_STYLES, chooseBotAction, createGame, RuleError, type Action, type Appearance, type GameContext, type GameRules, type GameState, type PlayerSetup } from '../engine';
+import { actingPlayer, applyAction, BOT_STYLES, chooseBotAction, createGame, openRound, RuleError, type Action, type Appearance, type GameContext, type GameRules, type GameState, type PlayerSetup } from '../engine';
 import { PROTOCOL_VERSION, type Member, type NetMessage } from './protocol';
 import { cleanLook, cleanName, uniqueColors } from './sanitize';
 import { SAY_GAP_MS, sayText } from './chat';
@@ -200,7 +200,7 @@ export class HostRoom {
     this.members.forEach((m, i) => {
       if (!m.host) seats.set(m.id, i);
     });
-    const state = createGame(players, this.ctx, rules, seed);
+    const state = openRound(createGame(players, this.ctx, rules, seed), this.ctx);
     this.startWith(state, seats);
     return state;
   }

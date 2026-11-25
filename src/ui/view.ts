@@ -148,12 +148,25 @@ export function renderBoard(state: GameState, selected: string | null): string {
   return cells.join('');
 }
 
+// Evento del quartiere e andamento del mercato, quando le regole facoltative sono attive.
+export function renderEvents(state: GameState): string {
+  const rows: string[] = [];
+  if (state.event) {
+    rows.push(`<li class="ev ev-${state.event.id}">${t(`event.${state.event.id}` as MsgKey, { group: state.event.group })}</li>`);
+  }
+  if (state.market) {
+    rows.push(`<li class="ev ev-${state.market.id}">${t(`market.${state.market.id}` as MsgKey)} <small>${t('market.until', { n: state.market.until })}</small></li>`);
+  }
+  return rows.length ? `<ul class="events" aria-label="${t('event.now')}">${rows.join('')}</ul>` : '';
+}
+
 // Il centro del tavolo: di chi è il turno, gli ultimi dadi e le ultime mosse.
 export function renderTable(state: GameState): string {
   const p = state.players[state.current];
   const last = state.log.slice(-3).reverse();
   return `
     <h1 class="title">Sdrogopoli</h1>
+    ${renderEvents(state)}
     ${state.phase === 'gameOver' ? '' : `<p class="table-turn">${playerBadge(state, p.id)} <span>${t('turn.of', { name: `<strong>${escapeHtml(p.name)}</strong>` })}</span></p>`}
     ${state.lastRoll ? `<span class="center-dice">${renderDice(state)}</span>` : ''}
     ${last.length ? `<ol class="table-log" aria-label="${t('table.lastMoves')}">${last.map((l) => `<li>${escapeHtml(text(l))}</li>`).join('')}</ol>` : ''}`;
