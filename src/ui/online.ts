@@ -48,6 +48,13 @@ export const DURATIONS: [string, string][] = [
   ['40', '40 giri'],
 ];
 
+export const TURN_LIMITS: [string, string][] = [
+  ['', 'Nessun limite'],
+  ['30', '30 secondi'],
+  ['60', '1 minuto'],
+  ['120', '2 minuti'],
+];
+
 export interface LobbyView {
   role: 'host' | 'guest';
   code: string;
@@ -68,7 +75,7 @@ export interface LobbyHandlers {
   onProfile: (name: string, look: Appearance) => void;
   onComputers: (n: number) => void;
   onReady: (ready: boolean) => void;
-  onStart: (maxRounds: number | null) => void;
+  onStart: (maxRounds: number | null, limitSeconds: number | null) => void;
   onLeave: () => void;
 }
 
@@ -146,7 +153,8 @@ export function renderLobby(app: HTMLElement, view: LobbyView, h: LobbyHandlers)
     else if (b.hasAttribute('data-ready')) h.onReady(b.getAttribute('aria-pressed') !== 'true');
     else if (b.hasAttribute('data-lobby-start')) {
       const rounds = main.querySelector<HTMLSelectElement>('[data-lobby-rounds]')?.value;
-      h.onStart(Number(rounds) || null);
+      const limit = main.querySelector<HTMLSelectElement>('[data-lobby-limit]')?.value;
+      h.onStart(Number(rounds) || null, Number(limit) || null);
     } else if (b.hasAttribute('data-lobby-leave')) h.onLeave();
   });
   updateLobby(app, view);
@@ -172,6 +180,9 @@ export function updateLobby(app: HTMLElement, view: LobbyView): void {
     : '<p class="lobby-wait">Mi collego al tavolo…</p>';
   const controls = app.querySelector('[data-lobby-controls]')!;
   const seats = view.members.length + view.computers;
+  // le scelte fatte restano anche quando l'elenco si aggiorna
+  const rounds = controls.querySelector<HTMLSelectElement>('[data-lobby-rounds]')?.value ?? '20';
+  const limit = controls.querySelector<HTMLSelectElement>('[data-lobby-limit]')?.value ?? '60';
   if (view.role === 'host') {
     const waiting = view.members.filter((m) => !m.host && !m.ready).length;
     const maxComputers = MAX_SEATS - view.members.length;
@@ -183,8 +194,12 @@ export function updateLobby(app: HTMLElement, view: LobbyView): void {
         <button type="button" data-computers="${view.computers + 1}" ${view.computers >= maxComputers ? 'disabled' : ''} aria-label="Un computer in più">+</button>
       </div>
       <label class="lobby-rounds">Durata
-        <select data-lobby-rounds>${DURATIONS.map(([v, l]) => `<option value="${v}" ${v === '20' ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <select data-lobby-rounds>${DURATIONS.map(([v, l]) => `<option value="${v}" ${v === rounds ? 'selected' : ''}>${l}</option>`).join('')}</select>
       </label>
+      <label class="lobby-rounds">Tempo per ogni mossa
+        <select data-lobby-limit>${TURN_LIMITS.map(([v, l]) => `<option value="${v}" ${v === limit ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      </label>
+      <p class="hint">Se il tempo scade, o se qualcuno si scollega, per lui gioca il computer finché non torna.</p>
       <button type="button" class="primary" data-lobby-start ${seats < 2 || waiting ? 'disabled' : ''}>Inizia la partita</button>
       <p class="hint">${seats < 2 ? 'Serve almeno un altro giocatore: un amico o un computer.' : waiting ? `Aspetta che tutti siano pronti (${waiting} ${waiting === 1 ? 'manca' : 'mancano'}).` : `Si gioca in ${seats}. Fino a ${MAX_SEATS} al tavolo.`}</p>`;
   } else {

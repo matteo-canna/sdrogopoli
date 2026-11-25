@@ -24,7 +24,7 @@ import { setupOffline } from './pwa';
 import { reportUrl } from './report';
 import { defaultSlotName, deleteSlot, downloadSave, FILE_EXT, listSlots, parseSaveText, saveSlot } from './slots';
 import { cleanCode, codeFromHash, openTransport, renderLobby, tableCode, updateLobby, type LobbyView } from './online';
-import { HostRoom } from '../net/host';
+import { HostRoom, type HostSnapshot } from '../net/host';
 import { GuestRoom } from '../net/guest';
 
 // senza "rng": i dadi vengono dal generatore della partita, che parte da un seme casuale
@@ -124,8 +124,9 @@ function showLobby(): void {
       online.room.setReady(ready);
       render();
     },
-    onStart: (maxRounds) => {
+    onStart: (maxRounds, limitSeconds) => {
       if (online?.role !== 'host') return;
+      online.room.setTurnLimit(limitSeconds ? limitSeconds * 1000 : null);
       online.room.start({ maxRounds, seatBonus: SEAT_BONUS }, randomSeed());
     },
     onLeave: leaveTable,
@@ -136,6 +137,11 @@ function showLobby(): void {
 // Stato nuovo arrivato dal tavolo (o calcolato qui, se il tavolo è nostro).
 function onTableChange(prev: GameState | null, next: GameState, action: Action | null): void {
   session.state = next;
+  // chi ha creato il tavolo tiene una copia nella scheda: ricaricando la pagina il tavolo riprende
+  if (online?.role === 'host') {
+    const snap = online.room.snapshot();
+    if (snap) writeSession(HOST_TABLE, JSON.stringify({ code: online.code, snap }));
+  }
   // partita appena iniziata (o appena raggiunta): si lascia la sala d'attesa
   if (lobbyShown) {
     lobbyShown = false;
@@ -155,7 +161,76 @@ function onTableChange(prev: GameState | null, next: GameState, action: Action |
   render();
 }
 
-async function enterTable(role: 'host' | 'guest', code: string): Promise<void> {
+const HOST_TABLE = 'sdrogopoli-tavolo-oste';
+const GUEST_KEY = 'sdrogopoli-chiave-tavolo';
+
+// sessionStorage: vale solo per questa scheda (due schede sono due giocatori diversi)
+function readSession(key: string): string | null {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function writeSession(key: string, value: string | null): void {
+  try {
+    if (value === null) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, value);
+  } catch {
+    /* senza memoria della scheda: ricaricando si perde il posto */
+  }
+}
+
+// chiave di questa scheda per riprendere il posto al tavolo dopo una ricarica
+function guestKey(): string {
+  let key = readSession(GUEST_KEY);
+  if (!key) {
+    key = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    writeSession(GUEST_KEY, key);
+  }
+  return key;
+}
+
+// Testo per chi sta giocando quando non è il mio turno: scollegato o fuori tempo.
+function seatNote(seat: number): string {
+  if (!online) return '';
+  const offline = online.role === 'host' ? online.room.offlineSeats() : online.room.offline;
+  const away = online.role === 'host' ? [...online.room.away] : online.room.away;
+  if (offline.includes(seat)) return ' · 📴 scollegato, gioca il computer';
+  if (away.includes(seat)) return ' · 🤖 tempo scaduto, gioca il computer';
+  return '';
+}
+
+function iAmAway(): boolean {
+  const seat = mySeat();
+  if (!online || seat === null) return false;
+  return online.role === 'host' ? online.room.away.has(seat) : online.room.away.includes(seat);
+}
+
+function timeLeft(): number | null {
+  return online ? online.room.timeLeft() : null;
+}
+
+function clockText(ms: number): string {
+  const sec = Math.ceil(ms / 1000);
+  return sec >= 60 ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : `${sec} s`;
+}
+
+// Ogni secondo: conto alla rovescia e, per chi ha creato il tavolo, controllo del tempo scaduto.
+setInterval(() => {
+  if (!online || !session.state) return;
+  if (online.role === 'host' && online.room.checkTimer()) return;
+  const clock = app.querySelectorAll<HTMLElement>('[data-clock]');
+  const left = timeLeft();
+  clock.forEach((el) => {
+    el.hidden = left === null;
+    if (left === null) return;
+    el.textContent = `⏱ ${clockText(left)}`;
+    el.classList.toggle('late', left <= 10_000);
+  });
+}, 1000);
+
+async function enterTable(role: 'host' | 'guest', code: string, restore?: HostSnapshot): Promise<void> {
   bots.cancel();
   destroy3d();
   // la partita su questo dispositivo resta salvata: si riprende uscendo dal tavolo
@@ -183,8 +258,12 @@ async function enterTable(role: 'host' | 'guest', code: string): Promise<void> {
     online = { role, room, code };
     room.onLobby = () => render();
     room.onChange = onTableChange;
+    if (restore) {
+      room.restore(restore);
+      return;
+    }
   } else {
-    const room = new GuestRoom(transport, name, onlineLook);
+    const room = new GuestRoom(transport, name, onlineLook, guestKey());
     online = { role, room, code };
     room.onLobby = () => render();
     room.onChange = onTableChange;
@@ -196,11 +275,18 @@ async function enterTable(role: 'host' | 'guest', code: string): Promise<void> {
       render();
     };
     room.onHostLeft = () => {
-      const msg = 'Chi ha creato il tavolo è uscito: la partita si ferma qui.';
+      // può tornare ricaricando la pagina: si resta al tavolo ad aspettare
+      const msg = room.closed || 'Chi ha creato il tavolo si è scollegato. Aspetto che torni…';
       lobbyStatus = msg;
       error = msg;
       render();
     };
+    room.onHostBack = () => {
+      lobbyStatus = '';
+      error = '';
+      render();
+    };
+    room.onPresence = () => render();
     // se dopo un po' nessuno risponde, lo si dice
     setTimeout(() => {
       if (online?.room === room && !room.connected && !room.closed) {
@@ -219,6 +305,7 @@ function leaveTable(): void {
   if (online.role === 'host') online.room.close();
   else online.room.leave();
   online = null;
+  writeSession(HOST_TABLE, null);
   lobbyShown = false;
   lobbyStatus = '';
   error = '';
@@ -242,7 +329,11 @@ const bots = new BotScheduler(
   () => !animating && botToPlay(),
   // con la velocità istantanea il computer gioca senza pause
   () => (session.state!.phase === 'roll' ? 900 : 650) / speed.factor,
-  () => act(chooseBotAction(session.state!, ctx)),
+  () => {
+    // online il computer muove tramite il tavolo (anche per chi è scollegato o fuori tempo)
+    if (online?.role === 'host') online.room.stepComputer();
+    else act(chooseBotAction(session.state!, ctx));
+  },
 );
 
 function botToPlay(): boolean {
@@ -361,6 +452,7 @@ function turnHtml(s: GameState): string {
       <span>${s.phase === 'gameOver' ? '<strong>Partita finita</strong>' : `Tocca a <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>`}</span>
       ${s.rules?.demo ? `<span class="pill demo" title="Modalità demo sperimentale">🧪 Demo</span>` : ''}
       ${s.rules?.maxRounds ? `<span class="pill">Giro ${s.round} di ${s.rules.maxRounds}</span>` : ''}
+      ${online ? `<span class="pill clock" data-clock aria-label="Tempo per la mossa" ${timeLeft() === null ? 'hidden' : ''}>⏱ ${clockText(timeLeft() ?? 0)}</span>` : ''}
       ${s.rules?.parkPot ? `<span class="pill" title="Montepremi della Panchina del Parco">🪑 ${board.currency.symbol} ${s.pot}</span>` : ''}
       ${s.lastRoll ? `<span class="roll">${renderDice(s)}<span class="roll-total">${total}</span></span>` : ''}
     </div>`;
@@ -371,8 +463,8 @@ function controlsHtml(s: GameState): string {
   // online, quando tocca a un altro, al posto dei pulsanti si dice chi sta giocando
   const waiting = s.phase !== 'gameOver' && !myTurn(s);
   const actions = waiting
-    ? `<div class="actions waiting"><p class="wait">${mySeat() === null ? '👀 Stai guardando la partita' : `⏳ Aspetta il tuo turno: gioca <strong>${escapeHtml(s.players[actingPlayer(s)].name)}</strong>`}</p></div>`
-    : `<div class="actions">${renderTurnActions(s)}${undoButton()}</div>`;
+    ? `<div class="actions waiting"><p class="wait">${mySeat() === null ? '👀 Stai guardando la partita' : `⏳ Aspetta il tuo turno: gioca <strong>${escapeHtml(s.players[actingPlayer(s)].name)}</strong>`}${seatNote(actingPlayer(s))}</p></div>`
+    : `${iAmAway() ? '<p class="away-note" role="status">🤖 Il tempo è scaduto e il computer sta giocando per te. Fai una mossa per riprendere.</p>' : ''}<div class="actions">${renderTurnActions(s)}${undoButton()}</div>`;
   return `
     ${tradeDraft && !waiting ? renderTradeEditor(s, tradeDraft) : actions}
     ${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}
@@ -823,7 +915,17 @@ setupOffline();
 
 // link di un tavolo (#tavolo=CODICE): si entra subito
 const linkCode = codeFromHash(location.hash);
+const savedTable = readSession(HOST_TABLE);
 if (linkCode) void enterTable('guest', linkCode);
+else if (savedTable) {
+  // la pagina di chi ha creato il tavolo si è ricaricata: si riapre lo stesso tavolo
+  try {
+    const { code, snap } = JSON.parse(savedTable) as { code: string; snap: HostSnapshot };
+    if (cleanCode(code) && snap?.state) void enterTable('host', code, snap);
+  } catch {
+    writeSession(HOST_TABLE, null);
+  }
+}
 window.addEventListener('hashchange', () => {
   const code = codeFromHash(location.hash);
   if (code && code !== online?.code) {

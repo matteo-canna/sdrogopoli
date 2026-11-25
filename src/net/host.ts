@@ -1,5 +1,6 @@
 // L'oste: raccoglie chi entra al tavolo, avvia la partita, controlla che ogni mossa arrivi da chi
-// deve giocare e manda lo stato a tutti.
+// deve giocare e manda lo stato a tutti. Muove il computer per i posti dei computer, per chi si è
+// scollegato e per chi ha lasciato scadere il tempo della mossa.
 import { actingPlayer, applyAction, chooseBotAction, createGame, type Action, type Appearance, type GameContext, type GameRules, type GameState, type PlayerSetup } from '../engine';
 import { PROTOCOL_VERSION, type Member, type NetMessage } from './protocol';
 import { cleanLook, cleanName, uniqueColors } from './sanitize';
@@ -7,14 +8,28 @@ import type { Transport } from './transport';
 
 export const MAX_SEATS = 8;
 
+// Quello che serve per riprendere il tavolo dopo aver ricaricato la pagina.
+export interface HostSnapshot {
+  state: GameState;
+  moves: number;
+  keys: [string, number][];
+  limitMs: number | null;
+}
+
 export class HostRoom {
   // prima dell'inizio: chi è al tavolo (l'oste è il primo)
   members: Member[];
   computers = 0;
-  // durante la partita: posto di ogni ospite (chiave: id del dispositivo)
+  // durante la partita: posto di ogni dispositivo collegato (chiave: id del dispositivo)
   private seats = new Map<string, number>();
-  // posti lasciati liberi da chi è uscito: li riprende chi entra (intanto gioca il computer)
-  private freeSeats: number[] = [];
+  // chiave di ogni dispositivo (resta uguale se ricarica la pagina) e posto di ogni chiave
+  private keyOfPeer = new Map<string, string>();
+  private seatOfKey = new Map<string, number>();
+  // posti mossi dal computer perché il tempo è scaduto, finché la persona non torna a giocare
+  readonly away = new Set<number>();
+  // tempo per ogni mossa (null = senza limite)
+  limitMs: number | null = null;
+  private lastMoveAt = 0;
   state: GameState | null = null;
   readonly hostSeat = 0;
   moves = 0;
@@ -26,6 +41,7 @@ export class HostRoom {
     private ctx: GameContext,
     name: string,
     look: Appearance | null,
+    private now: () => number = () => Date.now(),
   ) {
     this.members = [{ id: 'oste', name: cleanName(name, 'Oste'), look, ready: true, host: true }];
     transport.onMessage((msg, from) => this.receive(msg, from));
@@ -34,10 +50,6 @@ export class HostRoom {
 
   get started(): boolean {
     return this.state !== null;
-  }
-
-  get guests(): ReadonlyMap<string, number> {
-    return this.seats;
   }
 
   setComputers(n: number): void {
@@ -59,6 +71,18 @@ export class HostRoom {
     this.onLobby?.(this.members);
   }
 
+  // Posti di persone senza nessun dispositivo collegato.
+  offlineSeats(): number[] {
+    if (!this.state) return [];
+    const taken = new Set(this.seats.values());
+    return this.state.players.filter((p) => p.id !== this.hostSeat && !p.isBot && !taken.has(p.id)).map((p) => p.id);
+  }
+
+  private publishPresence(to?: string): void {
+    if (!this.started) return;
+    this.transport.send({ t: 'presence', offline: this.offlineSeats(), away: [...this.away], limitMs: this.limitMs }, to);
+  }
+
   private left(peer: string): void {
     if (!this.started) {
       this.members = this.members.filter((m) => m.id !== peer);
@@ -66,11 +90,9 @@ export class HostRoom {
       this.publishLobby();
       return;
     }
-    const seat = this.seats.get(peer);
-    if (seat === undefined) return;
-    this.seats.delete(peer);
-    // il posto resta libero per chi rientra; intanto lo muove il computer
-    this.freeSeats.push(seat);
+    if (!this.seats.delete(peer)) return;
+    // il posto resta a chi rientra con la stessa chiave; intanto lo muove il computer
+    this.publishPresence();
     this.onChange?.(this.state, this.state!, null);
   }
 
@@ -80,6 +102,7 @@ export class HostRoom {
         this.transport.send({ t: 'bye', reason: 'Versione del gioco diversa: ricaricate la pagina tutti e due.' }, from);
         return;
       }
+      if (typeof msg.key === 'string' && msg.key) this.keyOfPeer.set(from, msg.key.slice(0, 40));
       if (!this.started) {
         const known = this.members.find((m) => m.id === from);
         if (!known) {
@@ -93,15 +116,13 @@ export class HostRoom {
         this.publishLobby();
         return;
       }
-      // a partita iniziata: si riprende un posto lasciato libero, altrimenti si guarda
-      let seat = this.seats.get(from) ?? null;
-      if (seat === null && this.freeSeats.length) {
-        seat = this.freeSeats.shift()!;
-        this.seats.set(from, seat);
-      }
+      const seat = this.seatFor(from);
       this.transport.send({ t: 'welcome', seat }, from);
       this.transport.send({ t: 'state', state: this.state!, n: this.moves, action: null }, from);
-      if (seat !== null) this.onChange?.(this.state, this.state!, null);
+      if (seat !== null) {
+        this.publishPresence();
+        this.onChange?.(this.state, this.state!, null);
+      } else this.publishPresence(from);
       return;
     }
     if (msg.t === 'ready') {
@@ -114,9 +135,41 @@ export class HostRoom {
     }
     if (msg.t === 'action') {
       const seat = this.seats.get(from);
-      const result = seat === undefined ? 'Stai solo guardando.' : this.tryApply(seat, msg.action);
+      const result = seat === undefined ? 'Stai solo guardando.' : this.tryApply(seat, msg.action, true);
       if (result) this.transport.send({ t: 'rejected', seq: msg.seq, reason: result }, from);
     }
+  }
+
+  // Posto per chi entra a partita iniziata: il suo (stessa chiave), altrimenti uno rimasto
+  // senza nessuno, altrimenti si guarda soltanto.
+  private seatFor(peer: string): number | null {
+    const known = this.seats.get(peer);
+    if (known !== undefined) return known;
+    const offline = this.offlineSeats();
+    const key = this.keyOfPeer.get(peer);
+    const mine = key !== undefined ? this.seatOfKey.get(key) : undefined;
+    let seat: number | null = null;
+    if (mine !== undefined && offline.includes(mine)) seat = mine;
+    else {
+      // prima i posti di cui nessuno conosce la chiave, poi gli altri senza nessuno
+      const claimed = new Set(this.seatOfKey.values());
+      seat = offline.find((s) => !claimed.has(s)) ?? offline[0] ?? null;
+    }
+    if (seat === null) return null;
+    this.seats.set(peer, seat);
+    // chi rientra proprio nel suo turno ha tutto il tempo per la mossa
+    if (actingPlayer(this.state!) === seat) this.lastMoveAt = this.now();
+    if (key !== undefined) {
+      for (const [k, s] of this.seatOfKey) if (s === seat) this.seatOfKey.delete(k);
+      this.seatOfKey.set(key, seat);
+    }
+    return seat;
+  }
+
+  setTurnLimit(ms: number | null): void {
+    this.limitMs = ms && ms > 0 ? ms : null;
+    this.lastMoveAt = this.now();
+    this.publishPresence();
   }
 
   // Avvia la partita con chi è al tavolo (nell'ordine di arrivo) e i posti del computer.
@@ -142,21 +195,40 @@ export class HostRoom {
   startWith(state: GameState, seats: Map<string, number>): void {
     this.state = state;
     this.seats = new Map(seats);
+    for (const [peer, seat] of this.seats) {
+      const key = this.keyOfPeer.get(peer);
+      if (key !== undefined) this.seatOfKey.set(key, seat);
+    }
+    this.lastMoveAt = this.now();
     for (const [peer, seat] of this.seats) this.transport.send({ t: 'welcome', seat }, peer);
     this.transport.send({ t: 'state', state, n: this.moves, action: null });
+    this.publishPresence();
     this.onChange?.(null, state, null);
   }
 
-  // Mossa fatta su questo schermo: dell'oste, o del computer per i posti che muove lui.
+  // Riprende il tavolo dopo che la pagina dell'oste si è ricaricata: gli ospiti, ritrovato l'oste,
+  // si ripresentano con la loro chiave e riprendono il posto. Intanto gioca il computer.
+  restore(snap: HostSnapshot): void {
+    this.moves = snap.moves;
+    this.seatOfKey = new Map(snap.keys);
+    this.limitMs = snap.limitMs;
+    this.startWith(snap.state, new Map());
+  }
+
+  snapshot(): HostSnapshot | null {
+    if (!this.state) return null;
+    return { state: this.state, moves: this.moves, keys: [...this.seatOfKey], limitMs: this.limitMs };
+  }
+
+  // Mossa della persona che usa lo schermo dell'oste.
   act(action: Action): string | null {
     if (!this.state) return 'La partita non è iniziata.';
-    const seat = actingPlayer(this.state);
-    if (seat !== this.hostSeat && !this.isComputerSeat(seat)) return 'Non è il tuo turno.';
-    return this.tryApply(seat, action);
+    return this.tryApply(this.hostSeat, action, true);
   }
 
   // Applica la mossa se tocca a quel posto. Restituisce il motivo del rifiuto, o null.
-  private tryApply(seat: number, action: Action): string | null {
+  // "byPerson": la mossa l'ha fatta la persona del posto, che così torna a giocare da sé.
+  private tryApply(seat: number, action: Action, byPerson: boolean): string | null {
     const prev = this.state;
     if (!prev) return 'La partita non è iniziata.';
     if (prev.phase === 'gameOver') return 'La partita è finita.';
@@ -170,14 +242,20 @@ export class HostRoom {
     }
     this.state = next;
     this.moves++;
+    this.lastMoveAt = this.now();
+    const back = byPerson && this.away.delete(seat);
     this.transport.send({ t: 'state', state: next, n: this.moves, action });
+    if (back) this.publishPresence();
     this.onChange?.(prev, next, action);
     return null;
   }
 
-  // Posti che muove l'oste per conto del computer: i computer e i posti rimasti senza persona.
+  // Posti che muove l'oste per conto del computer: i computer, i posti rimasti senza persona
+  // e chi ha lasciato scadere il tempo.
   isComputerSeat(seat: number): boolean {
-    if (!this.state || seat === this.hostSeat) return false;
+    if (!this.state) return false;
+    if (this.away.has(seat)) return true;
+    if (seat === this.hostSeat) return false;
     if (this.state.players[seat].isBot) return true;
     return ![...this.seats.values()].includes(seat);
   }
@@ -185,12 +263,29 @@ export class HostRoom {
   // Fa una mossa del computer se tocca a lui. Vero se ha mosso.
   stepComputer(): boolean {
     if (!this.state || this.state.phase === 'gameOver') return false;
-    if (!this.isComputerSeat(actingPlayer(this.state))) return false;
-    return this.act(chooseBotAction(this.state, this.ctx)) === null;
+    const seat = actingPlayer(this.state);
+    if (!this.isComputerSeat(seat)) return false;
+    return this.tryApply(seat, chooseBotAction(this.state, this.ctx), false) === null;
+  }
+
+  // Millisecondi rimasti alla persona di turno (null: nessun limite o tocca al computer).
+  timeLeft(): number | null {
+    if (!this.state || this.limitMs === null || this.state.phase === 'gameOver') return null;
+    if (this.isComputerSeat(actingPlayer(this.state))) return null;
+    return Math.max(0, this.lastMoveAt + this.limitMs - this.now());
+  }
+
+  // Tempo scaduto: da qui in poi per quel posto gioca il computer, finché la persona non fa una mossa.
+  checkTimer(): boolean {
+    if (this.timeLeft() !== 0) return false;
+    this.away.add(actingPlayer(this.state!));
+    this.publishPresence();
+    this.onChange?.(this.state, this.state!, null);
+    return true;
   }
 
   close(): void {
-    this.transport.send({ t: 'bye', reason: "L'oste ha chiuso il tavolo." });
+    this.transport.send({ t: 'bye', reason: "Chi ha creato il tavolo l'ha chiuso." });
     this.transport.leave();
   }
 }

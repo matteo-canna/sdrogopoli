@@ -110,4 +110,104 @@ describe('tavolo online (rete finta)', () => {
     expect(guests[0].closed).toContain('chiuso');
     expect(state).toBeNull();
   });
+
+  it('chi ricarica la pagina riprende il suo posto, non quello di un altro', () => {
+    const net = new FakeNetwork();
+    const host = new HostRoom(net.join('oste'), ctx, 'Ada', null);
+    const guests = ['Bea', 'Ciro'].map((n, i) => new GuestRoom(net.join(`ospite${i}`), n, null, `chiave-${n}`));
+    net.flush();
+    guests.forEach((g) => g.setReady(true));
+    net.flush();
+    host.start({ maxRounds: 5 }, 3);
+    net.flush();
+    // escono tutti e due; rientra prima Ciro, poi Bea
+    net.leave('ospite0');
+    net.leave('ospite1');
+    net.flush();
+    expect(host.offlineSeats()).toEqual([1, 2]);
+    const ciro = new GuestRoom(net.join('ciro-2'), 'Ciro', null, 'chiave-Ciro');
+    net.flush();
+    const bea = new GuestRoom(net.join('bea-2'), 'Bea', null, 'chiave-Bea');
+    net.flush();
+    expect(ciro.seat).toBe(2);
+    expect(bea.seat).toBe(1);
+    expect(bea.offline).toEqual([]);
+  });
+
+  it('gli altri vedono chi è scollegato', () => {
+    const { net, host, guests } = started();
+    net.leave('ospite2');
+    net.flush();
+    expect(host.offlineSeats()).toEqual([3]);
+    expect(guests[0].offline).toEqual([3]);
+  });
+
+  it('a tempo scaduto gioca il computer, finché la persona non torna a muovere', () => {
+    let now = 0;
+    const net = new FakeNetwork();
+    const host = new HostRoom(net.join('oste'), ctx, 'Ada', null, () => now);
+    const bea = new GuestRoom(net.join('bea'), 'Bea', null, 'k', () => now);
+    net.flush();
+    bea.setReady(true);
+    net.flush();
+    host.start({ maxRounds: 5 }, 9);
+    host.setTurnLimit(60_000);
+    net.flush();
+    expect(host.timeLeft()).toBe(60_000);
+    expect(bea.limitMs).toBe(60_000);
+    now = 59_000;
+    expect(host.checkTimer()).toBe(false);
+    now = 60_000;
+    // tocca ad Ada (l'oste): il tempo è scaduto
+    expect(host.checkTimer()).toBe(true);
+    net.flush();
+    expect(host.isComputerSeat(0)).toBe(true);
+    expect(bea.away).toEqual([0]);
+    // il computer gioca per Ada finché non tocca a Bea
+    while (actingPlayer(host.state!) === 0) expect(host.stepComputer()).toBe(true);
+    net.flush();
+    // Bea gioca da sé: Ada resta "via" finché non fa una mossa sua
+    expect(host.isComputerSeat(1)).toBe(false);
+    while (actingPlayer(host.state!) === 1) {
+      bea.send(chooseBotAction(bea.state!, ctx));
+      net.flush();
+    }
+    expect(host.isComputerSeat(0)).toBe(true);
+    // Ada tocca un pulsante: torna a giocare lei
+    expect(host.act(chooseBotAction(host.state!, ctx))).toBeNull();
+    expect(host.away.size).toBe(0);
+  });
+
+  it("l'oste che ricarica la pagina riprende il tavolo e gli ospiti tornano ai loro posti", () => {
+    const net = new FakeNetwork();
+    const host = new HostRoom(net.join('oste'), ctx, 'Ada', null);
+    const bea = new GuestRoom(net.join('bea'), 'Bea', null, 'chiave-bea');
+    let left = 0;
+    let back = 0;
+    bea.onHostLeft = () => left++;
+    bea.onHostBack = () => back++;
+    net.flush();
+    bea.setReady(true);
+    net.flush();
+    host.start({ maxRounds: 5 }, 4);
+    net.flush();
+    while (actingPlayer(host.state!) === 0) host.act(chooseBotAction(host.state!, ctx));
+    net.flush();
+    const snap = JSON.parse(JSON.stringify(host.snapshot()));
+    net.leave('oste');
+    net.flush();
+    expect(left).toBe(1);
+    const again = new HostRoom(net.join('oste-2'), ctx, 'Ada', null);
+    again.restore(snap);
+    net.flush();
+    expect(back).toBe(1);
+    expect(bea.seat).toBe(1);
+    expect(again.isComputerSeat(1)).toBe(false);
+    expect(bea.state).toEqual(again.state);
+    // la partita va avanti
+    bea.send(chooseBotAction(bea.state!, ctx));
+    net.flush();
+    expect(bea.lastError).toBe('');
+    expect(again.moves).toBe(snap.moves + 1);
+  });
 });
