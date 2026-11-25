@@ -18,6 +18,7 @@ import { GameSession, randomSeed } from './session';
 import { BotScheduler } from './bots';
 import { soundFor } from './sounds';
 import { renderSetup, setupLooks, SEATS_SHOWN, type SetupChoice } from './setup';
+import { setupOffline } from './pwa';
 
 // senza "rng": i dadi vengono dal generatore della partita, che parte da un seme casuale
 const ctx: GameContext = { board, cards };
@@ -486,6 +487,8 @@ document.addEventListener('keydown', (e) => {
   else return;
   render();
 });
+
+setupOffline();
 
 // Prima partenza: si disegna la pagina sotto la schermata di caricamento, poi si caricano
 // in anticipo i personaggi 3D che serviranno (quelli della partita salvata o della schermata iniziale).
