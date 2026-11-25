@@ -2,6 +2,8 @@
 // L'elenco dei file e la versione li scrive la build (vite.config.ts).
 const VERSION = '__VERSIONE__';
 const FILES = [/* __FILE__ */];
+// la grafica 3D: si salva solo quando la pagina dice che serve
+const FILES_3D = [/* __FILE_3D__ */];
 const CACHE = `sdrogopoli-${VERSION}`;
 
 self.addEventListener('install', (event) => {
@@ -18,6 +20,14 @@ self.addEventListener('activate', (event) => {
 // la pagina chiede di passare subito alla nuova versione quando chi gioca tocca "Aggiorna"
 self.addEventListener('message', (event) => {
   if (event.data === 'aggiorna') self.skipWaiting();
+  // chi usa il 3D lo ritrova anche offline
+  if (event.data === 'salva-3d') {
+    event.waitUntil(
+      caches.open(CACHE).then(async (cache) => {
+        for (const f of FILES_3D) if (!(await cache.match(f))) await cache.add(f).catch(() => {});
+      }),
+    );
+  }
 });
 
 self.addEventListener('fetch', (event) => {
@@ -28,6 +38,19 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(fetch(req).catch(() => caches.match('./', { ignoreSearch: true, ignoreVary: true })));
     return;
   }
-  // tutto il resto ha il nome con l'impronta o non cambia: prima la copia salvata
-  event.respondWith(caches.match(req, { ignoreSearch: true, ignoreVary: true }).then((hit) => hit ?? fetch(req)));
+  // tutto il resto ha il nome con l'impronta o non cambia: prima la copia salvata.
+  // Quello che non era in elenco (la grafica 3D) si salva la prima volta che arriva.
+  event.respondWith(
+    caches.match(req, { ignoreSearch: true, ignoreVary: true }).then(
+      (hit) =>
+        hit ??
+        fetch(req).then((res) => {
+          if (res.ok && res.type === 'basic') {
+            const copy = res.clone();
+            event.waitUntil(caches.open(CACHE).then((cache) => cache.put(req, copy)));
+          }
+          return res;
+        }),
+    ),
+  );
 });

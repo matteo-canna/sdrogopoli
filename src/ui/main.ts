@@ -5,9 +5,11 @@ import './style.css';
 import { board, cards } from '../data';
 import { actingPlayer, chooseBotAction, createGame, RuleError, type Action, type GameContext, type GameState } from '../engine';
 import { escapeHtml, playerBadge, renderBoard, renderDice, renderPlayers, renderSpaceCard, renderTable, renderTradeEditor, renderTurnActions, type TradeDraft } from './view';
-import { Board3D, webglAvailable, type CameraMode } from './three/board3d';
+import type { Board3D } from './three/board3d';
+import type { CameraMode } from './three/camera';
 import type { SkyMode } from './three/city';
-import { loadModel } from './three/characters3d';
+import { webglAvailable } from './webgl';
+import { load3d } from './lazy3d';
 import { runLoading } from './loading';
 import { tutorialTip } from './tutorial';
 import { addResult, renderSummary } from './summary';
@@ -247,37 +249,61 @@ function render2d(s: GameState): void {
   fillPanels(s);
 }
 
+let loading3d = false;
 function render3d(s: GameState): void {
   // la scena 3D si crea una sola volta: ridisegniamo solo i pannelli HTML
   if (!board3d) {
-    app.innerHTML = gameShell('<div class="board3d"></div>', '3d');
-    board3d = new Board3D(
-      app.querySelector<HTMLDivElement>('.board3d')!,
-      (spaceId) => {
-        selected = selected === spaceId ? null : spaceId;
-        error = '';
+    if (!app.querySelector('.game3d .board3d')) app.innerHTML = gameShell('<div class="board3d"><p class="loading-3d">Preparo il tabellone 3D…</p></div>', '3d');
+    fillPanels(s);
+    if (loading3d) return;
+    loading3d = true;
+    // three.js si scarica solo la prima volta che serve
+    load3d()
+      .then(({ Board3D }) => {
+        loading3d = false;
+        if (!session.state || viewMode !== '3d' || board3d) return;
+        create3d(Board3D);
         render();
-      },
-      (busy) => {
-        animating = busy;
-        app.querySelector('.game')?.classList.toggle('busy', busy);
-        if (!busy) bots.schedule();
-      },
-      () => {
-        // grafica 3D persa: si ricrea la scena con lo stato attuale (la partita non si ferma)
-        destroy3d();
-        setTimeout(() => {
-          if (session.state && viewMode === '3d' && !board3d) render();
-        }, 300);
-      },
-    );
-    board3d.cameraMode = cameraMode;
-    board3d.skyMode = skyMode;
-    board3d.speed = speed.factor;
-    board3d.onHop = () => audio.play('hop');
+      })
+      .catch(() => {
+        // senza rete e senza copia salvata del 3D: si gioca in 2D
+        loading3d = false;
+        viewMode = '2d';
+        render();
+      });
+    return;
   }
   fillPanels(s);
   board3d.update(s, selected);
+}
+
+function create3d(Board3DClass: typeof Board3D): void {
+  const box = app.querySelector<HTMLDivElement>('.board3d')!;
+  box.innerHTML = '';
+  board3d = new Board3DClass(
+    box,
+    (spaceId) => {
+      selected = selected === spaceId ? null : spaceId;
+      error = '';
+      render();
+    },
+    (busy) => {
+      animating = busy;
+      app.querySelector('.game')?.classList.toggle('busy', busy);
+      if (!busy) bots.schedule();
+    },
+    () => {
+      // grafica 3D persa: si ricrea la scena con lo stato attuale (la partita non si ferma)
+      destroy3d();
+      setTimeout(() => {
+        if (session.state && viewMode === '3d' && !board3d) render();
+      }, 300);
+    },
+  );
+  board3d.cameraMode = cameraMode;
+  board3d.skyMode = skyMode;
+  board3d.speed = speed.factor;
+  board3d.onHop = () => audio.play('hop');
 }
 
 function destroy3d(): void {
@@ -493,12 +519,12 @@ setupOffline();
 // Prima partenza: si disegna la pagina sotto la schermata di caricamento, poi si caricano
 // in anticipo i personaggi 3D che serviranno (quelli della partita salvata o della schermata iniziale).
 render();
-const neededCharacters = webglAvailable()
+const neededCharacters = webglAvailable() && viewMode === '3d'
   ? [...new Set((session.state ? session.state.players.map((p) => p.appearance?.character) : setupLooks.slice(0, SEATS_SHOWN).map((l) => l.character)).filter((c): c is string => !!c))]
   : [];
 void runLoading(
   neededCharacters.map((id) => ({
     label: `${characterDef(id).emoji} ${characterDef(id).label} pronto`,
-    run: () => loadModel(id),
+    run: () => load3d().then((m) => m.loadModel(id)),
   })),
 );

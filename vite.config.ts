@@ -18,7 +18,24 @@ function offline(): Plugin {
     name: 'sdrogopoli-offline',
     apply: 'build',
     generateBundle(_options, bundle) {
-      const files = ['./', ...Object.keys(bundle), ...publicFiles(), 'licenze.txt'].filter((f) => !f.endsWith('.map'));
+      // subito in memoria: la pagina e il 2D. La grafica 3D (three.js e personaggi) si salva
+      // la prima volta che si usa, così chi gioca in 2D non la scarica.
+      const staticChunks = new Set<string>();
+      const visit = (name: string) => {
+        const chunk = bundle[name];
+        if (!chunk || chunk.type !== 'chunk' || staticChunks.has(name)) return;
+        staticChunks.add(name);
+        chunk.imports.forEach(visit);
+      };
+      Object.values(bundle).forEach((c) => c.type === 'chunk' && c.isEntry && visit(c.fileName));
+      const precache = Object.values(bundle)
+        .filter((c) => (c.type === 'chunk' ? staticChunks.has(c.fileName) : !c.fileName.endsWith('.map')))
+        .map((c) => c.fileName);
+      const files = ['./', ...precache, ...publicFiles().filter((f) => !f.startsWith('characters/') && f !== 'icone/anteprima.png'), 'licenze.txt'];
+      const later = [
+        ...Object.values(bundle).filter((c) => c.type === 'chunk' && !staticChunks.has(c.fileName)).map((c) => c.fileName),
+        ...publicFiles().filter((f) => f.endsWith('.glb')),
+      ];
       const template = readFileSync('src/sw.js', 'utf8');
       const hash = createHash('sha256').update(template);
       for (const [name, chunk] of Object.entries(bundle)) hash.update(name + ('code' in chunk ? chunk.code : String(chunk.source)));
@@ -26,7 +43,8 @@ function offline(): Plugin {
       const version = hash.digest('hex').slice(0, 12);
       const sw = template
         .replace("'__VERSIONE__'", JSON.stringify(version))
-        .replace('[/* __FILE__ */]', JSON.stringify(files));
+        .replace('[/* __FILE__ */]', JSON.stringify(files))
+        .replace('[/* __FILE_3D__ */]', JSON.stringify(later));
       this.emitFile({ type: 'asset', fileName: 'sw.js', source: sw });
       const licenses = [
         'Sdrogopoli: licenze dei contenuti e delle librerie incluse',

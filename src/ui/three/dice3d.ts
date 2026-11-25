@@ -27,6 +27,10 @@ export class Dice3D {
   private meshes: THREE.Mesh[];
   private anim: (DiceAnim | null)[] = [null, null];
   private hideAt = 0;
+  // fino a quando i dadi restano sul tavolo (0 = già tolti)
+  get visibleUntil(): number {
+    return this.hideAt;
+  }
 
   constructor(scene: THREE.Scene) {
     this.meshes = [makeDie(), makeDie()];
