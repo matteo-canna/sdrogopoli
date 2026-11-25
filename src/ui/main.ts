@@ -789,6 +789,11 @@ function create3d(Board3DClass: typeof Board3D): void {
       }, 300);
     },
   );
+  board3d.quality = loadSettings().quality;
+  board3d.onQualityChange = (level, lowered) => {
+    // "automatica" è scesa da sola: lo si dice una volta, dove compaiono gli avvisi
+    if (lowered) showNotices([{ k: 'settings.qualityLowered', p: { level: t(`settings.quality.${level}` as MsgKey) } }]);
+  };
   board3d.cameraMode = cameraMode;
   board3d.skyMode = skyMode;
   board3d.speed = speed.factor;
@@ -915,7 +920,10 @@ app.addEventListener('click', (e) => {
       audio.setSfx(!audio.sfxOn);
       return render();
     case 'settings':
-      openSettings((next) => audio.setVolumes(next.sfxVolume, next.musicVolume));
+      openSettings((next) => {
+        audio.setVolumes(next.sfxVolume, next.musicVolume);
+        if (board3d) board3d.quality = next.quality;
+      });
       return;
     case 'toggleMusic':
       audio.setMusic(!audio.musicOn);

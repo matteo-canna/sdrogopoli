@@ -14,6 +14,7 @@ import { makeMarker, makeOwnerFlag, makeToken, reactionFor, type TokenView } fro
 import { City, makeHotel, makeHouse, skyAt, SKY_STEPS, type SkyMode } from './city';
 import { motionReduced } from '../motion';
 import { spaceName, t } from '../../i18n';
+import { deviceInfo, FrameWatch, QUALITY_SETTINGS, resolveQuality, type Quality, type QualityLevel } from '../quality';
 
 export class Board3D {
   private renderer: THREE.WebGLRenderer;
@@ -41,6 +42,27 @@ export class Board3D {
   private tokensWaitUntil = 0;
   // velocità delle animazioni: 1 normale, 2 doppia; Infinity = istantanea (niente animazioni)
   speed = 1;
+  // qualità grafica: la scelta delle impostazioni e il gradino che si sta usando
+  private qualityChoice: Quality = 'auto';
+  private level: QualityLevel = resolveQuality('auto', deviceInfo());
+  private watch = new FrameWatch();
+  // vero quando "automatica" ha abbassato la qualità da sola (per dirlo nelle impostazioni)
+  lowered = false;
+  onQualityChange: ((level: QualityLevel, lowered: boolean) => void) | null = null;
+  get quality(): Quality {
+    return this.qualityChoice;
+  }
+  set quality(q: Quality) {
+    this.qualityChoice = q;
+    this.lowered = false;
+    this.level = resolveQuality(q, deviceInfo());
+    this.watch.reset();
+    this.applyQuality();
+    this.wake();
+  }
+  get qualityLevel(): QualityLevel {
+    return this.level;
+  }
   private marker!: THREE.Mesh;
   private currentPlayer = 0;
   private winner: number | null = null;
@@ -86,13 +108,12 @@ export class Board3D {
     private onLost: () => void = () => {},
   ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
 
     this.buildScene();
+    this.applyQuality();
     this.dice = new Dice3D(this.scene);
     this.marker = makeMarker();
     this.scene.add(this.marker);
@@ -132,7 +153,7 @@ export class Board3D {
     const sun = this.sun;
     sun.position.set(6, 12, 8);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(QUALITY_SETTINGS.alta.shadowMap, QUALITY_SETTINGS.alta.shadowMap);
     const sc = sun.shadow.camera;
     sc.left = sc.bottom = -8;
     sc.right = sc.top = 8;
@@ -334,6 +355,23 @@ export class Board3D {
     }
   }
 
+  // ---------- qualità grafica ----------
+
+  private applyQuality(): void {
+    const q = QUALITY_SETTINGS[this.level];
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, q.pixelRatio));
+    this.renderer.shadowMap.enabled = q.shadows;
+    this.sun.castShadow = q.shadows;
+    if (q.shadows && this.sun.shadow.mapSize.width !== q.shadowMap) {
+      this.sun.shadow.mapSize.set(q.shadowMap, q.shadowMap);
+      this.sun.shadow.map?.dispose();
+      this.sun.shadow.map = null;
+    }
+    this.city.setDetail(q);
+    this.resize();
+    this.onQualityChange?.(this.level, this.lowered);
+  }
+
   // ---------- cielo ----------
 
   // Ogni giro la giornata avanza di una tappa (giorno, tramonto, notte, alba); oppure resta fissa.
@@ -426,6 +464,15 @@ export class Board3D {
       this.onBusyChange(moving);
     }
     this.updateSky(dt);
+    // con "automatica", se il gioco va a scatti si scende di un gradino (una volta sola)
+    if (this.qualityChoice === 'auto' && moving) {
+      const lower = this.watch.tick(dt, this.level);
+      if (lower) {
+        this.level = lower;
+        this.lowered = true;
+        this.applyQuality();
+      }
+    }
     this.city.update(dt, this.reduceMotion);
     this.rig.update(dt, this.cameraMode === 'overview' ? null : this.tokens[this.focusPlayer]?.mesh ?? null, this.reduceMotion);
     this.renderer.render(this.scene, this.camera);

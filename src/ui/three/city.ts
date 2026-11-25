@@ -115,6 +115,9 @@ function inLake(x: number, z: number, margin = 0.25): boolean {
 
 export class City {
   readonly group = new THREE.Group();
+  private trees: THREE.InstancedMesh[] = [];
+  private treeCount = 0;
+  private lamps: THREE.Object3D[] = [];
   private lampMat = new THREE.MeshStandardMaterial({ color: 0xfff3c4, emissive: 0xffd27a, emissiveIntensity: 0 });
   private water: THREE.MeshStandardMaterial;
   private boats: THREE.Object3D[] = [];
@@ -154,6 +157,11 @@ export class City {
       if (Math.abs(x + 3.2) < 1.2 && Math.abs(z - 3.2) < 1.2) continue;
       spots.push(new THREE.Vector3(x, 0, z));
     }
+    // mescolati: con la qualità bassa si disegnano solo i primi, che così restano sparsi su tutto il parco
+    for (let i = spots.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [spots[i], spots[j]] = [spots[j], spots[i]];
+    }
     const trunkGeo = new THREE.CylinderGeometry(0.03, 0.04, 0.16, 6);
     const crownGeo = new THREE.IcosahedronGeometry(0.17, 0);
     const trunks = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x7a5533 }), spots.length);
@@ -172,6 +180,8 @@ export class City {
       im.castShadow = true;
       this.group.add(im);
     }
+    this.trees = [trunks, crowns];
+    this.treeCount = spots.length;
   }
 
   // Due quartieri di palazzine colorate negli angoli liberi.
@@ -221,6 +231,7 @@ export class City {
     });
     poles.castShadow = true;
     this.group.add(poles, bulbs);
+    this.lamps = [poles, bulbs];
   }
 
   private buildFountain(): void {
@@ -247,6 +258,13 @@ export class City {
     g.add(hull, sail);
     this.group.add(g);
     return g;
+  }
+
+  // Quanta città si vede: con la qualità bassa meno alberi, niente lampioni né barchette.
+  setDetail(d: { trees: number; lamps: boolean; boats: boolean }): void {
+    for (const im of this.trees) im.count = Math.max(1, Math.round(this.treeCount * d.trees));
+    for (const l of this.lamps) l.visible = d.lamps;
+    for (const b of this.boats) b.visible = d.boats;
   }
 
   // n = 0 giorno pieno, 1 notte fonda.

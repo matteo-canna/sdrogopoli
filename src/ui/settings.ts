@@ -2,6 +2,7 @@
 // e si applicano subito, sia nella schermata iniziale sia in partita.
 import { KEYS, readPref, writePref } from './prefs';
 import { detectLang, getLang, LANGS, setLang, t, type Lang, type MsgKey } from '../i18n';
+import { QUALITIES, type Quality } from './quality';
 export { motionReduced } from './motion';
 
 export const TEXT_SIZES = [
@@ -19,6 +20,7 @@ export type LangChoice = 'auto' | Lang;
 
 export interface Settings {
   lang: LangChoice;
+  quality: Quality;
   text: TextSize;
   motion: Motion;
   // da 0 a 100
@@ -26,7 +28,7 @@ export interface Settings {
   musicVolume: number;
 }
 
-export const DEFAULT_SETTINGS: Settings = { lang: 'auto', text: 'normale', motion: 'sistema', sfxVolume: 100, musicVolume: 100 };
+export const DEFAULT_SETTINGS: Settings = { lang: 'auto', quality: 'auto', text: 'normale', motion: 'sistema', sfxVolume: 100, musicVolume: 100 };
 
 function volume(v: unknown, fallback: number): number {
   const n = Math.round(Number(v));
@@ -39,6 +41,7 @@ export function parseSettings(raw: string | null): Settings {
     const o = JSON.parse(raw ?? '{}') ?? {};
     return {
       lang: LANGS.find((l) => l.id === o.lang)?.id ?? 'auto',
+      quality: QUALITIES.find((q) => q.id === o.quality)?.id ?? DEFAULT_SETTINGS.quality,
       text: TEXT_SIZES.find((x) => x.id === o.text)?.id ?? DEFAULT_SETTINGS.text,
       motion: MOTIONS.find((m) => m.id === o.motion)?.id ?? DEFAULT_SETTINGS.motion,
       sfxVolume: volume(o.sfxVolume, DEFAULT_SETTINGS.sfxVolume),
@@ -84,6 +87,12 @@ function dialogHtml(s: Settings): string {
       <fieldset><legend>${t('settings.text')}</legend>${radios('text', TEXT_SIZES.map((x) => ({ id: x.id, label: t(`settings.text.${x.id}` as MsgKey) })), s.text)}</fieldset>
       <fieldset><legend>${t('settings.motion')}</legend>${radios('motion', MOTIONS.map((x) => ({ id: x.id, label: t(`settings.motion.${x.id}` as MsgKey) })), s.motion)}
         <p class="hint">${t('settings.motionHint')}</p></fieldset>
+      <fieldset><legend>${t('settings.quality')}</legend>${radios(
+        'quality',
+        QUALITIES.map((q) => ({ id: q.id, label: t(`settings.quality.${q.id}` as MsgKey) })),
+        s.quality,
+      )}
+        <p class="hint" data-quality-hint>${t('settings.qualityHint')}</p></fieldset>
       <fieldset><legend>${t('settings.volumes')}</legend>
         <label class="range">🔊 ${t('tools.sfxShort')} <input type="range" name="sfxVolume" min="0" max="100" step="5" value="${s.sfxVolume}"><output>${s.sfxVolume}%</output></label>
         <label class="range">🎵 ${t('tools.music')} <input type="range" name="musicVolume" min="0" max="100" step="5" value="${s.musicVolume}"><output>${s.musicVolume}%</output></label>
