@@ -19,3 +19,6 @@ Stato e decisioni: vedi [`STATO.md`](STATO.md).
 
 ## Crediti
 - Personaggi 3D: [KayKit Adventurers](https://kaylousberg.com) di Kay Lousberg, licenza CC0 (vedi `public/characters/LICENSE-KayKit.txt`).
+
+## Licenza
+Il codice e i contenuti originali di Sdrogopoli sono distribuiti con licenza MIT (vedi [`LICENSE`](LICENSE)). I personaggi KayKit restano sotto la loro licenza CC0, three.js e Trystero sotto la loro licenza MIT.
