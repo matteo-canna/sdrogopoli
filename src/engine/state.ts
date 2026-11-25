@@ -45,7 +45,15 @@ export interface Appearance {
   cape: boolean;
   // oggetto in mano ('' = niente)
   item: string;
+  // solo per le pedine da collezione: finitura del materiale, colore dei dettagli e basetta
+  finish?: FinishId;
+  accentColor?: string;
+  baseStyle?: BaseStyleId;
 }
+
+// Finiture e basette delle pedine da collezione (solo aspetto, il motore non le usa).
+export type FinishId = 'real' | 'pewter' | 'gold' | 'bronze' | 'chrome' | 'porcelain';
+export type BaseStyleId = 'minimal' | 'marble' | 'walnut' | 'coin' | 'carbon' | 'none';
 
 // Regole della casa scelte all'inizio della partita.
 export interface GameRules {

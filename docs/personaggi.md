@@ -43,3 +43,25 @@ torna la posa di base, e camminare la interrompe subito.
 
 `tests/figure.test.ts` controlla da sé che catalogo, nomi, altezza, colore della base e pose
 restino a posto.
+
+## Pedine da collezione
+
+Trenta pedine in più, disegnate da Matteo: 10 statuette articolate (pilota, paladino, samurai,
+palombaro, astronauta, aviatore steampunk, magnate, nobile veneziano, androide, arcimago) e 20 oggetti
+divisi in veicoli, oggetti, lusso e musica e svago. Sono costruite nel codice: le statuette in
+`src/ui/three/figurines.ts`, gli oggetti e le basette in `src/ui/three/models.ts`, i materiali
+(oro, peltro, bronzo, cromo, porcellana o materiali veri) in `src/ui/three/materials.ts`.
+
+`src/ui/three/collection.ts` (`CollectionModel`) le mette su una basetta e le anima muovendo le parti;
+espone la stessa interfaccia `Piece` degli altri personaggi. Tutto questo è un pezzo di codice a parte
+(`dist/assets/collection-*.js`, circa 29 kB compressi) che arriva solo a chi ne sceglie una.
+
+Nell'editor dell'aspetto i personaggi sono divisi in reparti (Personaggi, Statuette, Veicoli, Oggetti,
+Lusso, Musica e svago). Per le pedine da collezione si scelgono anche finitura, basetta e colore dei
+dettagli (`finish`, `baseStyle`, `accentColor` in `Appearance`); valori sconosciuti, anche se arrivano
+da un altro dispositivo online, tornano a quelli proposti (`collectionLook`).
+
+Per aggiungerne una: scrivere il costruttore in `models.ts` (o `figurines.ts` per una statuetta),
+aggiungerlo a `BUILDERS`, mettere la voce in `COLLECTION` (`src/ui/characters.ts`) con emoji, reparto e
+colore dei dettagli, e il nome in `it.ts` ed `en.ts`. `tests/collezione.test.ts` controlla che ogni
+voce del catalogo si sappia costruire e abbia un nome nelle due lingue.

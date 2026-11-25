@@ -2208,6 +2208,9 @@ const BUILDERS: Record<string, (p: Palette, primaryHex: string, accentHex: strin
   ...FIGURINE_BUILDERS,
 };
 
+// Le pedine che si sanno costruire (servono ai test per controllare il catalogo).
+export const TOKEN_IDS = Object.keys(BUILDERS);
+
 export function buildTokenModel(id: string, palette: Palette, primaryHex = '#d93829', accentHex = '#f4b400'): BuiltModel {
   const fn = BUILDERS[id] ?? buildF1;
   return fn(palette, primaryHex, accentHex);

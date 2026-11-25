@@ -1,6 +1,6 @@
 // Quello che arriva dagli altri dispositivi non è affidabile: nomi e aspetto si ripuliscono.
 import type { Appearance } from '../engine';
-import { CHARACTERS, COLOR_CHOICES, defaultAppearance } from '../ui/characters';
+import { CHARACTERS, COLOR_CHOICES, collectionLook, defaultAppearance } from '../ui/characters';
 
 export const MAX_NAME = 20;
 
@@ -21,6 +21,8 @@ export function cleanLook(raw: unknown, seat: number): Appearance {
     hat: r.hat !== false,
     cape: r.cape !== false,
     item: typeof r.item === 'string' && (r.item === '' || r.item in def.items) ? r.item : def.defaultItem,
+    // pedine da collezione: finitura, dettagli e basetta (valori sconosciuti tornano a quelli proposti)
+    ...(def.collection ? collectionLook({ ...r, character: def.id } as Appearance) : {}),
   };
 }
 

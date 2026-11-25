@@ -6,6 +6,7 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import type { Appearance } from '../../engine';
 import { characterDef } from '../characters';
 import { motionReduced } from '../motion';
+import { getStudioEnvMap } from './materials';
 
 // altezza del modello originale (circa 2,4 unità) ridotta a quella di una pedina
 const MODEL_HEIGHT = 2.4;
@@ -178,7 +179,11 @@ export class CharacterModel implements Piece {
 }
 
 export async function createCharacter(look: Appearance, height: number): Promise<Piece> {
-  // le figure stanno in un modulo a parte: chi non le sceglie non lo scarica nemmeno
+  // figure e pedine da collezione stanno in moduli a parte: chi non le sceglie non li scarica nemmeno
+  if (characterDef(look.character).collection) {
+    const { CollectionModel } = await import('./collection');
+    return new CollectionModel(look, height);
+  }
   if (characterDef(look.character).figure) {
     const { FigureModel } = await import('./figures');
     return new FigureModel(look, height);
@@ -194,6 +199,8 @@ export class CharacterPreview {
   private camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
   private clock = new THREE.Clock();
   private character: Piece | null = null;
+  // ingombro della pedina da collezione mostrata (null = personaggio classico)
+  private fit: { height: number; width: number } | null = null;
   private frame = 0;
   private request = 0;
   private resizeObserver: ResizeObserver;
@@ -207,12 +214,13 @@ export class CharacterPreview {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);
+    // riflessi da studio fotografico: servono alle finiture metalliche delle pedine da collezione
+    this.scene.environment = getStudioEnvMap(this.renderer);
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x8a7f70, 2.2));
     const sun = new THREE.DirectionalLight(0xffffff, 2);
     sun.position.set(2, 4, 3);
     this.scene.add(sun);
-    this.camera.position.set(0, 1.55, 4.6);
-    this.camera.lookAt(0, 1.1, 0);
+    this.frame3d();
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
     this.resize();
@@ -246,6 +254,12 @@ export class CharacterPreview {
       this.character = next;
       next.root.rotation.y = yaw;
       this.scene.add(next.root);
+      // le pedine da collezione hanno forme di ogni tipo (anche lunghe e basse): si inquadrano per intero
+      if (characterDef(look.character).collection) {
+        const size = new THREE.Box3().setFromObject(next.root).getSize(new THREE.Vector3());
+        this.fit = { height: size.y, width: Math.hypot(size.x, size.z) };
+      } else this.fit = null;
+      this.frame3d();
     } catch {
       /* anteprima non disponibile */
     }
@@ -267,6 +281,21 @@ export class CharacterPreview {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.frame3d();
+  }
+
+  // Inquadratura: fissa per i personaggi classici, su misura per le pedine da collezione.
+  private frame3d(): void {
+    if (!this.fit) {
+      this.camera.position.set(0, 1.55, 4.6);
+      this.camera.lookAt(0, 1.1, 0);
+      return;
+    }
+    const tan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+    const dist = Math.max((this.fit.height * 0.55) / tan, (this.fit.width * 0.5) / (tan * this.camera.aspect));
+    const cy = this.fit.height / 2;
+    this.camera.position.set(0, cy + dist * 0.18, dist);
+    this.camera.lookAt(0, cy, 0);
   }
 
   dispose(): void {

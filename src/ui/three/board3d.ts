@@ -12,6 +12,7 @@ export type { CameraMode } from './camera';
 import { buildBoard } from './tiles';
 import { makeMarker, makeOwnerFlag, makeToken, reactionFor, type TokenView } from './pieces';
 import { City, makeHotel, makeHouse, skyAt, SKY_STEPS, type SkyMode } from './city';
+import { getStudioEnvMap } from './materials';
 import { motionReduced } from '../motion';
 import { spaceName, t } from '../../i18n';
 import { deviceInfo, FrameWatch, QUALITY_SETTINGS, resolveQuality, type Quality, type QualityLevel } from '../quality';
@@ -19,7 +20,7 @@ import { deviceInfo, FrameWatch, QUALITY_SETTINGS, resolveQuality, type Quality,
 export class Board3D {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  private camera = new THREE.PerspectiveCamera(45, 1, 0.1, 140);
   private tiles: THREE.Mesh[] = [];
   private buildings: THREE.Group[] = [];
   private ownerMarkers: THREE.Mesh[] = [];
@@ -67,9 +68,9 @@ export class Board3D {
   private currentPlayer = 0;
   private winner: number | null = null;
   // cielo: fase attuale (0 giorno, 1 tramonto, 2 notte, 3 alba) e fase verso cui si va
-  private skyColor = new THREE.Color(0xcfe5f2);
-  private hemi = new THREE.HemisphereLight(0xffffff, 0x8a9a8a, 1.6);
-  private sun = new THREE.DirectionalLight(0xffffff, 2.2);
+  private skyColor = new THREE.Color(0xb9dcf2);
+  private hemi = new THREE.HemisphereLight(0xffffff, 0x6f7f6e, 1.4);
+  private sun = new THREE.DirectionalLight(0xfffaf0, 2.3);
   private city = new City();
   private skyPhase = -1;
   private skyTarget = 0;
@@ -110,7 +111,11 @@ export class Board3D {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // colori da pellicola e riflessi da studio: servono ai materiali metallici e lucidi
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.08;
     container.appendChild(this.renderer.domElement);
+    this.scene.environment = getStudioEnvMap(this.renderer);
 
     this.buildScene();
     this.applyQuality();
@@ -155,8 +160,11 @@ export class Board3D {
     sun.castShadow = true;
     sun.shadow.mapSize.set(QUALITY_SETTINGS.alta.shadowMap, QUALITY_SETTINGS.alta.shadowMap);
     const sc = sun.shadow.camera;
-    sc.left = sc.bottom = -8;
-    sc.right = sc.top = 8;
+    sun.shadow.bias = -0.0004;
+    sc.left = sc.bottom = -9.5;
+    sc.right = sc.top = 9.5;
+    sc.near = 1;
+    sc.far = 38;
     this.scene.add(sun);
     // le decorazioni sono disegnate per il centro del tabellone grande: si riducono con lui
     this.city.group.scale.setScalar((boardSide() - 2) / 9);
@@ -324,13 +332,14 @@ export class Board3D {
       this.placeOnBand(flag, i);
       group.add(flag);
       if (own.houses === 5) {
-        const hotel = makeHotel();
+        const hotel = makeHotel(playerColor(state.players[own.owner]));
         this.placeOnBand(hotel, i);
         group.add(hotel);
       } else {
         for (let h = 0; h < own.houses; h++) {
-          const house = makeHouse();
-          house.position.set(-0.27 + h * 0.18, 0, 0);
+          // case di forme diverse, con un dettaglio del colore del proprietario
+          const house = makeHouse(i + h, playerColor(state.players[own.owner]));
+          house.position.set(-0.33 + h * 0.22, 0, 0);
           this.placeOnBand(house, i);
           group.add(house);
         }
@@ -398,7 +407,7 @@ export class Board3D {
     this.sun.color.setHex(k.sunColor);
     this.sun.intensity = k.sun;
     this.sun.position.set(Math.cos(k.sunAngle + 0.9) * 10, 12, Math.sin(k.sunAngle + 0.9) * 10);
-    this.city.setNight(k.night);
+    this.city.setNight(k.night, k.sunAngle);
   }
 
   // ---------- ciclo di animazione ----------
