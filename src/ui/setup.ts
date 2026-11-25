@@ -88,13 +88,13 @@ function lookEditorHtml(i: number): string {
             .join('')}
         </div>
         ${def.hat ? `<label class="check"><input type="checkbox" data-hat ${look.hat ? 'checked' : ''}> ${t('look.hat')}</label>` : ''}
-        <label class="check"><input type="checkbox" data-cape ${look.cape ? 'checked' : ''}> ${t('look.cape')}</label>
-        <label class="hold">${t('look.inHand')}
+        ${def.cape ? `<label class="check"><input type="checkbox" data-cape ${look.cape ? 'checked' : ''}> ${t('look.cape')}</label>` : ''}
+        ${Object.keys(def.items).length === 0 ? '' : `<label class="hold">${t('look.inHand')}
           <select data-item>
             <option value="">${t('look.nothing')}</option>
             ${Object.keys(def.items).map((id) => `<option value="${id}" ${id === look.item ? 'selected' : ''}>${itemName(id)}</option>`).join('')}
           </select>
-        </label>
+        </label>`}
         <button type="button" class="primary" data-look-done>${t('btn.done')}</button>
       </div>
     </div>`;

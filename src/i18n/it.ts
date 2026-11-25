@@ -287,6 +287,9 @@ export const it = {
   'report.details': 'Dettagli tecnici (compilati dal gioco)',
   'report.titlePrefix': 'Problema: ',
   // ---------- personaggi ----------
+  'char.robot': 'Robottino',
+  'char.gatto': 'Gatto',
+  'char.astronauta': 'Astronauta',
   'char.knight': 'Cavaliere',
   'char.barbarian': 'Barbaro',
   'char.mage': 'Mago',

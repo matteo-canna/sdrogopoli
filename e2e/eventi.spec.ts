@@ -36,7 +36,12 @@ test('la partita Festa mostra evento e mercato e li ricorda', async ({ page }, i
   await page.reload();
   await page.locator('[data-resume]').click();
   const s3 = await stato(page);
-  expect(s3.event!.id).toBe(s2.event!.id);
+  // appena ripresa la partita l'evento è ancora quello di prima; se i computer hanno già
+  // fatto scattare il giro successivo, basta che l'evento sia quello del giro corrente
+  expect(s3.event, 'evento perso nella ripresa').toBeTruthy();
+  expect(s3.market).toBeTruthy();
+  if (s3.round === s2.round) expect(s3.event!.id).toBe(s2.event!.id);
+  else expect(s3.event!.round).toBe(s3.round);
   expect(errori).toEqual([]);
 });
 

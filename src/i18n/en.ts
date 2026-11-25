@@ -294,6 +294,9 @@ export const en: Record<MsgKey, string> = {
   'report.titlePrefix': 'Problem: ',
 
   // ---------- characters ----------
+  'char.robot': 'Little Robot',
+  'char.gatto': 'Cat',
+  'char.astronauta': 'Astronaut',
   'char.knight': 'Knight',
   'char.barbarian': 'Barbarian',
   'char.mage': 'Mage',

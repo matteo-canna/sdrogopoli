@@ -1,7 +1,7 @@
 // Pedine: forme semplici (finché il personaggio 3D non è pronto), freccia del turno e reazioni.
 import * as THREE from 'three';
 import type { GameState } from '../../engine';
-import type { CharacterModel, Reaction } from './characters3d';
+import type { Piece, Reaction } from './characters3d';
 import { inkOn } from '../characters';
 
 export interface Hop {
@@ -16,7 +16,7 @@ export interface TokenView {
   queue: Hop[];
   hopTime: number;
   // personaggio animato (null finché non è caricato: intanto si vede la pedina semplice)
-  character: CharacterModel | null;
+  character: Piece | null;
   // momento in cui nascondere la pedina dopo la bancarotta
   hideAt: number;
   wasBankrupt: boolean;

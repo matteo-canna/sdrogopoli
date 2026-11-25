@@ -1,4 +1,7 @@
-// Catalogo dei personaggi-pedina (modelli KayKit di Kay Lousberg, licenza CC0) e scelte di aspetto.
+// Catalogo dei personaggi-pedina e scelte di aspetto.
+// Due famiglie: i modelli scaricati (KayKit di Kay Lousberg, licenza CC0, in public/characters)
+// e le "figure", costruite con forme semplici dentro src/ui/three/figures.ts (niente file, niente
+// licenze di terzi). Di tutti e due si carica solo quello scelto.
 import type { Appearance, Player } from '../engine';
 import { t, type MsgKey } from '../i18n';
 import { EXTRA_COLORS } from './achievements';
@@ -7,11 +10,14 @@ export interface CharacterDef {
   id: string;
   label: string;
   emoji: string;
-  // file in public/characters
+  // true: pedina costruita con forme semplici (niente file da scaricare)
+  figure?: boolean;
+  // file in public/characters (vuoto per le figure)
   file: string;
   // nome della mesh del copricapo (null se non ne ha)
   hat: string | null;
-  cape: string;
+  // nome della mesh del mantello (null se non ne ha)
+  cape: string | null;
   // oggetti che può tenere in mano: nome mesh → etichetta in italiano (in pagina si usa itemName)
   items: Record<string, string>;
   // oggetto in mano proposto all'inizio
@@ -77,6 +83,46 @@ export const CHARACTERS: CharacterDef[] = [
     hat: null,
     cape: 'Rogue_Cape',
     items: { Throwable: 'Bomba', Knife: 'Pugnale', '1H_Crossbow': 'Balestra' },
+    defaultItem: '',
+  },
+  // Figure: costruite con forme semplici, senza niente da scaricare.
+  {
+    id: 'robot',
+    get label() {
+      return t('char.robot');
+    },
+    emoji: '🤖',
+    figure: true,
+    file: '',
+    hat: null,
+    cape: null,
+    items: {},
+    defaultItem: '',
+  },
+  {
+    id: 'gatto',
+    get label() {
+      return t('char.gatto');
+    },
+    emoji: '🐈',
+    figure: true,
+    file: '',
+    hat: null,
+    cape: null,
+    items: {},
+    defaultItem: '',
+  },
+  {
+    id: 'astronauta',
+    get label() {
+      return t('char.astronauta');
+    },
+    emoji: '🧑‍🚀',
+    figure: true,
+    file: '',
+    hat: null,
+    cape: null,
+    items: {},
     defaultItem: '',
   },
 ];
