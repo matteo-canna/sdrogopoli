@@ -2,6 +2,7 @@
 import { actingPlayer, type Action, type Appearance, type GameState } from '../engine';
 import { PROTOCOL_VERSION, type Member, type NetMessage } from './protocol';
 import { cleanLook, cleanName } from './sanitize';
+import { sayText } from './chat';
 import type { Transport } from './transport';
 
 export class GuestRoom {
@@ -29,6 +30,7 @@ export class GuestRoom {
   onError: ((reason: string) => void) | null = null;
   onHostLeft: (() => void) | null = null;
   onPresence: (() => void) | null = null;
+  onSaid: ((seat: number, id: string) => void) | null = null;
   // l'oste è tornato dopo essere uscito
   onHostBack: (() => void) | null = null;
   private hadHost = false;
@@ -106,6 +108,9 @@ export class GuestRoom {
         this.onChange?.(prev, msg.state, msg.action);
         return;
       }
+      case 'said':
+        if (Number.isInteger(msg.seat) && sayText(msg.id) && this.state && msg.seat >= 0 && msg.seat < this.state.players.length) this.onSaid?.(msg.seat, msg.id);
+        return;
       case 'rejected':
         this.lastError = msg.reason;
         this.onError?.(msg.reason);
@@ -126,6 +131,10 @@ export class GuestRoom {
     if (!this.host) return;
     this.lastError = '';
     this.transport.send({ t: 'action', action, seq: ++this.seq }, this.host);
+  }
+
+  say(id: string): void {
+    if (this.host && this.seat !== null) this.transport.send({ t: 'say', id }, this.host);
   }
 
   leave(): void {

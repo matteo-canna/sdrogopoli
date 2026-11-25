@@ -3,6 +3,10 @@
 import { joinRoom } from 'trystero';
 import type { NetMessage } from './protocol';
 import type { Transport } from './transport';
+import { turnServers } from './turn';
+
+// server TURN di riserva, se configurati alla build (vedi turn.ts)
+export const TURN = turnServers(import.meta.env as Record<string, string | undefined>);
 
 const APP_ID = 'matteo-canna.github.io/sdrogopoli';
 
@@ -13,7 +17,7 @@ export class TrysteroTransport implements Transport {
 
   constructor(code: string) {
     // identità usa e getta: due schede dello stesso browser sono due giocatori diversi
-    this.room = joinRoom({ appId: APP_ID, identity: 'none' }, code);
+    this.room = joinRoom({ appId: APP_ID, identity: 'none', ...(TURN.length ? { turnConfig: TURN } : {}) }, code);
     this.channel = this.room.makeAction<NetMessage>('sdrogo');
   }
 

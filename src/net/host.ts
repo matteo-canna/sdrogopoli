@@ -4,6 +4,7 @@
 import { actingPlayer, applyAction, chooseBotAction, createGame, type Action, type Appearance, type GameContext, type GameRules, type GameState, type PlayerSetup } from '../engine';
 import { PROTOCOL_VERSION, type Member, type NetMessage } from './protocol';
 import { cleanLook, cleanName, uniqueColors } from './sanitize';
+import { SAY_GAP_MS, sayText } from './chat';
 import type { Transport } from './transport';
 
 export const MAX_SEATS = 8;
@@ -35,6 +36,8 @@ export class HostRoom {
   moves = 0;
   onChange: ((prev: GameState | null, next: GameState, action: Action | null) => void) | null = null;
   onLobby: ((members: Member[]) => void) | null = null;
+  onSaid: ((seat: number, id: string) => void) | null = null;
+  private lastSay = new Map<number, number>();
 
   constructor(
     private transport: Transport,
@@ -131,6 +134,11 @@ export class HostRoom {
       const i = this.members.indexOf(m);
       Object.assign(m, { ready: !!msg.ready, name: cleanName(msg.name, m.name), look: msg.look ? cleanLook(msg.look, i) : m.look });
       this.publishLobby();
+      return;
+    }
+    if (msg.t === 'say') {
+      const seat = this.seats.get(from);
+      if (seat !== undefined) this.say(seat, msg.id);
       return;
     }
     if (msg.t === 'action') {
@@ -281,6 +289,17 @@ export class HostRoom {
     this.away.add(actingPlayer(this.state!));
     this.publishPresence();
     this.onChange?.(this.state, this.state!, null);
+    return true;
+  }
+
+  // Reazione o frase pronta di un posto: si manda a tutti (anche a chi l'ha scritta). Falso se scartata.
+  say(seat: number, id: unknown): boolean {
+    if (!this.state || typeof id !== 'string' || !sayText(id)) return false;
+    const t = this.now();
+    if (t - (this.lastSay.get(seat) ?? -Infinity) < SAY_GAP_MS) return false;
+    this.lastSay.set(seat, t);
+    this.transport.send({ t: 'said', seat, id });
+    this.onSaid?.(seat, id);
     return true;
   }
 
