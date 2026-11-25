@@ -73,6 +73,33 @@ export interface GameRules {
   events?: boolean;
   // Ruota del Mercato: ogni WHEEL_EVERY giri cambia l'andamento del mercato (regola facoltativa)
   wheel?: boolean;
+  // quote di quartiere: chiunque compra una quota di un quartiere e incassa una parte degli
+  // affitti pagati lì (regola facoltativa)
+  shares?: boolean;
+  // edifici speciali: chi ha un quartiere completo ci costruisce un edificio con un effetto suo
+  // (regola facoltativa)
+  landmarks?: boolean;
+}
+
+// ---------- quote di quartiere ed edifici speciali (regole facoltative) ----------
+
+// Quote in vendita per ogni quartiere, e la parte di affitto che rende ognuna.
+export const SHARES_PER_GROUP = 3;
+export const SHARE_CUT = 0.1;
+
+// Gli edifici speciali: uno per quartiere completo.
+//  fontana: affitti del quartiere +25%
+//  mercato: passando dalla Partenza chi l'ha costruito incassa 20 per ogni via del quartiere
+//  teatro: chi si ferma su una via del quartiere paga almeno 60 di affitto
+export const LANDMARK_IDS = ['fontana', 'mercato', 'teatro'] as const;
+export type LandmarkId = (typeof LANDMARK_IDS)[number];
+export const FOUNTAIN_FACTOR = 1.25;
+export const MARKET_HALL_PAY = 20;
+export const THEATRE_MIN_RENT = 60;
+
+export interface Landmark {
+  id: LandmarkId;
+  owner: number;
 }
 
 // ---------- eventi di quartiere e Ruota del Mercato (regole facoltative) ----------
@@ -232,6 +259,10 @@ export interface GameState {
   market?: MarketSpin | null;
   // ultimo giro per cui è già stato estratto l'evento (evita di estrarlo due volte)
   roundStarted?: number;
+  // quote di quartiere vendute: per ogni quartiere, chi ha ogni quota (un giocatore può averne più d'una)
+  shares?: Record<string, number[]>;
+  // edifici speciali costruiti, per quartiere
+  landmarks?: Record<string, Landmark>;
 }
 
 // Numeri raccolti durante la partita per il riepilogo finale.
@@ -249,6 +280,8 @@ export interface PlayerStats {
   trades: number;
   // giro della bancarotta (null se non è fallito)
   bankruptRound: number | null;
+  // incassato dalle quote di quartiere (regola facoltativa)
+  dividends?: number;
 }
 
 export function emptyStats(): PlayerStats {

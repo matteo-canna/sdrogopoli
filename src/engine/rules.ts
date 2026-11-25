@@ -1,6 +1,6 @@
 // Regole di gioco: ogni azione produce un nuovo stato senza modificare quello precedente.
 import { rollDice } from './dice';
-import { defaultRules, emptyStats, withRng, EVENT_IDS, JAIL_FINE, MARKET_IDS, MARKET_PAY, MAX_JAIL_ATTEMPTS, SPRINT_FACES, UPKEEP_PER_HOUSE, WHEEL_EVERY, type EventId, type GameContext, type GroupEvent, type MarketId, type SprintFace, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
+import { defaultRules, emptyStats, withRng, EVENT_IDS, FOUNTAIN_FACTOR, LANDMARK_IDS, MARKET_HALL_PAY, SHARE_CUT, SHARES_PER_GROUP, THEATRE_MIN_RENT, type LandmarkId, JAIL_FINE, MARKET_IDS, MARKET_PAY, MAX_JAIL_ATTEMPTS, SPRINT_FACES, UPKEEP_PER_HOUSE, WHEEL_EVERY, type EventId, type GameContext, type GroupEvent, type MarketId, type SprintFace, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
 import type { BoardData, Card, CardEffect, DeckId, PropertySpace, Space } from './types';
 import { format, type MsgKey, type Params } from '../i18n';
 
@@ -23,7 +23,12 @@ export type Action =
   | { type: 'rejectTrade' }
   // chi riceve lo scambio risponde con condizioni diverse (dal suo punto di vista: cosa dà, cosa chiede)
   | { type: 'counterTrade'; offer: { give: TradeSide; get: TradeSide } }
-  | { type: 'chooseCard'; option: number };
+  | { type: 'chooseCard'; option: number }
+  // quote di quartiere ed edifici speciali (regole facoltative)
+  | { type: 'buyShare'; group: string }
+  | { type: 'sellShare'; group: string }
+  | { type: 'buildLandmark'; group: string; landmark: LandmarkId }
+  | { type: 'sellLandmark'; group: string };
 
 export const MIN_BID = 10;
 // controproposte per trattativa: chi riceve ne fa una, chi ha proposto può rispondere con un'altra
@@ -140,7 +145,42 @@ export function netWorth(state: GameState, ctx: GameContext, playerId: number): 
     total += own.mortgaged ? space.price - space.mortgage : space.price;
     if (space.type === 'property') total += own.houses * space.housePrice;
   }
+  for (const [group, holders] of Object.entries(state.shares ?? {})) {
+    total += holders.filter((h) => h === playerId).length * sharePrice(ctx, group);
+  }
+  for (const [group, lm] of Object.entries(state.landmarks ?? {})) if (lm.owner === playerId) total += landmarkPrice(ctx, group);
   return total;
+}
+
+// ---------- quote di quartiere ed edifici speciali (regole facoltative) ----------
+
+// Una quota costa metà del prezzo medio delle vie del quartiere, arrotondato a 10.
+export function sharePrice(ctx: GameContext, group: string): number {
+  const streets = groupProperties(ctx, group);
+  if (!streets.length) return 0;
+  const avg = streets.reduce((a, s) => a + s.price, 0) / streets.length;
+  return Math.max(10, Math.round(avg / 20) * 10);
+}
+
+// Un edificio speciale costa due case del quartiere.
+export function landmarkPrice(ctx: GameContext, group: string): number {
+  const first = groupProperties(ctx, group)[0];
+  return first ? first.housePrice * 2 : 0;
+}
+
+export function sharesOf(state: GameState, group: string): number[] {
+  return state.shares?.[group] ?? [];
+}
+
+// Il quartiere ha case, palazzi o un edificio speciale: le sue vie non si ipotecano e non si scambiano.
+export function groupHasBuildings(state: GameState, ctx: GameContext, group: string): boolean {
+  return !!state.landmarks?.[group] || groupProperties(ctx, group).some((g) => (state.ownership[g.id]?.houses ?? 0) > 0);
+}
+
+function landmarkOn(state: GameState, ctx: GameContext, spaceId: string): LandmarkId | null {
+  const space = ctx.board.spaces.find((s) => s.id === spaceId);
+  if (!space || space.type !== 'property') return null;
+  return state.landmarks?.[space.group]?.id ?? null;
 }
 
 // Trasferisce denaro. "to" null = banca. Il pagatore può finire in negativo (debito).
@@ -166,6 +206,7 @@ export function rentFactor(state: GameState, ctx: GameContext, spaceId: string):
     if (ev.id === 'festa') f *= 2;
     if (ev.id === 'lavori') f *= 0.5;
   }
+  if (landmarkOn(state, ctx, spaceId) === 'fontana') f *= FOUNTAIN_FACTOR;
   if (state.market?.id === 'rialzo') f *= 1.25;
   if (state.market?.id === 'ribasso') f *= 0.75;
   return f;
@@ -248,7 +289,9 @@ export function computeRent(state: GameState, ctx: GameContext, spaceId: string,
         return 0;
     }
   };
-  return Math.round(base() * rentFactor(state, ctx, spaceId));
+  const rent = Math.round(base() * rentFactor(state, ctx, spaceId));
+  // il teatro: chi si ferma nel quartiere paga almeno THEATRE_MIN_RENT
+  return landmarkOn(state, ctx, spaceId) === 'teatro' ? Math.max(rent, THEATRE_MIN_RENT) : rent;
 }
 
 // ---------- movimento ----------
@@ -274,6 +317,13 @@ function collectSalary(state: GameState, ctx: GameContext): void {
   const salary = salaryOf(state, ctx);
   current(state).money += salary;
   log(state, 'log.passGo', { name: current(state).name, amount: salary });
+  // il mercato coperto rende a ogni passaggio dalla Partenza
+  for (const [group, lm] of Object.entries(state.landmarks ?? {})) {
+    if (lm.id !== 'mercato' || lm.owner !== state.current) continue;
+    const amount = MARKET_HALL_PAY * groupProperties(ctx, group).length;
+    current(state).money += amount;
+    log(state, 'log.marketHall', { name: current(state).name, amount, group });
+  }
 }
 
 function sendToJail(state: GameState, ctx: GameContext): void {
@@ -313,6 +363,7 @@ function resolveLanding(state: GameState, ctx: GameContext): void {
         stat(state, p.id).rentPaid += rent;
         stat(state, own.owner).rentReceived += rent;
         log(state, 'log.rent', { name: p.name, amount: rent, owner: state.players[own.owner].name });
+        if (space.type === 'property') payDividends(state, space.group, rent, p.id, own.owner);
       }
     }
   } else if (space.type === 'tax') {
@@ -334,6 +385,22 @@ function resolveLanding(state: GameState, ctx: GameContext): void {
 
 // Dopo aver risolto la casella: rilancia se c'era un doppio, altrimenti fine turno.
 // Chi è in debito non rilancia: deve prima saldare o dichiarare bancarotta.
+// Chi ha quote del quartiere riceve dal proprietario una parte dell'affitto appena incassato.
+// Chi paga l'affitto e il proprietario stesso non ricevono niente dalle loro quote.
+function payDividends(state: GameState, group: string, rent: number, payer: number, owner: number): void {
+  if (!state.rules?.shares) return;
+  const cut = Math.round(rent * SHARE_CUT);
+  if (cut <= 0) return;
+  for (const holder of sharesOf(state, group)) {
+    if (holder === payer || holder === owner || state.players[holder].bankrupt) continue;
+    state.players[owner].money -= cut;
+    state.players[holder].money += cut;
+    const st = stat(state, holder);
+    st.dividends = (st.dividends ?? 0) + cut;
+    log(state, 'log.dividend', { name: state.players[holder].name, amount: cut, group });
+  }
+}
+
 function finishMove(state: GameState): void {
   const p = current(state);
   state.phase = state.extraRoll && !p.inJail && p.money >= 0 ? 'roll' : 'endTurn';
@@ -620,7 +687,7 @@ function validateSide(state: GameState, ctx: GameContext, owner: number, side: T
   for (const id of side.spaces) {
     const space = spaceById(ctx, id);
     if (state.ownership[id]?.owner !== owner) throw new RuleError('err.notOwnedBy', { space: space.id, name: state.players[owner].name });
-    if (space.type === 'property' && groupProperties(ctx, space.group).some((g) => (state.ownership[g.id]?.houses ?? 0) > 0)) {
+    if (space.type === 'property' && groupHasBuildings(state, ctx, space.group)) {
       throw new RuleError('err.sellGroupHousesOf', { space: space.id });
     }
   }
@@ -791,7 +858,7 @@ function doMortgage(state: GameState, ctx: GameContext, spaceId: string): void {
   requirePhase(state, 'roll', 'buy', 'endTurn');
   const { space, own } = requireOwnedProperty(state, ctx, spaceId);
   if (own.mortgaged) throw new RuleError('err.alreadyMortgaged');
-  if (space.type === 'property' && groupProperties(ctx, space.group).some((g) => (state.ownership[g.id]?.houses ?? 0) > 0)) {
+  if (space.type === 'property' && groupHasBuildings(state, ctx, space.group)) {
     throw new RuleError('err.sellGroupHouses');
   }
   if (!('mortgage' in space)) throw new RuleError('err.cannotMortgage');
@@ -815,6 +882,58 @@ function doUnmortgage(state: GameState, ctx: GameContext, spaceId: string): void
   p.money -= cost;
   own.mortgaged = false;
   log(state, 'log.unmortgages', { name: p.name, space: space.id });
+}
+
+function doBuyShare(state: GameState, ctx: GameContext, group: string): void {
+  requirePhase(state, 'roll', 'buy', 'endTurn');
+  if (!state.rules?.shares) throw new RuleError('err.sharesOff');
+  if (!groupProperties(ctx, group).length) throw new RuleError('err.notNow');
+  const holders = sharesOf(state, group);
+  if (holders.length >= SHARES_PER_GROUP) throw new RuleError('err.noSharesLeft');
+  const price = sharePrice(ctx, group);
+  const p = current(state);
+  if (p.money < price) throw new RuleError('err.noMoney');
+  p.money -= price;
+  state.shares = { ...(state.shares ?? {}), [group]: [...holders, p.id] };
+  log(state, 'log.buysShare', { name: p.name, group, amount: price });
+}
+
+function doSellShare(state: GameState, ctx: GameContext, group: string): void {
+  requirePhase(state, 'roll', 'buy', 'endTurn');
+  const holders = sharesOf(state, group);
+  const i = holders.indexOf(state.current);
+  if (i < 0) throw new RuleError('err.noShare');
+  const amount = sharePrice(ctx, group) / 2;
+  state.shares = { ...(state.shares ?? {}), [group]: holders.filter((_h, j) => j !== i) };
+  current(state).money += amount;
+  log(state, 'log.sellsShare', { name: current(state).name, group, amount });
+}
+
+function doBuildLandmark(state: GameState, ctx: GameContext, group: string, id: LandmarkId): void {
+  requirePhase(state, 'roll', 'buy', 'endTurn');
+  if (!state.rules?.landmarks) throw new RuleError('err.landmarksOff');
+  if (!LANDMARK_IDS.includes(id)) throw new RuleError('err.notNow');
+  if (!groupProperties(ctx, group).length || !ownsWholeGroup(state, ctx, state.current, group)) throw new RuleError('err.needGroup');
+  if (groupProperties(ctx, group).some((g) => state.ownership[g.id].mortgaged)) throw new RuleError('err.groupMortgaged');
+  if (state.landmarks?.[group]) throw new RuleError('err.hasLandmark');
+  const cost = landmarkPrice(ctx, group);
+  const p = current(state);
+  if (p.money < cost) throw new RuleError('err.noMoney');
+  p.money -= cost;
+  state.landmarks = { ...(state.landmarks ?? {}), [group]: { id, owner: p.id } };
+  stat(state, p.id).built++;
+  log(state, 'log.buildsLandmark', { name: p.name, landmark: id, group });
+}
+
+function doSellLandmark(state: GameState, ctx: GameContext, group: string): void {
+  requirePhase(state, 'roll', 'buy', 'endTurn');
+  const lm = state.landmarks?.[group];
+  if (!lm || lm.owner !== state.current) throw new RuleError('err.noLandmark');
+  const rest = { ...state.landmarks };
+  delete rest[group];
+  state.landmarks = rest;
+  current(state).money += landmarkPrice(ctx, group) / 2;
+  log(state, 'log.sellsLandmark', { name: current(state).name, landmark: lm.id, group });
 }
 
 function nextPlayer(state: GameState, ctx: GameContext): void {
@@ -928,6 +1047,10 @@ export function liquidationValue(state: GameState, ctx: GameContext, playerId: n
     if (space.type === 'property') total += (own.houses * space.housePrice) / 2;
     if (!own.mortgaged && 'mortgage' in space) total += space.mortgage;
   }
+  for (const [group, holders] of Object.entries(state.shares ?? {})) {
+    total += (holders.filter((h) => h === playerId).length * sharePrice(ctx, group)) / 2;
+  }
+  for (const [group, lm] of Object.entries(state.landmarks ?? {})) if (lm.owner === playerId) total += landmarkPrice(ctx, group) / 2;
   return total;
 }
 
@@ -935,6 +1058,13 @@ export function liquidationValue(state: GameState, ctx: GameContext, playerId: n
 // vendere una casa (si parte dalle vie più costruite del quartiere) o ipotecare.
 export function debtOptions(state: GameState, ctx: GameContext, playerId: number): { action: Action; gain: number }[] {
   const options: { action: Action; gain: number }[] = [];
+  // prima le quote, poi gli edifici speciali: costano meno da perdere
+  for (const [group, holders] of Object.entries(state.shares ?? {})) {
+    if (holders.includes(playerId)) options.push({ action: { type: 'sellShare', group }, gain: sharePrice(ctx, group) / 2 });
+  }
+  for (const [group, lm] of Object.entries(state.landmarks ?? {})) {
+    if (lm.owner === playerId) options.push({ action: { type: 'sellLandmark', group }, gain: landmarkPrice(ctx, group) / 2 });
+  }
   for (const space of ctx.board.spaces) {
     const own = state.ownership[space.id];
     if (!own || own.owner !== playerId) continue;
@@ -944,7 +1074,7 @@ export function debtOptions(state: GameState, ctx: GameContext, playerId: number
       continue;
     }
     if (own.mortgaged || !('mortgage' in space)) continue;
-    if (space.type === 'property' && groupProperties(ctx, space.group).some((g) => (state.ownership[g.id]?.houses ?? 0) > 0)) continue;
+    if (space.type === 'property' && groupHasBuildings(state, ctx, space.group)) continue;
     options.push({ action: { type: 'mortgage', spaceId: space.id }, gain: space.mortgage });
   }
   return options;
@@ -963,6 +1093,18 @@ function doBankrupt(state: GameState, ctx: GameContext): void {
     const space = spaceById(ctx, id);
     if (space.type === 'property') p.money += (own.houses * space.housePrice) / 2;
     own.houses = 0;
+  }
+  // quote ed edifici speciali tornano alla banca a metà prezzo
+  for (const [group, holders] of Object.entries(state.shares ?? {})) {
+    const mine = holders.filter((h) => h === p.id).length;
+    if (!mine) continue;
+    p.money += (mine * sharePrice(ctx, group)) / 2;
+    state.shares![group] = holders.filter((h) => h !== p.id);
+  }
+  for (const [group, lm] of Object.entries(state.landmarks ?? {})) {
+    if (lm.owner !== p.id) continue;
+    p.money += landmarkPrice(ctx, group) / 2;
+    delete state.landmarks![group];
   }
   const toAuction: string[] = [];
   const mortgagedToCreditor: string[] = [];
@@ -1060,6 +1202,10 @@ export function applyAction(state: GameState, action: Action, gameCtx: GameConte
     case 'rejectTrade': doRejectTrade(next); break;
     case 'counterTrade': doCounterTrade(next, ctx, action.offer); break;
     case 'chooseCard': doChooseCard(next, ctx, action.option); break;
+    case 'buyShare': doBuyShare(next, ctx, action.group); break;
+    case 'sellShare': doSellShare(next, ctx, action.group); break;
+    case 'buildLandmark': doBuildLandmark(next, ctx, action.group, action.landmark); break;
+    case 'sellLandmark': doSellLandmark(next, ctx, action.group); break;
   }
   // obiettivi della partita: si controllano dopo ogni mossa, ma non a metà di un'asta o di uno scambio
   if (next.phase !== 'gameOver' && next.phase !== 'auction' && !next.trade) checkGoals(next, ctx);

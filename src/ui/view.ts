@@ -1,6 +1,6 @@
 // Funzioni di rendering: trasformano lo stato del motore in HTML.
 import { board, cards } from '../data';
-import { actingPlayer, BOT_LEVELS, MAX_COUNTERS, tradeCompletions, BOT_STYLES, computeRent, debtOptions, liquidationValue, MIN_BID, netWorth, unmortgageCost, type BotProfile, type GameState, type Space, type TradeSide } from '../engine';
+import { actingPlayer, BOT_LEVELS, MAX_COUNTERS, tradeCompletions, BOT_STYLES, computeRent, debtOptions, landmarkPrice, liquidationValue, LANDMARK_IDS, MIN_BID, netWorth, ownsWholeGroup, sharePrice, sharesOf, unmortgageCost, FOUNTAIN_FACTOR, MARKET_HALL_PAY, SHARE_CUT, SHARES_PER_GROUP, THEATRE_MIN_RENT, type BotProfile, type GameState, type LandmarkId, type Space, type TradeSide } from '../engine';
 import { inkOn, playerColor, playerMarks } from './characters';
 import { deckName, cardOption, cardText, spaceName, t, text, tn, type MsgKey } from '../i18n';
 
@@ -137,7 +137,7 @@ export function renderBoard(state: GameState, selected: string | null): string {
     return `
       <button class="space ${side(i)} ${own ? 'owned' : ''} ${selected === space.id ? 'selected' : ''} ${own?.mortgaged ? 'mortgaged' : ''}"
         style="grid-row:${row};grid-column:${col}${own ? `;--own:${ownColor}` : ''}" data-space="${space.id}" tabindex="${space.id === stop ? 0 : -1}" aria-label="${escapeHtml(label)}">
-        ${color ? `<span class="band" style="background:${color}">${housePips(own?.houses ?? 0)}</span>` : ''}
+        ${color ? `<span class="band" style="background:${color}">${housePips(own?.houses ?? 0)}${space.type === 'property' && state.landmarks?.[space.group] ? `<span class="lm" title="${t(`landmarkName.${state.landmarks[space.group].id}` as MsgKey)}">${LANDMARK_ICONS[state.landmarks[space.group].id]}</span>` : ''}</span>` : ''}
         ${owner}
         ${icon}
         <span class="name">${escapeHtml(spaceName(space.id))}</span>
@@ -186,6 +186,55 @@ function groupNote(state: GameState, group: string, spaceId: string): string {
   return '';
 }
 
+export const LANDMARK_ICONS: Record<LandmarkId, string> = { fontana: '⛲', mercato: '🏪', teatro: '🎭' };
+
+export function landmarkText(id: LandmarkId, group: string): string {
+  const streets = board.spaces.filter((sp) => sp.type === 'property' && sp.group === group).length;
+  const params = { pct: Math.round((FOUNTAIN_FACTOR - 1) * 100), amount: money(id === 'mercato' ? MARKET_HALL_PAY * streets : THEATRE_MIN_RENT) };
+  return t(`landmarkText.${id}` as MsgKey, params);
+}
+
+// Quote del quartiere ed edificio speciale (regole facoltative), con i comandi per chi è di turno.
+function groupExtras(state: GameState, group: string): string {
+  const r = state.rules;
+  if (!r?.shares && !r?.landmarks) return '';
+  const ctx = { board, cards };
+  const me = state.current;
+  const canAct = state.phase !== 'gameOver' && !state.trade && ['roll', 'buy', 'endTurn'].includes(state.phase) && actingPlayer(state) === me;
+  const parts: string[] = [];
+  if (r.shares) {
+    const holders = sharesOf(state, group);
+    const price = sharePrice(ctx, group);
+    const names = [...new Set(holders)].map((h) => {
+      const n = holders.filter((x) => x === h).length;
+      return `${escapeHtml(state.players[h].name)}${n > 1 ? ` ×${n}` : ''}`;
+    });
+    const btns: string[] = [];
+    if (canAct && holders.length < SHARES_PER_GROUP) {
+      btns.push(`<button data-action="buyShare" data-group="${group}" ${state.players[me].money < price ? 'disabled' : ''}>${t('shares.buy', { amount: money(price) })}</button>`);
+    }
+    if (canAct && holders.includes(me)) btns.push(`<button data-action="sellShare" data-group="${group}">${t('shares.sell', { amount: money(price / 2) })}</button>`);
+    parts.push(`<div class="extras shares"><h4>📈 ${t('shares.title')}</h4>
+      <p>${t('shares.status', { sold: holders.length, n: SHARES_PER_GROUP, price: money(price), pct: Math.round(SHARE_CUT * 100) })}${names.length ? ` ${t('shares.holders', { names: names.join(', ') })}` : ''}</p>
+      ${btns.length ? `<div class="actions">${btns.join('')}</div>` : ''}</div>`);
+  }
+  if (r.landmarks) {
+    const lm = state.landmarks?.[group];
+    const cost = landmarkPrice(ctx, group);
+    let body = '';
+    if (lm) {
+      body = `<p>${LANDMARK_ICONS[lm.id]} ${t('landmark.here', { name: t(`landmarkName.${lm.id}` as MsgKey), owner: escapeHtml(state.players[lm.owner].name), text: landmarkText(lm.id, group) })}</p>`;
+      if (canAct && lm.owner === me) body += `<div class="actions"><button data-action="sellLandmark" data-group="${group}">${t('landmark.sell', { name: t(`landmarkName.${lm.id}` as MsgKey), amount: money(cost / 2) })}</button></div>`;
+    } else if (canAct && ownsWholeGroup(state, ctx, me, group)) {
+      body = `<ul class="landmark-pick">${LANDMARK_IDS.map(
+        (id) => `<li><div class="actions"><button data-action="buildLandmark" data-group="${group}" data-landmark="${id}" ${state.players[me].money < cost ? 'disabled' : ''}>${LANDMARK_ICONS[id]} ${t('landmark.build', { name: t(`landmarkName.${id}` as MsgKey), amount: money(cost) })}</button></div><small>${landmarkText(id, group)}</small></li>`,
+      ).join('')}</ul>`;
+    }
+    if (body) parts.push(`<div class="extras landmarks"><h4>🏛️ ${t('landmark.title')}</h4>${body}</div>`);
+  }
+  return parts.join('');
+}
+
 // Carta della casella selezionata, che compare sopra il tabellone.
 export function renderSpaceCard(state: GameState, spaceId: string): string {
   const space = board.spaces.find((s) => s.id === spaceId);
@@ -223,6 +272,7 @@ export function renderSpaceDetails(state: GameState, spaceId: string): string {
     if (space.type !== 'utility') lines.push(`<p>${t('space.rentNow', { amount: money(rent) })}</p>`);
   }
   if (space.type === 'property' && state.phase !== 'gameOver') lines.push(groupNote(state, space.group, space.id));
+  if (space.type === 'property') lines.push(groupExtras(state, space.group));
 
   const buttons: string[] = [];
   const canManage = own && own.owner === state.current && state.phase !== 'gameOver';
@@ -387,6 +437,10 @@ function renderDebt(state: GameState, playerId: number): string {
   }
   const options = debtOptions(state, ctx, playerId)
     .map(({ action, gain }) => {
+      if (action.type === 'sellShare' || action.type === 'sellLandmark') {
+        const label = action.type === 'sellShare' ? t('debt.sellShare', { group: action.group }) : t('debt.sellLandmark', { group: action.group });
+        return `<li><button data-action="${action.type}" data-group="${action.group}">${escapeHtml(label)} <strong>+${money(gain)}</strong></button></li>`;
+      }
       const id = 'spaceId' in action ? action.spaceId : '';
       const name = escapeHtml(spaceName(id));
       const label = action.type === 'sell' ? t('debt.sellOn', { space: name }) : t('debt.mortgage', { space: name });
