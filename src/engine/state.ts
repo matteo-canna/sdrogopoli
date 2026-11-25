@@ -69,7 +69,42 @@ export interface GameRules {
   goalSide?: boolean;
   // squadre: i giocatori pari contro i dispari (2 contro 2, o 3 contro 3)
   teams?: boolean;
+  // eventi di quartiere: a ogni giro succede qualcosa in un quartiere (regola facoltativa)
+  events?: boolean;
+  // Ruota del Mercato: ogni WHEEL_EVERY giri cambia l'andamento del mercato (regola facoltativa)
+  wheel?: boolean;
 }
+
+// ---------- eventi di quartiere e Ruota del Mercato (regole facoltative) ----------
+
+// Quello che può succedere in un quartiere, per un giro solo.
+export const EVENT_IDS = ['festa', 'lavori', 'mercatino', 'manutenzione'] as const;
+export type EventId = (typeof EVENT_IDS)[number];
+
+export interface GroupEvent {
+  id: EventId;
+  // quartiere interessato
+  group: string;
+  // giro in cui vale
+  round: number;
+}
+
+// Le facce della Ruota del Mercato: valgono per tutti e durano fino al giro successivo.
+export const MARKET_IDS = ['rialzo', 'ribasso', 'stipendio', 'calma'] as const;
+export type MarketId = (typeof MARKET_IDS)[number];
+
+export interface MarketSpin {
+  id: MarketId;
+  // primo e ultimo giro in cui vale
+  from: number;
+  until: number;
+}
+
+// Ogni quanti giri gira la ruota, e quanto incassa chi ha una via al mercatino.
+export const WHEEL_EVERY = 5;
+export const MARKET_PAY = 40;
+// Manutenzione: quanto costa ogni casa (il palazzo conta come cinque).
+export const UPKEEP_PER_HOUSE = 20;
 
 // Facce del Dado Sprint: passi in più, "Occasione" (si prosegue fino alla prossima proprietà
 // in vendita) e "Affitto pieno" (l'affitto pagato con questo lancio raddoppia).
@@ -191,6 +226,12 @@ export interface GameState {
   stats: PlayerStats[];
   // patrimonio di ogni giocatore all'inizio di ogni giro (history[giro][giocatore])
   history: number[][];
+  // evento del quartiere di questo giro (regola facoltativa, null se non c'è)
+  event?: GroupEvent | null;
+  // andamento del mercato in corso (regola facoltativa, null se non c'è)
+  market?: MarketSpin | null;
+  // ultimo giro per cui è già stato estratto l'evento (evita di estrarlo due volte)
+  roundStarted?: number;
 }
 
 // Numeri raccolti durante la partita per il riepilogo finale.
@@ -323,6 +364,9 @@ export function createGame(players: (string | PlayerSetup)[], gameCtx: GameConte
     eventCount: 1,
     stats: setups.map(() => emptyStats()),
     history: [],
+    event: null,
+    market: null,
+    roundStarted: 0,
     seed: holder.seed,
     rngState: holder.rngState,
   };
