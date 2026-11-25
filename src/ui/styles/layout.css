@@ -100,3 +100,5 @@
 }
 /* mentre si scarica la grafica 3D */
 .loading-3d { display: grid; place-items: center; height: 100%; margin: 0; color: var(--muted); background: var(--board); }
+.report-link { align-self: center; color: var(--muted); font-size: 0.85em; padding: 8px 0; }
+@media (pointer: coarse) { .report-link { min-height: 44px; display: inline-flex; align-items: center; } }

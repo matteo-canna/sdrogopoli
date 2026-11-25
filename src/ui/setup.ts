@@ -3,6 +3,7 @@ import { board } from '../data';
 import { DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
 import { webglAvailable } from './webgl';
 import { load3d } from './lazy3d';
+import { reportUrl } from './report';
 import type { CharacterPreview } from './three/characters3d';
 import { renderIntro } from './intro';
 import { version } from '../../package.json';
@@ -207,7 +208,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       </div>
       <footer class="credits">
         <p>🆓 Gratis, senza pubblicità e senza account. Le partite restano su questo dispositivo.</p>
-        <p>Personaggi 3D: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit di Kay Lousberg</a> (CC0) · Versione ${version} · <button type="button" class="link" data-credits>Crediti e licenze</button></p>
+        <p>Personaggi 3D: <a href="https://kaylousberg.com" target="_blank" rel="noopener">KayKit di Kay Lousberg</a> (CC0) · Versione ${version} · <button type="button" class="link" data-credits>Crediti e licenze</button> · <a href="${reportUrl(null, 'iniziale')}" target="_blank" rel="noopener">Segnala un problema</a></p>
       </footer>
       <dialog class="credits-dialog" aria-labelledby="credits-title">
         <h2 id="credits-title">Crediti e licenze</h2>
