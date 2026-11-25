@@ -19,6 +19,7 @@ export const KEYS = {
   profile: 'sdrogopoli-profilo',
   preset: 'sdrogopoli-tipo-partita',
   daily: 'sdrogopoli-partita-del-giorno',
+  board: 'sdrogopoli-tabellone',
 } as const;
 
 export function readPref(key: string): string | null {

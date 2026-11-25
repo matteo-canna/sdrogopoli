@@ -1,10 +1,10 @@
+import { BOARDS, board, cards } from '../src/data';
 import { describe, it, expect, afterEach } from 'vitest';
 import { it as itMsgs } from '../src/i18n/it';
 import { en } from '../src/i18n/en';
 import { detectLang, format, setLang, t, text, type MsgKey } from '../src/i18n';
 import cardsEn from '../src/data/cards.en.json';
 import boardEn from '../src/data/board.en.json';
-import { board, cards } from '../src/data';
 import { BOT_LEVELS, BOT_STYLES } from '../src/engine/bot';
 import { PRESETS } from '../src/engine/presets';
 import { SPEEDS, SKY_LABELS } from '../src/ui/prefs';
@@ -37,6 +37,7 @@ describe('frasi in italiano e in inglese', () => {
       ...TIP_IDS.flatMap((id) => [`tip.${id}.title`, `tip.${id}.text`]),
       ...CHARACTERS.flatMap((c) => Object.keys(c.items).map((m) => `item.${m}`)),
       ...Array.from({ length: 12 }, (_, i) => `color.${i}`),
+      ...BOARDS.flatMap((b) => [`board.${b.id}`, `boardText.${b.id}`]),
       ...TEXT_SIZES.map((x) => `settings.text.${x.id}`),
       ...MOTIONS.map((x) => `settings.motion.${x.id}`),
       ...QUICK_SAYS.filter((q) => /\p{L}/u.test(q.text)).map((q) => `say.${q.id}`),

@@ -5,8 +5,8 @@
   },
   "cards": [
     { "id": "sorte-01", "deck": "sorte", "text": "Il navigatore impazzisce: torna alla Partenza e ritira lo stipendio.", "effect": { "kind": "moveTo", "space": "partenza" } },
-    { "id": "sorte-02", "deck": "sorte", "text": "Ti viene voglia di lago. Vai a Riva dei Miliardari.", "effect": { "kind": "moveTo", "space": "lungolago-2" } },
-    { "id": "sorte-03", "deck": "sorte", "text": "Esame a sorpresa! Corri in Viale della Sessione. Se passi dalla Partenza ritira lo stipendio.", "effect": { "kind": "moveTo", "space": "universita-3" } },
+    { "id": "sorte-02", "deck": "sorte", "text": "Ti viene voglia di lusso. Vai a {space}.", "effect": { "kind": "moveTo", "space": "lusso" } },
+    { "id": "sorte-03", "deck": "sorte", "text": "Ti aspettano per una cosa urgente: corri in {space}. Se passi dalla Partenza ritira lo stipendio.", "effect": { "kind": "moveTo", "space": "studio" } },
     { "id": "sorte-04", "deck": "sorte", "text": "Hai sbagliato fermata. Torna indietro di 2 caselle.", "effect": { "kind": "moveBy", "steps": -2 } },
     { "id": "sorte-05", "deck": "sorte", "text": "Prendi il primo mezzo che passa: vai alla fermata più vicina.", "effect": { "kind": "moveToNearest", "spaceType": "station" } },
     { "id": "sorte-06", "deck": "sorte", "text": "Vinci la gara di torte del quartiere. Incassa 130.", "effect": { "kind": "gain", "amount": 130 } },

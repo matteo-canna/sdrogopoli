@@ -15,6 +15,9 @@ export interface SaveFile {
   initial: GameState;
   actions: Action[];
   state: GameState;
+  // tabellone su cui si gioca (id in src/data/boards.ts). I salvataggi di prima
+  // non ce l'hanno: valgono sul tabellone predefinito.
+  board?: string;
 }
 
 // Completa uno stato salvato da una versione precedente del gioco con i campi aggiunti dopo.
@@ -59,11 +62,19 @@ export function readSave(raw: unknown, ctx: GameContext, seed: number): SaveFile
     initial: migrateState(file.initial, ctx, seed),
     actions: file.actions,
     state: migrateState(file.state, ctx, seed),
+    ...(typeof file.board === 'string' ? { board: file.board } : {}),
   };
 }
 
-export function newSave(initial: GameState): SaveFile {
-  return { version: SAVE_VERSION, initial: structuredClone(initial), actions: [], state: initial };
+export function newSave(initial: GameState, board?: string): SaveFile {
+  return { version: SAVE_VERSION, initial: structuredClone(initial), actions: [], state: initial, ...(board ? { board } : {}) };
+}
+
+// Il tabellone di un salvataggio, letto prima di aprirlo (serve per scegliere i dati giusti).
+export function fileBoard(raw: unknown): string | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const id = (raw as { board?: unknown }).board;
+  return typeof id === 'string' ? id : undefined;
 }
 
 // Rigioca il registro dallo stato iniziale. Il contesto non deve avere un "rng" proprio:

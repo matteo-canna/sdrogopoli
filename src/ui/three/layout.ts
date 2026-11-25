@@ -1,9 +1,18 @@
-// Misure e posizioni del tabellone 3D (11×11 unità centrato nell'origine).
+// Misure e posizioni del tabellone 3D (una unità per casella, centrato nell'origine:
+// un tabellone da 40 caselle occupa 11×11 unità, uno da 28 ne occupa 8×8).
 import * as THREE from 'three';
 import { board } from '../../data';
-import { gridPosition } from '../view';
+import { gridPosition, gridSide, perSide } from '../view';
 
-export const SIZE = board.spaces.length;
+// Quante caselle ha il tabellone in uso, e quanto è larga la sua griglia in unità.
+export function boardSize(): number {
+  return board.spaces.length;
+}
+
+export function boardSide(): number {
+  return gridSide();
+}
+
 export const TILE = 0.96;
 export const HOP_SECONDS = 0.22;
 // Grandezza dei personaggi-pedina (la testa grande li rende un po' più alti di così).
@@ -12,14 +21,16 @@ export const CHARACTER_HEIGHT = 0.5;
 // Posizione nel mondo 3D del centro di una casella.
 export function spaceCenter(index: number): THREE.Vector3 {
   const { row, col } = gridPosition(index);
-  return new THREE.Vector3(col - 6, 0, row - 6);
+  const mid = (gridSide() + 1) / 2;
+  return new THREE.Vector3(col - mid, 0, row - mid);
 }
 
 // Rotazione del testo: si legge guardando la casella dall'esterno del tabellone.
 export function textRotation(index: number): number {
-  if (index < 10) return 0;
-  if (index < 20) return -Math.PI / 2;
-  if (index < 30) return Math.PI;
+  const n = perSide();
+  if (index < n) return 0;
+  if (index < 2 * n) return -Math.PI / 2;
+  if (index < 3 * n) return Math.PI;
   return Math.PI / 2;
 }
 

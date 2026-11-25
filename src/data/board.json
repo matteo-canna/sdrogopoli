@@ -5,6 +5,7 @@
     "symbol": "Ꞩ"
   },
   "startingMoney": 1500,
+  "targets": { "partenza": "partenza", "lusso": "lungolago-2", "studio": "universita-3" },
   "groups": [
     {
       "id": "periferia",

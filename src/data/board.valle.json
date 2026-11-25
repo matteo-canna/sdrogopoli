@@ -1,0 +1,396 @@
+{
+  "currency": {
+    "name": "sdrogo",
+    "plural": "sdroghi",
+    "symbol": "Ꞩ"
+  },
+  "startingMoney": 1500,
+  "targets": {
+    "partenza": "v-partenza",
+    "lusso": "v-ghiacciaio-2",
+    "studio": "v-terme-3"
+  },
+  "groups": [
+    {
+      "id": "pineta",
+      "name": "Pineta",
+      "color": "#3f7d52"
+    },
+    {
+      "id": "miniera",
+      "name": "Miniera Vecchia",
+      "color": "#6b6f76"
+    },
+    {
+      "id": "borgata",
+      "name": "Borgata",
+      "color": "#b5651d"
+    },
+    {
+      "id": "terme",
+      "name": "Terme",
+      "color": "#2f9ec4"
+    },
+    {
+      "id": "vetta",
+      "name": "Vetta",
+      "color": "#8e6bbf"
+    },
+    {
+      "id": "ghiacciaio",
+      "name": "Ghiacciaio",
+      "color": "#2b4f8e"
+    }
+  ],
+  "spaces": [
+    {
+      "type": "start",
+      "id": "v-partenza",
+      "name": "Partenza",
+      "salary": 200
+    },
+    {
+      "type": "property",
+      "id": "v-pineta-1",
+      "name": "Sentiero degli Scoiattoli",
+      "group": "pineta",
+      "price": 60,
+      "housePrice": 50,
+      "rent": [
+        2,
+        13,
+        40,
+        105,
+        145,
+        180
+      ],
+      "mortgage": 30
+    },
+    {
+      "type": "card",
+      "id": "v-quartiere-1",
+      "name": "Voci di Quartiere",
+      "deck": "quartiere"
+    },
+    {
+      "type": "property",
+      "id": "v-pineta-2",
+      "name": "Radura dei Mirtilli",
+      "group": "pineta",
+      "price": 60,
+      "housePrice": 50,
+      "rent": [
+        2,
+        13,
+        40,
+        105,
+        145,
+        180
+      ],
+      "mortgage": 30
+    },
+    {
+      "type": "tax",
+      "id": "v-tassa-1",
+      "name": "Tassa sulla Neve Finta",
+      "amount": 150
+    },
+    {
+      "type": "station",
+      "id": "v-fermata-funivia",
+      "name": "Funivia dei Prati",
+      "price": 180,
+      "mortgage": 90,
+      "rent": [
+        40,
+        140,
+        280,
+        560
+      ]
+    },
+    {
+      "type": "property",
+      "id": "v-miniera-1",
+      "name": "Galleria del Piccone",
+      "group": "miniera",
+      "price": 120,
+      "housePrice": 50,
+      "rent": [
+        8,
+        50,
+        155,
+        415,
+        570,
+        730
+      ],
+      "mortgage": 60
+    },
+    {
+      "type": "jail",
+      "id": "v-baita",
+      "name": "Baita dei Guardaparco"
+    },
+    {
+      "type": "property",
+      "id": "v-miniera-2",
+      "name": "Vicolo della Polvere",
+      "group": "miniera",
+      "price": 120,
+      "housePrice": 50,
+      "rent": [
+        8,
+        50,
+        155,
+        415,
+        570,
+        730
+      ],
+      "mortgage": 60
+    },
+    {
+      "type": "property",
+      "id": "v-miniera-3",
+      "name": "Piazzale dei Carrelli",
+      "group": "miniera",
+      "price": 160,
+      "housePrice": 100,
+      "rent": [
+        12,
+        80,
+        235,
+        625,
+        860,
+        1090
+      ],
+      "mortgage": 80
+    },
+    {
+      "type": "card",
+      "id": "v-sorte-1",
+      "name": "Colpo di Sorte",
+      "deck": "sorte"
+    },
+    {
+      "type": "property",
+      "id": "v-borgata-1",
+      "name": "Via dei Tetti Bassi",
+      "group": "borgata",
+      "price": 180,
+      "housePrice": 100,
+      "rent": [
+        14,
+        90,
+        275,
+        730,
+        1000,
+        1275
+      ],
+      "mortgage": 90
+    },
+    {
+      "type": "utility",
+      "id": "v-centralina",
+      "name": "Centralina della Valle",
+      "price": 150,
+      "mortgage": 75,
+      "diceMultiplier": [
+        8,
+        10
+      ]
+    },
+    {
+      "type": "property",
+      "id": "v-borgata-2",
+      "name": "Piazza del Forno",
+      "group": "borgata",
+      "price": 180,
+      "housePrice": 100,
+      "rent": [
+        14,
+        90,
+        275,
+        730,
+        1000,
+        1275
+      ],
+      "mortgage": 90
+    },
+    {
+      "type": "free",
+      "id": "v-belvedere",
+      "name": "Belvedere"
+    },
+    {
+      "type": "property",
+      "id": "v-borgata-3",
+      "name": "Salita delle Capre",
+      "group": "borgata",
+      "price": 220,
+      "housePrice": 150,
+      "rent": [
+        18,
+        115,
+        350,
+        935,
+        1285,
+        1640
+      ],
+      "mortgage": 110
+    },
+    {
+      "type": "property",
+      "id": "v-terme-1",
+      "name": "Viale dei Vapori",
+      "group": "terme",
+      "price": 240,
+      "housePrice": 150,
+      "rent": [
+        20,
+        130,
+        390,
+        1040,
+        1430,
+        1820
+      ],
+      "mortgage": 120
+    },
+    {
+      "type": "card",
+      "id": "v-quartiere-2",
+      "name": "Voci di Quartiere",
+      "deck": "quartiere"
+    },
+    {
+      "type": "property",
+      "id": "v-terme-2",
+      "name": "Corso delle Bollicine",
+      "group": "terme",
+      "price": 240,
+      "housePrice": 150,
+      "rent": [
+        20,
+        130,
+        390,
+        1040,
+        1430,
+        1820
+      ],
+      "mortgage": 120
+    },
+    {
+      "type": "station",
+      "id": "v-fermata-trenino",
+      "name": "Trenino della Valle",
+      "price": 180,
+      "mortgage": 90,
+      "rent": [
+        40,
+        140,
+        280,
+        560
+      ]
+    },
+    {
+      "type": "property",
+      "id": "v-terme-3",
+      "name": "Largo della Sauna",
+      "group": "terme",
+      "price": 280,
+      "housePrice": 160,
+      "rent": [
+        24,
+        190,
+        560,
+        1495,
+        2060,
+        2620
+      ],
+      "mortgage": 140
+    },
+    {
+      "type": "goToJail",
+      "id": "v-vai-in-baita",
+      "name": "Fermato dai Guardaparco"
+    },
+    {
+      "type": "property",
+      "id": "v-vetta-1",
+      "name": "Cresta dei Camosci",
+      "group": "vetta",
+      "price": 300,
+      "housePrice": 200,
+      "rent": [
+        24,
+        190,
+        560,
+        1495,
+        2060,
+        2620
+      ],
+      "mortgage": 150
+    },
+    {
+      "type": "card",
+      "id": "v-sorte-2",
+      "name": "Colpo di Sorte",
+      "deck": "sorte"
+    },
+    {
+      "type": "property",
+      "id": "v-vetta-2",
+      "name": "Sentiero delle Aquile",
+      "group": "vetta",
+      "price": 300,
+      "housePrice": 200,
+      "rent": [
+        24,
+        190,
+        560,
+        1495,
+        2060,
+        2620
+      ],
+      "mortgage": 150
+    },
+    {
+      "type": "tax",
+      "id": "v-tassa-2",
+      "name": "Multa per Slittino Spericolato",
+      "amount": 100
+    },
+    {
+      "type": "property",
+      "id": "v-ghiacciaio-1",
+      "name": "Terrazza del Ghiacciaio",
+      "group": "ghiacciaio",
+      "price": 350,
+      "housePrice": 200,
+      "rent": [
+        32,
+        175,
+        535,
+        1415,
+        1945,
+        2475
+      ],
+      "mortgage": 175
+    },
+    {
+      "type": "property",
+      "id": "v-ghiacciaio-2",
+      "name": "Rifugio dei Miliardari",
+      "group": "ghiacciaio",
+      "price": 400,
+      "housePrice": 200,
+      "rent": [
+        44,
+        240,
+        730,
+        1945,
+        2670,
+        3405
+      ],
+      "mortgage": 200
+    }
+  ]
+}

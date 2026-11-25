@@ -12,31 +12,56 @@ export function playerBadge(state: GameState, playerId: number, cls = 'token big
   return `<span class="${cls} mark" style="background:${c};color:${inkOn(c)}" aria-hidden="true">${escapeHtml(mark)}</span>`;
 }
 
-const SYMBOL = board.currency.symbol;
 
 export function money(n: number): string {
-  return `${SYMBOL} ${n}`;
+  return `${board.currency.symbol} ${n}`;
 }
 
 export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
 
-// Posizione di ogni casella nella griglia 11x11: la Partenza è in basso a destra
-// e il percorso gira in senso orario (verso sinistra, poi su, poi a destra, poi giù).
-export function gridPosition(index: number): { row: number; col: number } {
-  if (index <= 10) return { row: 11, col: 11 - index };
-  if (index <= 20) return { row: 11 - (index - 10), col: 1 };
-  if (index <= 30) return { row: 1, col: 1 + (index - 20) };
-  return { row: 1 + (index - 30), col: 11 };
+// Caselle per lato e lato della griglia: un tabellone di 40 caselle ha 10 caselle per lato
+// e una griglia 11x11 (gli angoli sono in comune tra due lati).
+export function perSide(spaces = board.spaces.length): number {
+  return Math.max(1, Math.round(spaces / 4));
 }
 
-function side(index: number): string {
-  if (index % 10 === 0) return 'corner';
-  if (index < 10) return 'bottom';
-  if (index < 20) return 'left';
-  if (index < 30) return 'top';
+export function gridSide(spaces = board.spaces.length): number {
+  return perSide(spaces) + 1;
+}
+
+// Posizione di ogni casella nella griglia: la Partenza è in basso a destra
+// e il percorso gira in senso orario (verso sinistra, poi su, poi a destra, poi giù).
+export function gridPosition(index: number, spaces = board.spaces.length): { row: number; col: number } {
+  const n = perSide(spaces);
+  const g = n + 1;
+  if (index <= n) return { row: g, col: g - index };
+  if (index <= 2 * n) return { row: g - (index - n), col: 1 };
+  if (index <= 3 * n) return { row: 1, col: 1 + (index - 2 * n) };
+  return { row: 1 + (index - 3 * n), col: g };
+}
+
+export function side(index: number, spaces = board.spaces.length): string {
+  const n = perSide(spaces);
+  if (index % n === 0) return 'corner';
+  if (index < n) return 'bottom';
+  if (index < 2 * n) return 'left';
+  if (index < 3 * n) return 'top';
   return 'right';
+}
+
+// Griglia e centro del tabellone: dipendono da quante caselle ha, quindi si scrivono qui
+// (il CSS non sa quanto è lungo il tabellone). --cells serve per la misura delle caselle.
+export function boardStyle(spaces = board.spaces.length): string {
+  const g = gridSide(spaces);
+  const track = `1.6fr repeat(${g - 2}, 1fr) 1.6fr`;
+  return `--cells:${g};grid-template-columns:${track};grid-template-rows:${track}`;
+}
+
+export function centerStyle(spaces = board.spaces.length): string {
+  const g = gridSide(spaces);
+  return `grid-row:2 / ${g};grid-column:2 / ${g}`;
 }
 
 const ICONS: Partial<Record<Space['type'], string>> = {
@@ -80,6 +105,11 @@ export function spaceLabel(state: GameState, i: number): string {
 // "palazzo", "1 casa", "3 case"
 export function housesText(houses: number): string {
   return houses === 5 ? t('space.hotel') : tn('space.houses', houses);
+}
+
+// Tabellone e centro insieme, con le misure della griglia giuste per la sua lunghezza.
+export function renderBoardBox(state: GameState, selected: string | null): string {
+  return `<div class="board" style="${boardStyle()}">${renderBoard(state, selected)}<div class="center" style="${centerStyle()}">${renderTable(state)}</div></div>`;
 }
 
 // Il tabellone è un solo punto di sosta per il tasto Tab: le frecce scorrono le caselle
@@ -163,7 +193,9 @@ export function renderSpaceDetails(state: GameState, spaceId: string): string {
     lines.push(`<p>${t('space.priceHouse', { price: money(space.price), house: money(space.housePrice) })}</p>`);
     lines.push(`<table class="rents">${space.rent.map((r, i) => `<tr class="${own && own.houses === i ? 'now' : ''}"><td>${labels[i]}</td><td>${money(r)}</td></tr>`).join('')}</table>`);
   } else if (space.type === 'station') {
-    lines.push(`<p>${t('space.price', { price: money(space.price) })}</p><p>${t('space.stationRent', { rents: space.rent.map(money).join(' / ') })}</p>`);
+    // si mostrano solo le fermate che esistono su questo tabellone
+    const stops = board.spaces.filter((sp) => sp.type === 'station').length;
+    lines.push(`<p>${t('space.price', { price: money(space.price) })}</p><p>${t('space.stationRent', { n: stops, rents: space.rent.slice(0, stops).map(money).join(' / ') })}</p>`);
   } else if (space.type === 'utility') {
     lines.push(`<p>${t('space.price', { price: money(space.price) })}</p><p>${t('space.utilityRent', { a: space.diceMultiplier[0], b: space.diceMultiplier[1] })}</p>`);
   } else if (space.type === 'tax') {

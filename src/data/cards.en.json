@@ -1,7 +1,7 @@
 {
   "sorte-01": { "text": "Your sat nav goes haywire: go back to Start and collect your salary." },
-  "sorte-02": { "text": "You fancy a day by the lake. Go to Riva dei Miliardari." },
-  "sorte-03": { "text": "Pop quiz! Hurry to Viale della Sessione. If you pass Start, collect your salary." },
+  "sorte-02": { "text": "Feeling fancy. Go to {space}." },
+  "sorte-03": { "text": "Something urgent needs you: hurry to {space}. If you pass Start, collect your salary." },
   "sorte-04": { "text": "Wrong stop. Go back 2 spaces." },
   "sorte-05": { "text": "Hop on the first ride that comes by: go to the nearest stop." },
   "sorte-06": { "text": "You win the neighbourhood cake contest. Collect 130." },

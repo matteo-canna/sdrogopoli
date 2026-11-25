@@ -2,14 +2,15 @@
 import * as THREE from 'three';
 import { board } from '../../data';
 import { centerTexture, spaceTexture } from './textures';
-import { spaceCenter, textRotation, TILE } from './layout';
+import { boardSide, spaceCenter, textRotation, TILE } from './layout';
 
 export function buildBoard(scene: THREE.Scene, renderer: THREE.WebGLRenderer): { tiles: THREE.Mesh[]; buildings: THREE.Group[] } {
   const tiles: THREE.Mesh[] = [];
   const buildings: THREE.Group[] = [];
-  // base del tabellone
+  // base del tabellone: grande quanto la griglia delle caselle, con un bordo di 0.4
+  const g = boardSide();
   const base = new THREE.Mesh(
-    new THREE.BoxGeometry(11.4, 0.3, 11.4),
+    new THREE.BoxGeometry(g + 0.4, 0.3, g + 0.4),
     new THREE.MeshStandardMaterial({ color: 0x6b8f71, roughness: 0.9 }),
   );
   base.position.y = -0.2;
@@ -17,7 +18,7 @@ export function buildBoard(scene: THREE.Scene, renderer: THREE.WebGLRenderer): {
   scene.add(base);
 
   const center = new THREE.Mesh(
-    new THREE.PlaneGeometry(9, 9),
+    new THREE.PlaneGeometry(g - 2, g - 2),
     new THREE.MeshStandardMaterial({ map: centerTexture(), roughness: 0.95 }),
   );
   center.rotation.x = -Math.PI / 2;

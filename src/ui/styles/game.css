@@ -6,8 +6,10 @@
 }
 @media (max-width: 900px) { .game { grid-template-columns: 1fr; } }
 
+/* le misure della griglia le scrive view.ts: dipendono da quante caselle ha il tabellone
+   (--cells = lato della griglia, 11 per il tabellone da 40 caselle) */
 .board {
-  display: grid; aspect-ratio: 1; width: 100%;
+  display: grid; aspect-ratio: 1; width: 100%; --cells: 11;
   grid-template-columns: 1.6fr repeat(9, 1fr) 1.6fr;
   grid-template-rows: 1.6fr repeat(9, 1fr) 1.6fr;
   gap: 2px; background: var(--line); border: 3px solid var(--line); border-radius: var(--radius);

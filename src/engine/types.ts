@@ -52,6 +52,9 @@ export interface Group {
 export interface BoardData {
   currency: { name: string; plural: string; symbol: string };
   startingMoney: number;
+  // Caselle a cui puntano le carte, per ruolo ("lusso", "studio", "partenza"): così lo stesso
+  // mazzo vale su ogni tabellone. Chi non li dichiara usa gli id delle caselle così come sono.
+  targets?: Record<string, string>;
   groups: Group[];
   spaces: Space[];
 }

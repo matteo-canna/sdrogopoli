@@ -6,7 +6,8 @@ import { playerColor } from './characters';
 import { escapeHtml as esc } from './view';
 import { t, tn } from '../i18n';
 
-const SYMBOL = board.currency.symbol;
+// il simbolo si legge al momento: cambia col tabellone
+const SYMBOL = () => board.currency.symbol;
 
 function statsOf(state: GameState, id: number): PlayerStats {
   return state.stats?.[id] ?? emptyStats();
@@ -37,12 +38,12 @@ export interface Award {
 // Premi simpatici: a chi ha fatto di più in ogni categoria (nessun premio se nessuno ha punti).
 export function awards(state: GameState): Award[] {
   const defs: { emoji: string; title: string; value: (s: PlayerStats) => number; detail: (n: number) => string }[] = [
-    { emoji: '💰', title: t('award.rent'), value: (s) => s.rentReceived, detail: (n) => t('award.rentText', { amount: `${SYMBOL} ${n}` }) },
+    { emoji: '💰', title: t('award.rent'), value: (s) => s.rentReceived, detail: (n) => t('award.rentText', { amount: `${SYMBOL()} ${n}` }) },
     { emoji: '🏗️', title: t('award.builder'), value: (s) => s.built, detail: (n) => tn('award.builderText', n) },
     { emoji: '🛒', title: t('award.collector'), value: (s) => s.bought, detail: (n) => tn('award.collectorText', n) },
     { emoji: '🤝', title: t('award.trader'), value: (s) => s.trades, detail: (n) => tn('award.traderText', n) },
     { emoji: '🎲', title: t('award.lucky'), value: (s) => s.doubles, detail: (n) => tn('award.luckyText', n) },
-    { emoji: '💸', title: t('award.giver'), value: (s) => s.rentPaid + s.taxesPaid, detail: (n) => t('award.giverText', { amount: `${SYMBOL} ${n}` }) },
+    { emoji: '💸', title: t('award.giver'), value: (s) => s.rentPaid + s.taxesPaid, detail: (n) => t('award.giverText', { amount: `${SYMBOL()} ${n}` }) },
     { emoji: '🚓', title: t('award.jail'), value: (s) => s.jailVisits, detail: (n) => tn('award.jailText', n) },
   ];
   const result: Award[] = [];
@@ -83,7 +84,7 @@ function chartSvg(state: GameState): string {
         <line x1="${pad}" y1="${H - pad}" x2="${W - pad}" y2="${H - pad}" class="axis"/>
         ${lines}
       </svg>
-      <div class="chart-scale"><span>${t('chart.start')}</span><span>${t('chart.max', { amount: `${SYMBOL} ${max}` })}</span><span>${t('chart.end')}</span></div>
+      <div class="chart-scale"><span>${t('chart.start')}</span><span>${t('chart.max', { amount: `${SYMBOL()} ${max}` })}</span><span>${t('chart.end')}</span></div>
     </figure>`;
 }
 
@@ -96,7 +97,7 @@ export function renderSummary(state: GameState, ctx: GameContext, extra?: { titl
     .map((id, rank) => {
       const p = state.players[id];
       const st = statsOf(state, id);
-      const what = p.bankrupt ? t('summary.bankruptAt', { n: st.bankruptRound ?? '?' }) : t('summary.worth', { amount: `${SYMBOL} ${netWorth(state, ctx, id)}` });
+      const what = p.bankrupt ? t('summary.bankruptAt', { n: st.bankruptRound ?? '?' }) : t('summary.worth', { amount: `${SYMBOL()} ${netWorth(state, ctx, id)}` });
       return `<li><span class="medal">${medals[rank] ?? `${rank + 1}°`}</span><span class="token" style="background:${playerColor(p)}"></span>
         <strong>${p.isBot ? '🤖 ' : ''}${esc(p.name)}</strong>${extra?.titles?.[id] ? `<span class="player-title">${esc(extra.titles[id])}</span>` : ''}<span class="what">${what}</span></li>`;
     })
@@ -160,7 +161,7 @@ export function renderLeaderboard(entries: LeaderEntry[]): string {
   const rows = entries
     .slice(0, 10)
     .map(
-      (e, i) => `<tr><td>${i + 1}</td><td>${e.isBot ? '🤖 ' : ''}${esc(e.name)}</td><td>${e.wins}</td><td>${e.played}</td><td>${SYMBOL} ${e.best}</td></tr>`,
+      (e, i) => `<tr><td>${i + 1}</td><td>${e.isBot ? '🤖 ' : ''}${esc(e.name)}</td><td>${e.wins}</td><td>${e.played}</td><td>${SYMBOL()} ${e.best}</td></tr>`,
     )
     .join('');
   return `<details class="leaderboard">

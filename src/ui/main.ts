@@ -2,9 +2,9 @@
 // Le parti più grandi stanno in moduli separati: schermata iniziale (setup.ts), partita salvata
 // e "Annulla" (session.ts), turni del computer (bots.ts), suoni (sounds.ts), preferenze (prefs.ts).
 import './style.css';
-import { board, cards } from '../data';
+import { DEFAULT_BOARD, board, cards, currentBoard, setBoard } from '../data';
 import { actingPlayer, applyAction, chooseBotAction, createGame, emptyStats, raiseMoney, RuleError, SEAT_BONUS, type SprintFace, type Action, type Appearance, type GameContext, type GameState, type SaveFile } from '../engine';
-import { escapeHtml, money, playerBadge, renderBoard, spaceLabel, renderDice, renderPlayers, renderSpaceCard, renderTable, renderTradeEditor, renderTurnActions, tradeSummaryHtml, type TradeDraft } from './view';
+import { escapeHtml, money, playerBadge, renderBoardBox, spaceLabel, renderDice, renderPlayers, renderSpaceCard, renderTradeEditor, renderTurnActions, tradeSummaryHtml, type TradeDraft } from './view';
 import type { Board3D } from './three/board3d';
 import type { CameraMode } from './three/camera';
 import type { SkyMode } from './three/city';
@@ -37,8 +37,14 @@ import { Replay, REPLAY_SPEEDS, type ReplaySpeed } from './replay';
 import { t, text, type MsgKey } from '../i18n';
 import { applySettings, LANG_EVENT, loadSettings, openSettings } from './settings';
 
-// senza "rng": i dadi vengono dal generatore della partita, che parte da un seme casuale
+// senza "rng": i dadi vengono dal generatore della partita, che parte da un seme casuale.
+// "board" cambia col tabellone scelto, quindi il contesto si aggiorna con useBoard().
 const ctx: GameContext = { board, cards };
+
+// Sceglie il tabellone (della partita salvata, di quella nuova o l'ultimo usato).
+function useBoard(id: string | undefined | null): void {
+  ctx.board = setBoard(id);
+}
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
 type ViewMode = '3d' | '2d';
@@ -49,6 +55,8 @@ const startSettings = loadSettings();
 applySettings(startSettings);
 audio.setVolumes(startSettings.sfxVolume, startSettings.musicVolume);
 translateSplash();
+// l'ultimo tabellone usato; una partita salvata ha il suo, e session.load() lo sceglie
+useBoard(readPref(KEYS.board));
 session.load();
 let selected: string | null = null;
 let error = '';
@@ -280,6 +288,8 @@ setInterval(() => {
 async function enterTable(role: 'host' | 'guest', code: string, restore?: HostSnapshot): Promise<void> {
   bots.cancel();
   destroy3d();
+  // online si gioca sempre sul tabellone predefinito: così oste e ospiti vedono le stesse caselle
+  useBoard(DEFAULT_BOARD);
   // la partita su questo dispositivo resta salvata: si riprende uscendo dal tavolo
   session.clear();
   resumeOffered = false;
@@ -465,6 +475,8 @@ function startGame(choice: SetupChoice): void {
   resumeOffered = false;
   // la partita del giorno parte dal seme del giorno: stessi dadi e stesse carte per tutti
   dailyDay = choice.daily ?? null;
+  useBoard(choice.boardId);
+  writePref(KEYS.board, currentBoard());
   session.start(createGame(choice.players, ctx, choice.rules, choice.seed ?? randomSeed()));
   // riattivando i consigli si ricomincia da capo
   if (choice.tipsOn && !tutorial.on) tutorial.seen.clear();
@@ -739,10 +751,7 @@ function fillPanels(s: GameState): void {
 function render2d(s: GameState): void {
   destroy3d();
   app.innerHTML = gameShell(
-    `<div class="board">
-      ${renderBoard(s, selected)}
-      <div class="center">${renderTable(s)}</div>
-    </div>`,
+    renderBoardBox(s, selected),
     '2d',
   );
   fillPanels(s);
@@ -924,7 +933,7 @@ function openReplay(): void {
   const toggle = dialog.querySelector<HTMLButtonElement>('[data-replay=toggle]')!;
   const stepLabel = dialog.querySelector<HTMLElement>('[data-replay=step]')!;
   const draw = (v: { state: GameState; progress: number; done: boolean }) => {
-    boardBox.innerHTML = `<div class="board">${renderBoard(v.state, null)}<div class="center">${renderTable(v.state)}</div></div>`;
+    boardBox.innerHTML = renderBoardBox(v.state, null);
     seek.value = String(Math.round(v.progress * 1000));
     stepLabel.textContent = t('replay.step', { n: Math.round(v.progress * (replay!.length - 1)) + 1, all: replay!.length });
     toggle.textContent = replay!.playing ? `⏸ ${t('replay.pause')}` : `▶ ${t('replay.play')}`;
