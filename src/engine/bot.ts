@@ -1,7 +1,7 @@
 // Giocatore controllato dal computer: sceglie sempre un'azione valida in base allo stato.
 // Il livello (facile, normale, difficile) e il carattere (costruttore, collezionista…) cambiano
 // alcune manopole: riserva di soldi, voglia di comprare e costruire, offerte e scambi.
-import { actingPlayer, computeRent, interestOn, ownsWholeGroup, unmortgageCost, HOTEL, MAX_COUNTERS, MIN_BID, type Action } from './rules';
+import { actingPlayer, computeRent, interestOn, ownsWholeGroup, sameTeam, unmortgageCost, HOTEL, MAX_COUNTERS, MIN_BID, type Action } from './rules';
 import type { BotLevel, BotProfile, BotStyle, GameContext, GameState, Player, TradeSide } from './state';
 import { JAIL_FINE } from './state';
 import type { PropertySpace, Space } from './types';
@@ -315,7 +315,9 @@ function chooseTradeResponse(state: GameState, ctx: GameContext): Action {
       const price = 'price' in space ? space.price : 0;
       return sum + (wouldComplete(state, ctx, t.from, id) ? price * 2 : price) + (wouldCompleteMine(id) ? price * 1.5 : 0);
     }, 0);
-  if (received >= lost * k.acceptMargin && received > 0) return { type: 'acceptTrade' };
+  // con un compagno di squadra si guarda il bene comune: basta che lo scambio non sia rovinoso
+  const margin = sameTeam(state, me, t.from) ? k.acceptMargin * 0.6 : k.acceptMargin;
+  if (received >= lost * margin && received > 0) return { type: 'acceptTrade' };
   // offerta di soldi per le mie vie, non troppo lontana: chiedo quanto mi serve per accettare
   if (k.counters && (t.counters ?? 0) < MAX_COUNTERS && !t.give.spaces.length && t.get.spaces.length && !t.get.money && received >= lost * 0.6) {
     const ask = Math.ceil((lost * k.acceptMargin + interest) / 10) * 10;

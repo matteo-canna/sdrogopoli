@@ -358,6 +358,8 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
             </select>
           </label>
           <label class="check"><input type="checkbox" name="pot"> ${t('rules.pot')}</label>
+          <label class="check"><input type="checkbox" name="teams"> ${t('rules.teams')}</label>
+          <p class="hint">${t('rules.teamsHint')}</p>
         </details>
         <p class="hint" data-quick-note hidden>⚡ ${t('setup.quickNote', { n: QUICK_START_TWO_PLAYERS })}</p>
         <button class="primary" type="submit">${t('setup.start')}</button>
@@ -630,6 +632,11 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       form.insertAdjacentHTML('beforeend', `<p class="error">${t('setup.minPlayers', { n: MIN_PLAYERS })}</p>`);
       return;
     }
+    if (data.get('teams') === 'on' && (players.length < 4 || players.length % 2 !== 0)) {
+      form.querySelector('.error')?.remove();
+      form.insertAdjacentHTML('beforeend', `<p class="error">${t('rules.teamsHint')}</p>`);
+      return;
+    }
     const rounds = Number(data.get('rounds')) || null;
     // il tipo di partita serve ai traguardi ("vinci con tre tipi diversi")
     savePreset(String(data.get('preset') ?? 'custom'));
@@ -642,6 +649,8 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
         startingMoney: Number(data.get('money')) || board.startingMoney,
         maxRounds: rounds,
         parkPot: data.get('pot') === 'on',
+        // le squadre vogliono un numero pari di giocatori, almeno quattro
+        teams: data.get('teams') === 'on' && players.length >= 4 && players.length % 2 === 0,
         quickStart: data.get('quick') === 'on',
         sprintDie: data.get('sprint') === 'on',
         ...goalRules(String(data.get('goal') ?? '')),

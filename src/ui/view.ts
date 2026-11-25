@@ -220,6 +220,7 @@ export function renderPlayers(state: GameState): string {
             ${playerBadge(state, p.id)}
             <strong>${p.isBot ? '🤖 ' : ''}${escapeHtml(p.name)}</strong>
             ${active ? `<span class="badge">${t('player.onTurn')}</span>` : ''}
+            ${p.team !== undefined ? `<span class="badge team">${t('team.label', { n: p.team + 1 })}</span>` : ''}
             <span class="money ${p.money < 0 ? 'negative' : ''}" title="${t('player.cash')}">${money(p.money)}</span>
           </div>
           <div class="player-meta">

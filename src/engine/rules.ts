@@ -82,6 +82,27 @@ function groupProperties(ctx: GameContext, group: string): PropertySpace[] {
 }
 
 // Vero se il giocatore possiede tutte le proprietà del gruppo.
+// Compagni di squadra: solo con la regola attiva, e mai sé stessi.
+export function sameTeam(state: GameState, a: number, b: number): boolean {
+  if (!state.rules?.teams || a === b) return false;
+  const ta = state.players[a]?.team;
+  return ta !== undefined && ta === state.players[b]?.team;
+}
+
+// I giocatori di una squadra (o il solo giocatore, senza squadre).
+export function teamMembers(state: GameState, id: number): number[] {
+  if (!state.rules?.teams) return [id];
+  const t = state.players[id]?.team;
+  return state.players.filter((p) => p.team === t).map((p) => p.id);
+}
+
+// Patrimonio della squadra: la somma di chi non è fallito.
+export function teamWorth(state: GameState, ctx: GameContext, id: number): number {
+  return teamMembers(state, id)
+    .filter((m) => !state.players[m].bankrupt)
+    .reduce((sum, m) => sum + netWorth(state, ctx, m), 0);
+}
+
 export function ownsWholeGroup(state: GameState, ctx: GameContext, playerId: number, group: string): boolean {
   return groupProperties(ctx, group).every((p) => state.ownership[p.id]?.owner === playerId);
 }
@@ -202,7 +223,7 @@ function resolveLanding(state: GameState, ctx: GameContext): void {
       state.phase = 'buy';
       return;
     }
-    if (own.owner !== p.id) {
+    if (own.owner !== p.id && !sameTeam(state, p.id, own.owner)) {
       const base = computeRent(state, ctx, space.id, diceTotal(state));
       // Dado Sprint "Affitto pieno": vale solo per l'arrivo di questo lancio
       const rent = state.sprintRent ? base * 2 : base;
@@ -795,12 +816,23 @@ function checkGoals(state: GameState, ctx: GameContext): void {
 // Fine della partita a tempo: vince chi ha il patrimonio più alto.
 function endByNetWorth(state: GameState, ctx: GameContext): void {
   const alive = state.players.filter((p) => !p.bankrupt);
-  const best = alive.reduce((a, b) => (netWorth(state, ctx, b.id) > netWorth(state, ctx, a.id) ? b : a));
+  // con le squadre contano i patrimoni sommati; dentro la squadra vince chi ha di più
+  const score = (id: number) => (state.rules?.teams ? teamWorth(state, ctx, id) * 1e6 + netWorth(state, ctx, id) : netWorth(state, ctx, id));
+  const best = alive.reduce((a, b) => (score(b.id) > score(a.id) ? b : a));
   state.winner = best.id;
   state.phase = 'gameOver';
   // il giro finale è già stato fotografato passando il turno
   state.round = state.rules.maxRounds ?? state.round;
-  log(state, 'log.timeUp', { n: state.rules.maxRounds ?? state.round, name: best.name, amount: netWorth(state, ctx, best.id) });
+  const n = state.rules.maxRounds ?? state.round;
+  if (state.rules?.teams) log(state, 'log.teamTimeUp', { n, name: teamName(state, best.id), amount: teamWorth(state, ctx, best.id) });
+  else log(state, 'log.timeUp', { n, name: best.name, amount: netWorth(state, ctx, best.id) });
+}
+
+// Nome della squadra: i nomi dei compagni, come "Anna e Carla".
+export function teamName(state: GameState, id: number): string {
+  return teamMembers(state, id)
+    .map((m) => state.players[m].name)
+    .join(' + ');
 }
 
 // Quanto può ancora ricavare un giocatore vendendo tutte le case (a metà prezzo)
@@ -888,11 +920,15 @@ function doBankrupt(state: GameState, ctx: GameContext): void {
   log(state, 'log.bankrupt', { name: p.name });
 
   const alive = state.players.filter((pl) => !pl.bankrupt);
-  if (alive.length === 1) {
-    state.winner = alive[0].id;
+  // con le squadre si va avanti finché resta in piedi più di una squadra
+  const teamsAlive = new Set(alive.map((pl) => (state.rules?.teams ? pl.team : pl.id)));
+  if (teamsAlive.size === 1) {
+    // vince la squadra: il premio va a chi ha il patrimonio più alto tra i compagni rimasti
+    const best = alive.reduce((a, b) => (netWorth(state, ctx, b.id) > netWorth(state, ctx, a.id) ? b : a));
+    state.winner = best.id;
     state.phase = 'gameOver';
     recordHistory(state, ctx);
-    log(state, 'log.wins', { name: alive[0].name });
+    log(state, state.rules?.teams ? 'log.teamWins' : 'log.wins', { name: state.rules?.teams ? teamName(state, best.id) : best.name });
     return;
   }
   nextPlayer(state, ctx);
