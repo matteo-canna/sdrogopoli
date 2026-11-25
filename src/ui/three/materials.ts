@@ -357,7 +357,7 @@ export function watchDialTex(): THREE.CanvasTexture {
     });
 
     ctx.font = 'bold 21px Georgia, serif';
-    ctx.fillText('SDROGOPOLI', c, c - 76);
+    ctx.fillText('GIOCO FOLLE!', c, c - 76);
     ctx.font = 'italic 14px Georgia, serif';
     ctx.fillStyle = '#5c5240';
     ctx.fillText('TOURBILLON · GENÈVE', c, c - 50);
@@ -468,7 +468,7 @@ export function cameraBadgeTex(): THREE.CanvasTexture {
     ctx.font = '900 30px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('SDROGO', w / 2, h / 2);
+    ctx.fillText('FOLLE!', w / 2, h / 2);
   }, 1, true);
 }
 
@@ -499,7 +499,7 @@ export function vinylTex(accentHex: string): THREE.CanvasTexture {
     ctx.font = 'bold 16px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('SDROGO', c, c - 28);
+    ctx.fillText('FOLLE!', c, c - 28);
     ctx.font = 'italic 12px Georgia, serif';
     ctx.fillText('78 RPM · HI-FI', c, c + 30);
     ctx.fillStyle = '#111';
@@ -575,7 +575,7 @@ export function arcadeMarqueeTex(primaryHex: string): THREE.CanvasTexture {
     ctx.font = '900 54px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('SDROGO', w / 2, h * 0.48);
+    ctx.fillText('FOLLE!', w / 2, h * 0.48);
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 16px monospace';
     ctx.fillText('★ SUPER ARCADE 1984 ★', w / 2, h * 0.82);
@@ -725,7 +725,7 @@ export function missionFlagTex(primaryHex: string, accentHex: string): THREE.Can
     ctx.font = '900 32px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('SDROGO', w * 0.5, h * 0.5);
+    ctx.fillText('FOLLE!', w * 0.5, h * 0.5);
   }, 1, true);
 }
 

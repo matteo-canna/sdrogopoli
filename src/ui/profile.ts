@@ -4,7 +4,8 @@ import { ACHIEVEMENTS, type Profile } from './achievements';
 import { emptyProgress, type Progress } from './prefs';
 import { t } from '../i18n';
 
-export const PROFILE_EXT = '.sdrogo-profilo';
+export const PROFILE_EXT = '.folle-profilo';
+export const OLD_PROFILE_EXT = '.sdrogo-profilo';
 export const PROFILE_VERSION = 1;
 
 export interface ProfileFile {

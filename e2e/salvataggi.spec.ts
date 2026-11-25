@@ -14,7 +14,7 @@ test('salva, esporta, elimina e reimporta una partita', async ({ page }) => {
   // il nome scritto dà il nome al file
   await page.fill('#slot-name', 'Prova di Matteo');
   const [download] = await Promise.all([page.waitForEvent('download'), page.click('[data-action=exportGame]')]);
-  expect(download.suggestedFilename()).toBe('prova-di-matteo.sdrogo');
+  expect(download.suggestedFilename()).toBe('prova-di-matteo.folle');
   const path = await download.path();
 
   // schermata iniziale: la copia è in elenco e si apre
