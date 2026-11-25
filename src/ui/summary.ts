@@ -88,7 +88,7 @@ function chartSvg(state: GameState): string {
 }
 
 // `extra`: il titolo scelto da chi gioca qui (per posto) e i traguardi appena raggiunti.
-export function renderSummary(state: GameState, ctx: GameContext, extra?: { titles?: Record<number, string>; unlocked?: { icon: string; title: string; prize: string }[] }): string {
+export function renderSummary(state: GameState, ctx: GameContext, extra?: { titles?: Record<number, string>; unlocked?: { icon: string; title: string; prize: string }[]; canReplay?: boolean }): string {
   // medaglie per i primi tre, poi la posizione (fino all'8°)
   const medals = ['🥇', '🥈', '🥉'];
   const order = standings(state, ctx);
@@ -116,6 +116,10 @@ export function renderSummary(state: GameState, ctx: GameContext, extra?: { titl
               .join('')}</ul>`
           : ''
       }
+      <div class="summary-actions">
+        <button type="button" data-action="share">${t('share.button')}</button>
+        ${extra?.canReplay ? `<button type="button" data-action="replay">${t('replay.button')}</button>` : ''}
+      </div>
     </section>`;
 }
 

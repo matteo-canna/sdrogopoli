@@ -15,6 +15,7 @@ import { getLang, t, tn, type MsgKey } from '../i18n';
 import { KEYS, loadLeaderboard, loadProgress, parseProgress, readPref, saveLeaderboard, savePreset, saveProgress, writePref } from './prefs';
 import { ACHIEVEMENTS, achievementText, achievementTitle, EXTRA_COLORS, titleLabel, unlockedColors, unlockedTitles } from './achievements';
 import { downloadProfile, parseProfileFile, mergeProgress, profileRows, PROFILE_EXT } from './profile';
+import { DAILY_ROUNDS, dailyPlayers, dailySeed, dailyText, dayId, parseDaily } from './daily';
 import { openSettings } from './settings';
 import { audio } from './audio';
 
@@ -28,6 +29,9 @@ export interface SetupChoice {
   players: PlayerSetup[];
   rules: Partial<GameRules>;
   tipsOn: boolean;
+  // seme fissato (partita del giorno) e giorno a cui appartiene
+  seed?: number;
+  daily?: string;
 }
 
 // aspetto scelto per ciascuno dei posti nella schermata iniziale (ricordato per la prossima partita)
@@ -215,6 +219,23 @@ function goalValue(r: Partial<GameRules>): string {
   return `${r.goalGroups ? `groups${r.goalGroups}` : ''}${r.goalWorth ? `worth${r.goalWorth}` : ''}`;
 }
 
+// Riquadro della partita del giorno: stessa partita per tutti, con il risultato di oggi se c'è già.
+export function renderDaily(): string {
+  const day = dayId();
+  const done = parseDaily(readPref(KEYS.daily));
+  const mine = done && done.day === day ? done : null;
+  return `<section class="daily-card">
+      <h2>📅 ${t('daily.title')} · ${day}</h2>
+      <p>${t('daily.text')}</p>
+      ${mine ? `<p class="daily-result">${t('daily.yours', { place: mine.place, players: mine.players, amount: `${board.currency.symbol} ${mine.worth}` })}</p>` : ''}
+      <div class="daily-buttons">
+        <button type="button" class="primary" data-daily-play>${mine ? t('daily.again') : t('daily.play')}</button>
+        ${mine ? `<button type="button" data-daily-copy>${t('daily.copy')}</button>` : ''}
+      </div>
+      <p class="hint" data-daily-msg hidden></p>
+    </section>`;
+}
+
 // Pannello dei traguardi: quelli raggiunti, quelli da raggiungere e il titolo da indossare.
 export function renderGoals(): string {
   const p = loadProgress();
@@ -343,6 +364,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       </form>
       ${online ? onlineHtml() : ''}
       <div id="leaderboard-slot">${renderLeaderboard(loadLeaderboard())}</div>
+      <div id="daily-slot">${renderDaily()}</div>
       <div id="goals-slot">${renderGoals()}</div>
       </div>
       <aside class="setup-info">${renderIntro()}</aside>
@@ -369,6 +391,29 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     if (!(e.target as HTMLElement).closest('[data-reset-leaderboard]')) return;
     saveLeaderboard([]);
     document.querySelector('#leaderboard-slot')!.innerHTML = '';
+  });
+  document.querySelector('#daily-slot')!.addEventListener('click', async (e) => {
+    const el = e.target as HTMLElement;
+    const msg = document.querySelector<HTMLElement>('[data-daily-msg]')!;
+    if (el.closest('[data-daily-play]')) {
+      const name = form.querySelector<HTMLInputElement>('input[name=p0]')?.value.trim() || t('setup.playerN', { n: 1 });
+      const day = dayId();
+      destroyPreview();
+      onStart({ players: dailyPlayers(name), rules: { maxRounds: DAILY_ROUNDS }, tipsOn: form.querySelector<HTMLInputElement>('input[name=tips]')?.checked ?? tipsOn, seed: dailySeed(day), daily: day });
+      return;
+    }
+    if (el.closest('[data-daily-copy]')) {
+      const done = parseDaily(readPref(KEYS.daily));
+      if (!done) return;
+      try {
+        await navigator.clipboard.writeText(dailyText(done));
+        msg.textContent = t('daily.copied');
+      } catch {
+        // senza permesso di copiare si mostra il testo, da copiare a mano
+        msg.textContent = dailyText(done);
+      }
+      msg.hidden = false;
+    }
   });
   const goalsBox = document.querySelector<HTMLElement>('#goals-slot')!;
   goalsBox.addEventListener('change', async (e) => {
