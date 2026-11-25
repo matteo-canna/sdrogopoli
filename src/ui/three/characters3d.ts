@@ -48,7 +48,19 @@ export function loadModel(characterId: string): Promise<GLTF> {
 }
 
 // Un personaggio pronto per la scena, con le sue animazioni.
-export class CharacterModel {
+// Quello che il gioco si aspetta da una pedina-personaggio: lo danno sia il modello scaricato
+// (CharacterModel) sia le figure costruite con forme semplici (FigureModel in figures.ts).
+export interface Piece {
+  readonly root: THREE.Group;
+  readonly reacting: boolean;
+  play(pose: Pose, fade?: number): void;
+  setBase(pose: Pose, fade?: number, interrupt?: boolean): void;
+  react(reaction: Reaction): void;
+  update(dt: number): void;
+  dispose(): void;
+}
+
+export class CharacterModel implements Piece {
   readonly root = new THREE.Group();
   private mixer: THREE.AnimationMixer;
   private actions = new Map<Pose, THREE.AnimationAction>();
@@ -165,7 +177,12 @@ export class CharacterModel {
   }
 }
 
-export async function createCharacter(look: Appearance, height: number): Promise<CharacterModel> {
+export async function createCharacter(look: Appearance, height: number): Promise<Piece> {
+  // le figure stanno in un modulo a parte: chi non le sceglie non lo scarica nemmeno
+  if (characterDef(look.character).figure) {
+    const { FigureModel } = await import('./figures');
+    return new FigureModel(look, height);
+  }
   const gltf = await loadModel(look.character);
   return new CharacterModel(gltf, look, height);
 }
@@ -176,7 +193,7 @@ export class CharacterPreview {
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
   private clock = new THREE.Clock();
-  private character: CharacterModel | null = null;
+  private character: Piece | null = null;
   private frame = 0;
   private request = 0;
   private resizeObserver: ResizeObserver;
