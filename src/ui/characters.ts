@@ -2,7 +2,7 @@
 // Due famiglie: i modelli scaricati (KayKit di Kay Lousberg, licenza CC0, in public/characters)
 // e le "figure", costruite con forme semplici dentro src/ui/three/figures.ts (niente file, niente
 // licenze di terzi). Di tutti e due si carica solo quello scelto.
-import type { Appearance, Player } from '../engine';
+import type { Appearance, BaseStyleId, FinishId, Player } from '../engine';
 import { t, type MsgKey } from '../i18n';
 import { EXTRA_COLORS } from './achievements';
 
@@ -12,6 +12,10 @@ export interface CharacterDef {
   emoji: string;
   // true: pedina costruita con forme semplici (niente file da scaricare)
   figure?: boolean;
+  // pedine da collezione (src/ui/three/collection.ts): reparto in cui compaiono nell'editor
+  collection?: CollectionGroup;
+  // colore dei dettagli proposto per le pedine da collezione
+  defaultAccent?: string;
   // file in public/characters (vuoto per le figure)
   file: string;
   // nome della mesh del copricapo (null se non ne ha)
@@ -126,6 +130,77 @@ export const CHARACTERS: CharacterDef[] = [
     defaultItem: '',
   },
 ];
+
+// Pedine da collezione: 10 personaggi articolati e 20 oggetti, costruiti nel codice
+// (src/ui/three/models.ts e figurines.ts) e caricati solo da chi ne sceglie una.
+export type CollectionGroup = 'personaggi' | 'veicoli' | 'icone' | 'lusso' | 'cultura';
+export const COLLECTION_GROUPS: CollectionGroup[] = ['personaggi', 'veicoli', 'icone', 'lusso', 'cultura'];
+
+const COLLECTION: [string, string, CollectionGroup, string][] = [
+  ['char_driver', '🏁', 'personaggi', '#f4b400'],
+  ['char_knight', '⚔️', 'personaggi', '#f4b400'],
+  ['char_samurai', '⛩️', 'personaggi', '#f4b400'],
+  ['char_diver', '🤿', 'personaggi', '#f4b400'],
+  ['char_astronaut', '👨‍🚀', 'personaggi', '#ff9f1a'],
+  ['char_steampunk', '⚙️', 'personaggi', '#00d2d3'],
+  ['char_tycoon', '🎩', 'personaggi', '#f4b400'],
+  ['char_venetian', '🎭', 'personaggi', '#f4b400'],
+  ['char_android', '🦾', 'personaggi', '#00d2d3'],
+  ['char_wizard', '🧙', 'personaggi', '#f4b400'],
+  ['f1', '🏎️', 'veicoli', '#f4b400'],
+  ['vespa', '🛵', 'veicoli', '#ffffff'],
+  ['vintage_car', '🚗', 'veicoli', '#f4b400'],
+  ['yacht', '⛵', 'veicoli', '#00d2d3'],
+  ['biplane', '✈️', 'veicoli', '#f4b400'],
+  ['camera', '📷', 'icone', '#ff4757'],
+  ['moka', '☕', 'icone', '#f4b400'],
+  ['lighthouse', '🗼', 'icone', '#ffffff'],
+  ['globe', '🌍', 'icone', '#f4b400'],
+  ['rocket', '🚀', 'icone', '#ff9f1a'],
+  ['chess_knight', '♞', 'lusso', '#f4b400'],
+  ['pocket_watch', '🕰️', 'lusso', '#f4b400'],
+  ['crown', '👑', 'lusso', '#f4b400'],
+  ['diamond', '💎', 'lusso', '#f4b400'],
+  ['skyscraper', '🏛️', 'lusso', '#f4b400'],
+  ['guitar', '🎸', 'cultura', '#ffffff'],
+  ['gramophone', '📻', 'cultura', '#f4b400'],
+  ['arcade', '🕹️', 'cultura', '#00d2d3'],
+  ['anchor', '⚓', 'cultura', '#f4b400'],
+  ['telescope', '🔭', 'cultura', '#f4b400'],
+];
+
+for (const [id, emoji, group, accent] of COLLECTION) {
+  CHARACTERS.push({
+    id,
+    get label() {
+      return t(`char.${id}` as MsgKey);
+    },
+    emoji,
+    collection: group,
+    defaultAccent: accent,
+    file: '',
+    hat: null,
+    cape: null,
+    items: {},
+    defaultItem: '',
+  });
+}
+
+// Finiture e basette delle pedine da collezione, nell'ordine in cui si propongono.
+export const FINISHES: FinishId[] = ['real', 'pewter', 'gold', 'bronze', 'chrome', 'porcelain'];
+export const BASE_STYLES: BaseStyleId[] = ['minimal', 'marble', 'walnut', 'coin', 'carbon', 'none'];
+// Colori dei dettagli (oro, argento…) tra cui scegliere.
+export const ACCENT_CHOICES = ['#f4b400', '#ffffff', '#1e272e', '#ff4757', '#00d2d3', '#ff9f1a', '#a55eea', '#2ed573', '#cbd5e1', '#b45309'];
+
+// Aspetto completo di una pedina da collezione: finitura, dettagli e basetta validi.
+export function collectionLook(look: Appearance): Required<Pick<Appearance, 'finish' | 'accentColor' | 'baseStyle'>> {
+  const def = characterDef(look.character);
+  return {
+    finish: look.finish && FINISHES.includes(look.finish) ? look.finish : 'real',
+    accentColor: look.accentColor && /^#[0-9a-f]{6}$/i.test(look.accentColor) ? look.accentColor : def.defaultAccent ?? '#f4b400',
+    baseStyle: look.baseStyle && BASE_STYLES.includes(look.baseStyle) ? look.baseStyle : 'minimal',
+  };
+}
 
 // Colori tra cui scegliere: uno diverso per ciascun posto, nello stesso ordine (gli ultimi 4 servono alla modalità demo).
 export const COLOR_CHOICES = ['#e4572e', '#2e86de', '#f4b400', '#8e44ad', '#27ae60', '#e84393', '#00b8b8', '#5d4037', '#ff8f00', '#9ccc00', '#90a4ae', '#263238'];

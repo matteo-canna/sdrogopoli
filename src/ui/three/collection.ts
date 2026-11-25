@@ -1,20 +1,14 @@
-// Pedine 3D realistiche HD+ per Sdrogopoli (30 modelli: 20 oggetti + 10 personaggi articolati).
-// API 100% compatibile con board3d.ts e main.ts.
+// Pedine da collezione: 10 statuette articolate e 20 oggetti, costruiti nel codice (models.ts,
+// figurines.ts) con finiture e basette a scelta. Sta in un modulo a parte: chi non ne sceglie una
+// non lo scarica nemmeno. Ha gli stessi metodi delle altre pedine (Piece).
 import * as THREE from 'three';
 import type { Appearance } from '../../engine';
-import { normalizeAppearance } from '../characters';
-import { createPalette, getStudioEnvMap } from './materials';
+import { collectionLook } from '../characters';
+import type { Piece, Pose, Reaction } from './characters3d';
+import { createPalette } from './materials';
 import { buildPedestal, buildTokenModel, type AnimParts } from './models';
 
-export type Pose = 'idle' | 'walk' | 'jump' | 'cheer' | 'defeat' | 'sit' | 'hit' | 'collect' | 'build';
-export type Reaction = 'cheer' | 'hit' | 'collect' | 'build';
-
-// Nessun file esterno da scaricare: tutti i 30 modelli sono costruiti proceduralmente all'istante.
-export function loadModel(_characterId: string): Promise<void> {
-  return Promise.resolve();
-}
-
-export class CharacterModel {
+export class CollectionModel implements Piece {
   readonly root = new THREE.Group();
   private pivot = new THREE.Group();
   private subject = new THREE.Group();
@@ -26,14 +20,10 @@ export class CharacterModel {
   private poseTime = 0;
 
   constructor(look: Appearance, height: number) {
-    const n = normalizeAppearance(look);
-    const finish = n.finish ?? 'real';
-    const baseStyle = n.baseStyle ?? 'minimal';
-    const accent = n.accentColor ?? '#f4b400';
-
-    const palette = createPalette(finish, n.color, accent);
-    const { group: pedestal, topY } = buildPedestal(baseStyle, n.color, accent);
-    const built = buildTokenModel(n.character, palette, n.color, accent);
+    const { finish, accentColor: accent, baseStyle } = collectionLook(look);
+    const palette = createPalette(finish, look.color, accent);
+    const { group: pedestal, topY } = buildPedestal(baseStyle, look.color, accent);
+    const built = buildTokenModel(look.character, palette, look.color, accent);
     this.anim = built.anim;
 
     const box = new THREE.Box3().setFromObject(built.group);
@@ -64,6 +54,10 @@ export class CharacterModel {
 
   get currentPose(): Pose | null {
     return this.pose;
+  }
+
+  get reacting(): boolean {
+    return this.time < this.reactionUntil;
   }
 
   setBase(pose: Pose, fade = 0.2, interrupt = false): void {
@@ -273,101 +267,5 @@ export class CharacterModel {
       const mats = Array.isArray(m.material) ? m.material : [m.material];
       for (const material of mats) material.dispose();
     });
-  }
-}
-
-export async function createCharacter(look: Appearance, height: number): Promise<CharacterModel> {
-  return new CharacterModel(look, height);
-}
-
-export class CharacterPreview {
-  private renderer: THREE.WebGLRenderer;
-  private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(34, 1, 0.1, 25);
-  private clock = new THREE.Clock();
-  private character: CharacterModel | null = null;
-  private resizeObserver: ResizeObserver;
-  private frame = 0;
-  private request = 0;
-  private reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-
-  constructor(private container: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
-    container.appendChild(this.renderer.domElement);
-
-    this.scene.environment = getStudioEnvMap(this.renderer);
-    this.camera.position.set(0, 1.35, 3.05);
-    this.camera.lookAt(0, 0.72, 0);
-
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x7a8894, 0.9);
-    const key = new THREE.DirectionalLight(0xfff7ea, 1.8);
-    key.position.set(3, 5, 4);
-    key.castShadow = true;
-    const rim = new THREE.DirectionalLight(0xc2e0ff, 1.1);
-    rim.position.set(-3, 3, -3);
-    this.scene.add(hemi, key, rim);
-
-    this.resizeObserver = new ResizeObserver(() => this.resize());
-    this.resizeObserver.observe(container);
-    this.resize();
-    this.loop();
-  }
-
-  moveTo(container: HTMLElement): void {
-    if (container === this.container) return;
-    this.resizeObserver.unobserve(this.container);
-    this.container = container;
-    container.appendChild(this.renderer.domElement);
-    this.resizeObserver.observe(container);
-    this.resize();
-  }
-
-  async show(look: Appearance): Promise<void> {
-    const req = ++this.request;
-    const next = await createCharacter(look, 1.55);
-    if (req !== this.request || !this.frame) {
-      next.dispose();
-      return;
-    }
-    const yaw = this.character?.root.rotation.y ?? -0.5;
-    if (this.character) {
-      this.scene.remove(this.character.root);
-      this.character.dispose();
-    }
-    this.character = next;
-    next.root.rotation.y = yaw;
-    this.scene.add(next.root);
-  }
-
-  private loop = (): void => {
-    this.frame = requestAnimationFrame(this.loop);
-    const dt = Math.min(this.clock.getDelta(), 0.1);
-    if (this.character) {
-      this.character.update(dt);
-      if (!this.reduceMotion) this.character.root.rotation.y += dt * 0.55;
-    }
-    this.renderer.render(this.scene, this.camera);
-  };
-
-  private resize(): void {
-    const w = this.container.clientWidth || 1;
-    const h = this.container.clientHeight || 1;
-    this.renderer.setSize(w, h, false);
-    this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
-  }
-
-  dispose(): void {
-    cancelAnimationFrame(this.frame);
-    this.frame = 0;
-    this.character?.dispose();
-    this.resizeObserver.disconnect();
-    this.renderer.dispose();
-    this.renderer.forceContextLoss();
-    this.renderer.domElement.remove();
   }
 }

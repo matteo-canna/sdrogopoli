@@ -1,7 +1,7 @@
 // Schermata iniziale: chi gioca, personaggi, regole della casa e classifica tra amici.
 import { BOARDS, DEFAULT_BOARD, board, currentBoard, setBoard } from '../data';
 import { savedBoards } from './boardStore';
-import { BOT_LEVELS, BOT_STYLES, PRESETS, SHARE_CUT, SHARES_PER_GROUP, WHEEL_EVERY, estimatedMinutes, type BotStyle, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
+import { BOT_LEVELS, BOT_STYLES, PRESETS, SHARE_CUT, SHARES_PER_GROUP, WHEEL_EVERY, estimatedMinutes, type BotStyle, type BaseStyleId, type FinishId, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type Appearance, type GameRules, type PlayerSetup } from '../engine';
 import { webglAvailable } from './webgl';
 import { load3d } from './lazy3d';
 import { reportUrl } from './report';
@@ -11,7 +11,7 @@ import type { CharacterPreview } from './three/characters3d';
 import { renderIntro } from './intro';
 import { version } from '../../package.json';
 import { renderLeaderboard } from './summary';
-import { CHARACTERS, COLOR_CHOICES, colorName, itemName, characterDef, defaultAppearance } from './characters';
+import { ACCENT_CHOICES, BASE_STYLES, CHARACTERS, COLLECTION_GROUPS, COLOR_CHOICES, FINISHES, collectionLook, colorName, itemName, characterDef, defaultAppearance, type CollectionGroup } from './characters';
 import { boardTitle, getLang, t, tn, type MsgKey } from '../i18n';
 import { KEYS, loadLeaderboard, loadProgress, parseProgress, readPref, saveLeaderboard, savePreset, saveProgress, writePref } from './prefs';
 import { ACHIEVEMENTS, achievementText, achievementTitle, EXTRA_COLORS, titleLabel, unlockedColors, unlockedTitles } from './achievements';
@@ -41,6 +41,12 @@ export interface SetupChoice {
 export const setupLooks: Appearance[] = loadLooks();
 // posto di cui si sta modificando l'aspetto (null = editor chiuso)
 let editingSeat: number | null = null;
+// reparto di personaggi mostrato nell'editor: quelli classici o un reparto delle pedine da collezione
+type LookFamily = 'classic' | CollectionGroup;
+let editingFamily: LookFamily = 'classic';
+function familyOf(characterId: string): LookFamily {
+  return characterDef(characterId).collection ?? 'classic';
+}
 let preview: CharacterPreview | null = null;
 
 function loadLooks(): Appearance[] {
@@ -103,12 +109,18 @@ function lookButton(i: number): string {
 function lookEditorHtml(i: number): string {
   const look = setupLooks[i];
   const def = characterDef(look.character);
+  const families: LookFamily[] = ['classic', ...COLLECTION_GROUPS];
+  const shown = CHARACTERS.filter((c) => familyOf(c.id) === editingFamily);
+  const extra = def.collection ? collectionLook(look) : null;
   return `
     <div class="look-editor" style="--c:${look.color}">
       <div class="look-preview" id="look-preview">${webglAvailable() ? '' : `<span class="look-emoji">${def.emoji}</span>`}</div>
       <div class="look-controls">
+        <div class="look-group look-families" role="group" aria-label="${t('look.character')}">
+          ${families.map((f) => `<button type="button" class="chip-btn family-btn" aria-pressed="${f === editingFamily}" data-look-family="${f}">${t(`look.family.${f}` as MsgKey)}</button>`).join('')}
+        </div>
         <div class="look-group" role="radiogroup" aria-label="${t('look.character')}">
-          ${CHARACTERS.map((c) => `<button type="button" class="chip-btn" role="radio" aria-checked="${c.id === look.character}" data-character="${c.id}">${c.emoji} ${c.label}</button>`).join('')}
+          ${shown.map((c) => `<button type="button" class="chip-btn" role="radio" aria-checked="${c.id === look.character}" data-character="${c.id}">${c.emoji} ${c.label}</button>`).join('')}
         </div>
         <div class="look-group swatches" role="radiogroup" aria-label="${t('look.color')}">
           ${[...COLOR_CHOICES, ...unlockedColors(loadProgress().unlocked).map((c) => c.hex)]
@@ -123,6 +135,21 @@ function lookEditorHtml(i: number): string {
             ${Object.keys(def.items).map((id) => `<option value="${id}" ${id === look.item ? 'selected' : ''}>${itemName(id)}</option>`).join('')}
           </select>
         </label>`}
+        ${
+          extra
+            ? `<div class="look-selects">
+          <label class="hold">${t('look.finish')}
+            <select data-finish>${FINISHES.map((f) => `<option value="${f}" ${f === extra.finish ? 'selected' : ''}>${t(`finish.${f}` as MsgKey)}</option>`).join('')}</select>
+          </label>
+          <label class="hold">${t('look.base')}
+            <select data-base-style>${BASE_STYLES.map((b) => `<option value="${b}" ${b === extra.baseStyle ? 'selected' : ''}>${t(`base.${b}` as MsgKey)}</option>`).join('')}</select>
+          </label>
+        </div>
+        <div class="look-group swatches" role="radiogroup" aria-label="${t('look.accent')}">
+          ${ACCENT_CHOICES.map((col, k) => `<button type="button" class="swatch" role="radio" aria-checked="${col === extra.accentColor}" data-accent="${col}" style="background:${col}" title="${t(`accent.${k}` as MsgKey)}" aria-label="${t(`accent.${k}` as MsgKey)}"></button>`).join('')}
+        </div>`
+            : ''
+        }
         <button type="button" class="primary" data-look-done>${t('btn.done')}</button>
       </div>
     </div>`;
@@ -170,7 +197,10 @@ function setLook(change: Partial<Appearance>): void {
   if (editingSeat === null) return;
   const look = { ...setupLooks[editingSeat], ...change };
   if (change.character) {
-    look.item = characterDef(change.character).defaultItem;
+    const def = characterDef(change.character);
+    look.item = def.defaultItem;
+    // pedina da collezione: si parte dai suoi dettagli proposti
+    if (def.collection) Object.assign(look, collectionLook({ ...look, accentColor: def.defaultAccent }));
   }
   // colore già usato da un altro: i due giocatori se lo scambiano
   if (change.color) {
@@ -641,9 +671,14 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     } else if (t.dataset.look !== undefined) {
       const seat = Number(t.dataset.look);
       editingSeat = editingSeat === seat ? null : seat;
+      if (editingSeat !== null) editingFamily = familyOf(setupLooks[editingSeat].character);
+      refreshLooks();
+    } else if (t.dataset.lookFamily) {
+      editingFamily = t.dataset.lookFamily as LookFamily;
       refreshLooks();
     } else if (t.dataset.character) setLook({ character: t.dataset.character });
     else if (t.dataset.color) setLook({ color: t.dataset.color });
+    else if (t.dataset.accent) setLook({ accentColor: t.dataset.accent });
     else if (t.hasAttribute('data-look-done')) {
       editingSeat = null;
       refreshLooks();
@@ -654,6 +689,8 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
     if (t.hasAttribute('data-hat')) setLook({ hat: (t as HTMLInputElement).checked });
     else if (t.hasAttribute('data-cape')) setLook({ cape: (t as HTMLInputElement).checked });
     else if (t.hasAttribute('data-item')) setLook({ item: t.value });
+    else if (t.hasAttribute('data-finish')) setLook({ finish: t.value as FinishId });
+    else if (t.hasAttribute('data-base-style')) setLook({ baseStyle: t.value as BaseStyleId });
     else if (t.name === 'demo') {
       // la modalità demo propone la sua durata; togliendola si torna a "fino all'ultimo"
       const rounds = form.querySelector<HTMLSelectElement>('select[name=rounds]')!;

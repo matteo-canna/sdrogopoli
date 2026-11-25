@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { board } from '../../data';
 import type { Space } from '../../engine';
+import { spaceName } from '../../i18n';
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const words = text.split(' ');
@@ -207,7 +208,7 @@ export function spaceTexture(space: Space, renderer: THREE.WebGLRenderer): THREE
     ctx.font = '800 50px system-ui, -apple-system, "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    const lines = wrapText(ctx, space.name, size - 56).slice(0, 3);
+    const lines = wrapText(ctx, spaceName(space.id), size - 56).slice(0, 3);
     for (const line of lines) {
       ctx.fillText(line, size / 2, top);
       top += 56;
