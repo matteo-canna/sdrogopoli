@@ -114,15 +114,19 @@ export function openBoardEditor(startId: string, onChange: (chosen: string | nul
     valid = result.ok ? result.data : null;
     const box = dialog.querySelector('.be-check')!;
     dialog.querySelectorAll('[aria-invalid]').forEach((el) => el.removeAttribute('aria-invalid'));
-    if (result.ok) box.innerHTML = `<p class="be-ok">${t('editor.ok')}</p>`;
-    else {
-      // nell'editor le caselle si riconoscono dalla posizione e i quartieri dal nome, non dall'id
-      const readable = (e: BoardIssue): BoardIssue => {
-        const i = data.spaces.findIndex((sp) => sp.id === e.id);
-        if (i >= 0) return { ...e, id: String(i + 1) };
-        const g = data.groups.find((x) => x.id === e.id);
-        return g?.name.trim() ? { ...e, id: g.name } : e;
-      };
+    // nell'editor le caselle si riconoscono dalla posizione e i quartieri dal nome, non dall'id
+    const readable = (e: BoardIssue): BoardIssue => {
+      const i = data.spaces.findIndex((sp) => sp.id === e.id);
+      if (i >= 0) return { ...e, id: String(i + 1) };
+      const g = data.groups.find((x) => x.id === e.id);
+      return g?.name.trim() ? { ...e, id: g.name } : e;
+    };
+    if (result.ok) {
+      const warn = result.warnings.length
+        ? `<p>${t('editor.warnings')}</p><ul class="be-warnings">${result.warnings.slice(0, 8).map((w) => `<li>${escapeHtml(issueText(readable(w)))}</li>`).join('')}</ul>`
+        : '';
+      box.innerHTML = `<p class="be-ok">${t('editor.ok')}</p>${warn}`;
+    } else {
       box.innerHTML = `<p>${t('editor.errors')}</p><ul class="be-errors">${result.errors.slice(0, 8).map((e) => `<li>${escapeHtml(issueText(readable(e)))}</li>`).join('')}</ul>`;
       for (const e of result.errors) {
         if (!e.id) continue;

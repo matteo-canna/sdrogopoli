@@ -865,6 +865,7 @@ export const en: Record<MsgKey, string> = {
   'editor.spaceN': 'Space {n}',
   'editor.ok': '✅ The board is valid.',
   'editor.errors': 'To fix before saving:',
+  'editor.warnings': 'Warnings (the board can still be used):',
   'editor.save': 'Save and choose',
   'editor.saved': 'Board saved: “{name}”. It is chosen for the next game.',
   'editor.export': 'Export file',
@@ -906,6 +907,10 @@ export const en: Record<MsgKey, string> = {
   'boardErr.stations': 'There are {n} stops: 4 at most.',
   'boardErr.utilities': 'There are {n} utilities: 2 at most.',
   'boardErr.target': 'The cards that send you to “{id}” cannot find their space.',
+  'boardErr.stationRentOrder': 'The rents of stop {id} should go up with the number of stops.',
+  'boardErr.houseCost': 'On space {id} a house costs {n}, more than the priciest street in its neighbourhood.',
+  'boardErr.nameDup': 'The name “{id}” is used on {n} spaces.',
+  'boardErr.longName': 'The name of space {id} has {n} characters (over 28 may get clipped on the tag).',
   // ---- neighbourhood shares and landmarks ----
   'rules.shares': 'Neighbourhood shares: {n} shares per neighbourhood, each earning {pct}% of the rent paid there',
   'rules.landmarks': 'Landmarks: on a complete neighbourhood you can build a fountain, a market hall or a theatre',
