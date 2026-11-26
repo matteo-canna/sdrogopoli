@@ -413,6 +413,7 @@ export function chooseBotAction(state: GameState, ctx: GameContext): Action {
     case 'auction':
       return chooseAuctionAction(state, ctx, actor);
     case 'roll':
+      if (me.money < 0) return raiseMoney(state, ctx) ?? { type: 'bankrupt' };
       if (me.inJail && me.jailCards.length) return { type: 'useJailCard' };
       // all'inizio conviene uscire subito per comprare; più avanti meglio restare dentro
       if (k.payJail && me.inJail && me.money >= JAIL_FINE + k.reserve * 2 && Object.keys(state.ownership).length < 20) return { type: 'payJailFine' };

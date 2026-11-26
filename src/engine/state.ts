@@ -87,7 +87,13 @@ export interface GameRules {
   // edifici speciali: chi ha un quartiere completo ci costruisce un edificio con un effetto suo
   // (regola facoltativa)
   landmarks?: boolean;
+  // tassa sul patrimonio: ogni WEALTH_TAX_EVERY giri chi ha il patrimonio più alto paga
+  // WEALTH_TAX_RATE del proprio patrimonio (regola facoltativa)
+  wealthTax?: boolean;
 }
+
+export const WEALTH_TAX_EVERY = 5;
+export const WEALTH_TAX_RATE = 0.05;
 
 // ---------- quote di quartiere ed edifici speciali (regole facoltative) ----------
 

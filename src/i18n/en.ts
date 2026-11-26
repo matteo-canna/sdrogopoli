@@ -937,4 +937,7 @@ export const en: Record<MsgKey, string> = {
   'shares.holders': 'Held by: {names}.',
   'shares.buy': 'Buy a share ({amount})',
   'shares.sell': 'Sell a share back (+{amount})',
+
+  // ---- wealth tax ----
+  'log.wealthTax': '{name} pays {amount} in wealth tax.',
 };

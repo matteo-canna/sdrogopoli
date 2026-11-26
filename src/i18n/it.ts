@@ -928,6 +928,9 @@ export const it = {
   'shares.holders': 'Le hanno: {names}.',
   'shares.buy': 'Compra una quota ({amount})',
   'shares.sell': 'Rivendi una quota (+{amount})',
+
+  // ---- tassa sul patrimonio ----
+  'log.wealthTax': '{name} paga {amount} di tassa sul patrimonio.',
 } as const;
 
 export type MsgKey = keyof typeof it;

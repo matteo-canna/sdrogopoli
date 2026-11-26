@@ -1,6 +1,6 @@
 // Regole di gioco: ogni azione produce un nuovo stato senza modificare quello precedente.
 import { rollDice } from './dice';
-import { defaultRules, emptyStats, withRng, EVENT_IDS, FOUNTAIN_FACTOR, LANDMARK_IDS, MARKET_HALL_PAY, SHARE_CUT, SHARES_PER_GROUP, THEATRE_MIN_RENT, type LandmarkId, JAIL_FINE, MARKET_IDS, MARKET_PAY, MAX_JAIL_ATTEMPTS, SPRINT_FACES, UPKEEP_PER_HOUSE, WHEEL_EVERY, type EventId, type GameContext, type GroupEvent, type MarketId, type SprintFace, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
+import { defaultRules, emptyStats, withRng, EVENT_IDS, FOUNTAIN_FACTOR, LANDMARK_IDS, MARKET_HALL_PAY, SHARE_CUT, SHARES_PER_GROUP, THEATRE_MIN_RENT, WEALTH_TAX_EVERY, WEALTH_TAX_RATE, type LandmarkId, JAIL_FINE, MARKET_IDS, MARKET_PAY, MAX_JAIL_ATTEMPTS, SPRINT_FACES, UPKEEP_PER_HOUSE, WHEEL_EVERY, type EventId, type GameContext, type GroupEvent, type MarketId, type SprintFace, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
 import type { BoardData, Card, CardEffect, DeckId, PropertySpace, Space } from './types';
 import { format, type MsgKey, type Params } from '../i18n';
 
@@ -222,6 +222,9 @@ export function salaryOf(state: GameState, ctx: GameContext): number {
 // Inizio di un giro: si estrae l'evento del quartiere e, ogni WHEEL_EVERY giri, gira la ruota.
 function startRound(state: GameState, ctx: GameContext): void {
   state.roundStarted = state.round;
+  if (state.rules?.wealthTax && state.round > 0 && state.round % WEALTH_TAX_EVERY === 0) {
+    applyWealthTax(state, ctx);
+  }
   if (state.rules?.wheel && (state.round - 1) % WHEEL_EVERY === 0) {
     const id = MARKET_IDS[Math.floor(ctx.rng!() * MARKET_IDS.length)] as MarketId;
     state.market = { id, from: state.round, until: state.round + WHEEL_EVERY - 1 };
@@ -235,12 +238,52 @@ function startRound(state: GameState, ctx: GameContext): void {
   applyGroupEvent(state, ctx, { id, group, round: state.round });
 }
 
+// Tassa sul patrimonio: all'inizio dei giri 5, 10, 15... chi è in testa (o la squadra in testa,
+// divisa a metà tra i compagni) paga il 5% del patrimonio arrotondato a 10. In caso di pari merito
+// per il primo posto non paga nessuno.
+function applyWealthTax(state: GameState, ctx: GameContext): void {
+  const alive = state.players.filter((p) => !p.bankrupt);
+  if (alive.length < 2) return;
+  if (state.rules?.teams) {
+    const teamIds = [...new Set(alive.map((p) => p.team ?? p.id))];
+    const entries = teamIds.map((t) => {
+      const members = alive.filter((p) => (p.team ?? p.id) === t);
+      return { team: t, members, worth: teamWorth(state, ctx, members[0].id) };
+    });
+    const maxWorth = Math.max(...entries.map((e) => e.worth));
+    const leaders = entries.filter((e) => e.worth === maxWorth);
+    if (leaders.length !== 1) return;
+    const tax = Math.round((maxWorth * WEALTH_TAX_RATE) / 10) * 10;
+    if (tax <= 0) return;
+    const members = leaders[0].members;
+    const share = Math.round(tax / members.length);
+    for (const m of members) {
+      if (share <= 0) continue;
+      pay(state, m.id, share, null);
+      stat(state, m.id).taxesPaid += share;
+      log(state, 'log.wealthTax', { name: m.name, amount: share });
+    }
+    return;
+  }
+  const entries = alive.map((p) => ({ player: p, worth: netWorth(state, ctx, p.id) }));
+  const maxWorth = Math.max(...entries.map((e) => e.worth));
+  const leaders = entries.filter((e) => e.worth === maxWorth);
+  if (leaders.length !== 1) return;
+  const tax = Math.round((maxWorth * WEALTH_TAX_RATE) / 10) * 10;
+  if (tax <= 0) return;
+  const leader = leaders[0].player;
+  pay(state, leader.id, tax, null);
+  stat(state, leader.id).taxesPaid += tax;
+  log(state, 'log.wealthTax', { name: leader.name, amount: tax });
+}
+
 // Estrae l'evento (e la prima girata di ruota) del primo giro: si chiama appena creata la
 // partita, così si vedono subito. Senza le regole facoltative non cambia niente.
 export function openRound(state: GameState, ctx: GameContext): GameState {
-  if (!state.rules?.events && !state.rules?.wheel) return state;
+  if (!state.rules?.events && !state.rules?.wheel && !state.rules?.wealthTax) return state;
   const next = structuredClone(state);
   startRound(next, withRng(ctx, next));
+  if (next.players[next.current]?.money < 0) next.phase = 'endTurn';
   return next;
 }
 
@@ -954,7 +997,7 @@ function nextPlayer(state: GameState, ctx: GameContext): void {
     startRound(state, ctx);
   }
   state.current = i;
-  state.phase = 'roll';
+  state.phase = state.players[i].money < 0 ? 'endTurn' : 'roll';
   state.doublesInRow = 0;
   state.extraRoll = false;
   state.creditor = null;
@@ -1180,7 +1223,7 @@ export function applyAction(state: GameState, action: Action, gameCtx: GameConte
   next.pot ??= 0;
   const ctx = withRng(gameCtx, next);
   // primo giro (o partita salvata prima di questa regola): l'evento si estrae alla prima mossa
-  if ((next.roundStarted ?? 0) < next.round && (next.rules?.events || next.rules?.wheel)) startRound(next, ctx);
+  if ((next.roundStarted ?? 0) < next.round && (next.rules?.events || next.rules?.wheel || next.rules?.wealthTax)) startRound(next, ctx);
   // l'"Affitto pieno" vale solo per l'arrivo del lancio: dopo qualunque altra mossa non conta più
   if (action.type !== 'roll') next.sprintRent = false;
   switch (action.type) {
