@@ -928,6 +928,11 @@ export const it = {
   'shares.holders': 'Le hanno: {names}.',
   'shares.buy': 'Compra una quota ({amount})',
   'shares.sell': 'Rivendi una quota (+{amount})',
+
+  // ---- riscatto dell'ipoteca all'acquisto ----
+  'log.redeemsReceived': "{name} riscatta subito {space} pagando {amount} d'ipoteca.",
+  'log.keepsMortgaged': '{name} tiene ipotecata {space} e paga {amount} di interessi.',
+  'err.noMortgageChoice': "Nessuna casella ipotecata su cui scegliere.",
 } as const;
 
 export type MsgKey = keyof typeof it;

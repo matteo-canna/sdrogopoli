@@ -30,7 +30,8 @@ export function migrateState(raw: GameState, ctx: GameContext, seed: number): Ga
   const s = structuredClone(raw);
   s.auction ??= null;
   s.trade ??= null;
-  s.rules ??= defaultRules(ctx.board);
+  s.rules = { ...defaultRules(ctx.board), ...s.rules };
+  if (s.pendingMortgages && !Array.isArray(s.pendingMortgages)) delete s.pendingMortgages;
   s.round ??= 1;
   s.pot ??= 0;
   s.tradeProposedThisTurn ??= false;

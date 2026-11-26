@@ -444,6 +444,13 @@ export function chooseBotAction(state: GameState, ctx: GameContext): Action {
       );
       return { type: 'chooseCard', option: values.indexOf(Math.max(...values)) };
     }
+    case 'mortgageChoice': {
+      const head = state.pendingMortgages?.[0];
+      if (!head) throw new Error('Nessuna ipoteca da scegliere');
+      const space = spaceOf(ctx, head.spaceId);
+      const cost = 'mortgage' in space ? space.mortgage : 0;
+      return { type: 'chooseMortgage', spaceId: head.spaceId, redeem: me.money - cost >= 200 };
+    }
     case 'buy': {
       const space = ctx.board.spaces[me.position];
       return wantsToBuy(state, ctx, space, k) ? { type: 'buy' } : { type: 'decline' };

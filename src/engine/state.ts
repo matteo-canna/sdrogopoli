@@ -87,6 +87,9 @@ export interface GameRules {
   // edifici speciali: chi ha un quartiere completo ci costruisce un edificio con un effetto suo
   // (regola facoltativa)
   landmarks?: boolean;
+  // riscatto dell'ipoteca all'acquisto: chi riceve una casella ipotecata (scambio o bancarotta)
+  // sceglie se riscattarla subito al solo valore dell'ipoteca o tenerla ipotecata pagando ora il 10%
+  mortgageChoice?: boolean;
 }
 
 // ---------- quote di quartiere ed edifici speciali (regole facoltative) ----------
@@ -187,7 +190,13 @@ export interface Ownership {
 //  - 'endTurn': ha finito di muoversi e può gestire le proprietà o passare il turno
 //  - 'auction': la casella rifiutata va all'asta tra tutti i giocatori
 // cardChoice: chi ha pescato una carta con scelta deve decidere
-export type Phase = 'roll' | 'buy' | 'auction' | 'cardChoice' | 'endTurn' | 'gameOver';
+// mortgageChoice: chi ha ricevuto caselle ipotecate sceglie se riscattarle subito o tenerle ipotecate
+export type Phase = 'roll' | 'buy' | 'auction' | 'cardChoice' | 'mortgageChoice' | 'endTurn' | 'gameOver';
+
+export interface PendingMortgage {
+  playerId: number;
+  spaceId: string;
+}
 
 // Asta in corso: i giocatori rilanciano a turno, chi passa esce dall'asta.
 export interface Auction {
@@ -230,6 +239,10 @@ export interface GameState {
   lastSprint?: SprintFace | null;
   // carta con scelta in attesa di risposta (fase cardChoice)
   pendingCard?: string | null;
+  // caselle ipotecate ricevute in attesa di scelta (fase mortgageChoice)
+  pendingMortgages?: PendingMortgage[];
+  // fase a cui tornare dopo aver scelto su tutte le caselle ipotecate ricevute
+  resumePhase?: Phase | null;
   // "Affitto pieno" attivo per l'arrivo di questo lancio
   sprintRent?: boolean;
   // perché la partita è finita (per il riepilogo)

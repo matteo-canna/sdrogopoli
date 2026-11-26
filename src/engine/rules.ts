@@ -1,6 +1,6 @@
 // Regole di gioco: ogni azione produce un nuovo stato senza modificare quello precedente.
 import { rollDice } from './dice';
-import { defaultRules, emptyStats, withRng, EVENT_IDS, FOUNTAIN_FACTOR, LANDMARK_IDS, MARKET_HALL_PAY, SHARE_CUT, SHARES_PER_GROUP, THEATRE_MIN_RENT, type LandmarkId, JAIL_FINE, MARKET_IDS, MARKET_PAY, MAX_JAIL_ATTEMPTS, SPRINT_FACES, UPKEEP_PER_HOUSE, WHEEL_EVERY, type EventId, type GameContext, type GroupEvent, type MarketId, type SprintFace, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
+import { defaultRules, emptyStats, withRng, EVENT_IDS, FOUNTAIN_FACTOR, LANDMARK_IDS, MARKET_HALL_PAY, SHARE_CUT, SHARES_PER_GROUP, THEATRE_MIN_RENT, type LandmarkId, JAIL_FINE, MARKET_IDS, MARKET_PAY, MAX_JAIL_ATTEMPTS, SPRINT_FACES, UPKEEP_PER_HOUSE, WHEEL_EVERY, type EventId, type GameContext, type GroupEvent, type MarketId, type PendingMortgage, type SprintFace, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
 import type { BoardData, Card, CardEffect, DeckId, PropertySpace, Space } from './types';
 import { format, type MsgKey, type Params } from '../i18n';
 
@@ -28,7 +28,9 @@ export type Action =
   | { type: 'buyShare'; group: string }
   | { type: 'sellShare'; group: string }
   | { type: 'buildLandmark'; group: string; landmark: LandmarkId }
-  | { type: 'sellLandmark'; group: string };
+  | { type: 'sellLandmark'; group: string }
+  // riscatto dell'ipoteca all'acquisto (regola facoltativa)
+  | { type: 'chooseMortgage'; spaceId: string; redeem: boolean };
 
 export const MIN_BID = 10;
 // controproposte per trattativa: chi riceve ne fa una, chi ha proposto può rispondere con un'altra
@@ -39,6 +41,7 @@ export const MAX_COUNTERS = 2;
 export function actingPlayer(state: GameState): number {
   if (state.trade) return state.trade.to;
   if (state.phase === 'auction' && state.auction) return state.auction.bidders[state.auction.turn];
+  if (state.phase === 'mortgageChoice' && state.pendingMortgages?.length) return state.pendingMortgages[0].playerId;
   return state.current;
 }
 
@@ -751,6 +754,22 @@ function doAcceptTrade(state: GameState, ctx: GameContext): void {
   const dueTo = interestOn(state, ctx, t.give.spaces);
   transfer(state, t.from, t.to, t.give);
   transfer(state, t.to, t.from, t.get);
+  state.trade = null;
+  stat(state, t.from).trades++;
+  stat(state, t.to).trades++;
+  log(state, 'log.accepts', { name: state.players[t.to].name });
+  if (state.rules?.mortgageChoice) {
+    const pending: PendingMortgage[] = [
+      ...t.get.spaces.filter((id) => state.ownership[id]?.mortgaged).map((spaceId) => ({ playerId: t.from, spaceId })),
+      ...t.give.spaces.filter((id) => state.ownership[id]?.mortgaged).map((spaceId) => ({ playerId: t.to, spaceId })),
+    ];
+    if (pending.length) {
+      state.pendingMortgages = pending;
+      state.resumePhase = state.phase;
+      state.phase = 'mortgageChoice';
+      return;
+    }
+  }
   if (dueFrom) {
     pay(state, t.from, dueFrom, null);
     log(state, 'log.interest', { name: state.players[t.from].name, amount: dueFrom });
@@ -759,10 +778,36 @@ function doAcceptTrade(state: GameState, ctx: GameContext): void {
     pay(state, t.to, dueTo, null);
     log(state, 'log.interest', { name: state.players[t.to].name, amount: dueTo });
   }
-  state.trade = null;
-  stat(state, t.from).trades++;
-  stat(state, t.to).trades++;
-  log(state, 'log.accepts', { name: state.players[t.to].name });
+}
+
+function doChooseMortgage(state: GameState, ctx: GameContext, spaceId: string, redeem: boolean): void {
+  requirePhase(state, 'mortgageChoice');
+  const queue = state.pendingMortgages;
+  if (!queue?.length) throw new RuleError('err.noMortgageChoice');
+  const head = queue[0];
+  if (head.spaceId !== spaceId) throw new RuleError('err.badChoice');
+  const space = spaceById(ctx, spaceId);
+  const own = state.ownership[spaceId];
+  if (!own || !own.mortgaged || !('mortgage' in space)) throw new RuleError('err.notMortgaged');
+  const p = state.players[head.playerId];
+  if (redeem) {
+    if (p.money < space.mortgage) throw new RuleError('err.noMoney');
+    pay(state, p.id, space.mortgage, null);
+    own.mortgaged = false;
+    log(state, 'log.redeemsReceived', { name: p.name, space: space.id, amount: space.mortgage });
+  } else {
+    const due = Math.min(transferInterest(space.mortgage), Math.max(p.money, 0));
+    if (due > 0) {
+      pay(state, p.id, due, null);
+      log(state, 'log.keepsMortgaged', { name: p.name, space: space.id, amount: due });
+    }
+  }
+  queue.shift();
+  if (queue.length === 0) {
+    delete state.pendingMortgages;
+    state.phase = state.resumePhase ?? 'roll';
+    delete state.resumePhase;
+  }
 }
 
 function doCounterTrade(state: GameState, ctx: GameContext, offer: { give: TradeSide; get: TradeSide }): void {
@@ -1123,11 +1168,13 @@ function doBankrupt(state: GameState, ctx: GameContext): void {
     // il creditore restituisce la parte di debito che il fallito non poteva coprire
     const c = state.players[creditor];
     c.money += p.money;
-    // e paga gli interessi sulle caselle ipotecate ricevute, per quanto può
-    const due = Math.min(interestOn(state, ctx, mortgagedToCreditor), Math.max(c.money, 0));
-    if (due > 0) {
-      pay(state, creditor, due, null);
-      log(state, 'log.interestReceived', { name: c.name, amount: due });
+    // se la regola mortgageChoice è spenta, paga subito gli interessi sulle caselle ipotecate ricevute
+    if (!state.rules?.mortgageChoice) {
+      const due = Math.min(interestOn(state, ctx, mortgagedToCreditor), Math.max(c.money, 0));
+      if (due > 0) {
+        pay(state, creditor, due, null);
+        log(state, 'log.interestReceived', { name: c.name, amount: due });
+      }
     }
   } else if (state.rules?.parkPot) {
     // nella Panchina del Parco resta solo quello che il fallito ha davvero pagato
@@ -1157,6 +1204,12 @@ function doBankrupt(state: GameState, ctx: GameContext): void {
     return;
   }
   nextPlayer(state, ctx);
+  if (state.rules?.mortgageChoice && creditor !== null && mortgagedToCreditor.length && state.phase !== 'gameOver') {
+    state.pendingMortgages = mortgagedToCreditor.map((spaceId) => ({ playerId: creditor, spaceId }));
+    state.resumePhase = state.phase;
+    state.phase = 'mortgageChoice';
+    return;
+  }
   if (toAuction.length && state.phase !== 'gameOver') {
     log(state, 'log.toAuction', { name: p.name });
     const [first, ...rest] = toAuction;
@@ -1206,9 +1259,10 @@ export function applyAction(state: GameState, action: Action, gameCtx: GameConte
     case 'sellShare': doSellShare(next, ctx, action.group); break;
     case 'buildLandmark': doBuildLandmark(next, ctx, action.group, action.landmark); break;
     case 'sellLandmark': doSellLandmark(next, ctx, action.group); break;
+    case 'chooseMortgage': doChooseMortgage(next, ctx, action.spaceId, action.redeem); break;
   }
-  // obiettivi della partita: si controllano dopo ogni mossa, ma non a metà di un'asta o di uno scambio
-  if (next.phase !== 'gameOver' && next.phase !== 'auction' && !next.trade) checkGoals(next, ctx);
+  // obiettivi della partita: si controllano dopo ogni mossa, ma non a metà di un'asta, di uno scambio o di una scelta d'ipoteca
+  if (next.phase !== 'gameOver' && next.phase !== 'auction' && next.phase !== 'mortgageChoice' && !next.trade) checkGoals(next, ctx);
   // si tengono solo gli ultimi eventi: lo stato resta piccolo da copiare e salvare
   if (next.log.length > MAX_LOG) next.log.splice(0, next.log.length - MAX_LOG);
   return next;

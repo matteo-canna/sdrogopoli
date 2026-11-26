@@ -937,4 +937,9 @@ export const en: Record<MsgKey, string> = {
   'shares.holders': 'Held by: {names}.',
   'shares.buy': 'Buy a share ({amount})',
   'shares.sell': 'Sell a share back (+{amount})',
+
+  // ---- mortgage redemption choice ----
+  'log.redeemsReceived': '{name} pays off the mortgage on {space} right away ({amount}).',
+  'log.keepsMortgaged': '{name} keeps {space} mortgaged and pays {amount} interest.',
+  'err.noMortgageChoice': 'There is no mortgaged space to choose on.',
 };
