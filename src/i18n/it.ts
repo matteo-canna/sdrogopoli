@@ -45,6 +45,7 @@ export const it = {
   'log.rejects': '{name} rifiuta lo scambio.',
   'log.jailCard': '{name} usa una carta ed esce dalla Caserma.',
   'log.builds': '{name} costruisce su {space}.',
+  'log.buildCard': 'Terza casa in {group}: {name} pesca dagli Imprevisti del Cantiere.',
   'log.sellsHouse': '{name} vende una casa su {space}.',
   'log.mortgages': '{name} ipoteca {space}.',
   'log.unmortgages': "{name} toglie l'ipoteca da {space}.",
@@ -96,6 +97,8 @@ export const it = {
   // ---------- mazzi ----------
   'deck.sorte': 'Colpo di Sorte',
   'deck.quartiere': 'Voci di Quartiere',
+  'deck.cantiere': 'Imprevisti del Cantiere',
+  'rules.buildCards': 'Imprevisti del Cantiere: portando un quartiere a 3 case si pesca una carta del cantiere',
   // ---------- caselle e giocatori ----------
   'space.forSale': 'in vendita a {amount}',
   'space.ownedBy': 'di {name}',

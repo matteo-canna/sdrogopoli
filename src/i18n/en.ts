@@ -47,6 +47,7 @@ export const en: Record<MsgKey, string> = {
   'log.rejects': '{name} turns down the trade.',
   'log.jailCard': '{name} uses a card and leaves the Barracks.',
   'log.builds': '{name} builds on {space}.',
+  'log.buildCard': 'Third house in {group}: {name} draws from Building Site Mishaps.',
   'log.sellsHouse': '{name} sells a house on {space}.',
   'log.mortgages': '{name} mortgages {space}.',
   'log.unmortgages': '{name} pays off the mortgage on {space}.',
@@ -99,6 +100,8 @@ export const en: Record<MsgKey, string> = {
   // ---------- decks ----------
   'deck.sorte': 'Stroke of Luck',
   'deck.quartiere': 'Local Gossip',
+  'deck.cantiere': 'Building Site Mishaps',
+  'rules.buildCards': 'Building Site Mishaps: bringing a neighbourhood to 3 houses draws a building site card',
 
   // ---------- spaces and players ----------
   'space.forSale': 'for sale at {amount}',

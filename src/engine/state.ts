@@ -1,5 +1,6 @@
 // Stato della partita e creazione di una nuova partita.
 import type { BoardData, CardsData, DeckId } from './types';
+import { deckCards } from './cards';
 import { rngStep, type Rng } from './dice';
 import type { Message } from '../i18n';
 
@@ -87,6 +88,8 @@ export interface GameRules {
   // edifici speciali: chi ha un quartiere completo ci costruisce un edificio con un effetto suo
   // (regola facoltativa)
   landmarks?: boolean;
+  // Imprevisti del Cantiere: portando un quartiere a 3 case totali si pesca dal terzo mazzo (regola facoltativa)
+  buildCards?: boolean;
 }
 
 // ---------- quote di quartiere ed edifici speciali (regole facoltative) ----------
@@ -236,8 +239,8 @@ export interface GameState {
   winReason?: string;
   // true se il giocatore ha fatto un doppio e deve rilanciare dopo aver risolto la casella
   extraRoll: boolean;
-  // mazzi: id delle carte in ordine di pesca
-  decks: Record<DeckId, string[]>;
+  // mazzi: id delle carte in ordine di pesca ("cantiere" è presente solo con rules.buildCards)
+  decks: Record<'sorte' | 'quartiere', string[]> & { cantiere?: string[] };
   // creditore del debito in corso (null = la banca), se il giocatore ha soldi negativi
   creditor: number | null;
   auction: Auction | null;
@@ -362,11 +365,12 @@ export function createGame(players: (string | PlayerSetup)[], gameCtx: GameConte
   if (setups.length < MIN_PLAYERS || setups.length > max) {
     throw new Error(`Servono da ${MIN_PLAYERS} a ${max} giocatori`);
   }
-  const deckIds = Object.keys(ctx.cards.decks) as DeckId[];
-  const decks = {} as Record<DeckId, string[]>;
+  const baseIds = (Object.keys(ctx.cards.decks) as DeckId[]).filter((d) => d !== 'cantiere');
+  const deckIds: DeckId[] = fullRules.buildCards ? [...baseIds, 'cantiere'] : baseIds;
+  const decks = {} as GameState['decks'];
   for (const d of deckIds) {
     decks[d] = shuffle(
-      ctx.cards.cards.filter((c) => c.deck === d).map((c) => c.id),
+      deckCards(ctx.cards, d).map((c) => c.id),
       ctx.rng,
     );
   }

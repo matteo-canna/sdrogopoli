@@ -1,6 +1,22 @@
 // Valore in soldi di un effetto di carta: serve al computer per scegliere tra due opzioni
 // e ai test per controllare che i mazzi siano equilibrati (valore medio vicino a zero).
-import type { CardEffect } from './types';
+import cantiereJson from '../data/cards.cantiere.json';
+import type { Card, CardEffect, CardsData, DeckId } from './types';
+
+export const cantiereCardsData = cantiereJson as CardsData;
+
+// Carte di un mazzo: per "cantiere" usa quelle nel contesto o il mazzo predefinito in src/data.
+export function deckCards(data: CardsData, deck: DeckId): Card[] {
+  const found = data.cards.filter((c) => c.deck === deck);
+  if (found.length > 0 || deck !== 'cantiere') return found;
+  return cantiereCardsData.cards;
+}
+
+// Trova una carta per id nel contesto della partita o nel mazzo Cantiere.
+export function findCard(data: CardsData, id: string | null | undefined): Card | undefined {
+  if (!id) return undefined;
+  return data.cards.find((c) => c.id === id) ?? cantiereCardsData.cards.find((c) => c.id === id);
+}
 
 export interface CardValueContext {
   // avversari ancora in gioco

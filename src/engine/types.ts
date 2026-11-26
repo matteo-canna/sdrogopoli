@@ -61,7 +61,7 @@ export interface BoardData {
   spaces: Space[];
 }
 
-export type DeckId = 'sorte' | 'quartiere';
+export type DeckId = 'sorte' | 'quartiere' | 'cantiere';
 
 export type CardEffect =
   | { kind: 'moveTo'; space: string }
@@ -90,6 +90,6 @@ export interface Card {
 }
 
 export interface CardsData {
-  decks: Record<DeckId, { name: string }>;
+  decks: Partial<Record<DeckId, { name: string }>>;
   cards: Card[];
 }
