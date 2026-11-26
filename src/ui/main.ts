@@ -37,6 +37,7 @@ import { dailyResult } from './daily';
 import { Replay, REPLAY_SPEEDS, type ReplaySpeed } from './replay';
 import { t, text, type MsgKey } from '../i18n';
 import { applySettings, LANG_EVENT, loadSettings, openSettings } from './settings';
+import { openShortcuts } from './shortcuts';
 
 // senza "rng": i dadi vengono dal generatore della partita, che parte da un seme casuale.
 // "board" cambia col tabellone scelto, quindi il contesto si aggiorna con useBoard().
@@ -1253,9 +1254,17 @@ function confirmTwice(button: HTMLElement): boolean {
   return false;
 }
 
-// Esc chiude la carta della casella o il cassetto.
+// Esc chiude la carta della casella o il cassetto; "?" apre le scorciatoie da tastiera.
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape' || !session.state || resumeOffered || (online && lobbyShown)) return;
+  if (!session.state || resumeOffered || (online && lobbyShown)) return;
+  if (e.key === '?' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    const el = e.target as HTMLElement | null;
+    if (el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable)) return;
+    e.preventDefault();
+    openShortcuts();
+    return;
+  }
+  if (e.key !== 'Escape') return;
   if (selected) selected = null;
   else if (drawerOpen) drawerOpen = false;
   else return;

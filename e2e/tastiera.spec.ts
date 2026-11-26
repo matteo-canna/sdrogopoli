@@ -103,3 +103,26 @@ test('tabellone 3D: con le frecce si scelgono le caselle', async ({ page }, info
   await page.keyboard.press('Escape');
   await expect(page.locator('.space-card')).toHaveCount(0);
 });
+
+test('finestra delle scorciatoie da tastiera: ? la apre (non nei campi di testo), Esc la chiude e riporta il focus', async ({ page }, info) => {
+  test.skip(info.project.name === 'telefono', 'la tastiera si prova sul computer');
+  await apri(page, { 'sdrogopoli-vista': '2d', 'sdrogopoli-velocita': 'istantanea' });
+  await iniziaConLaTastiera(page);
+  const lancia = page.locator('.actions [data-action=roll]');
+  await expect(lancia).toBeFocused();
+  // mentre si scrive in un campo di testo "?" non apre la finestra
+  await page.locator('.slots-box summary').click();
+  const campo = page.locator('#slot-name');
+  await campo.focus();
+  await page.keyboard.type('?');
+  await expect(page.locator('.shortcuts-dialog')).toHaveCount(0);
+  // fuori dai campi "?" apre il dialog, porta dentro il focus ed Esc lo riporta dov'era
+  await lancia.focus();
+  await page.keyboard.press('?');
+  const finestra = page.locator('.shortcuts-dialog');
+  await expect(finestra).toBeVisible();
+  await expect(finestra.locator('[data-shortcuts-close]')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(finestra).toHaveCount(0);
+  await expect(lancia).toBeFocused();
+});
