@@ -16,7 +16,8 @@ interface SavedState {
   phase: string;
   players: SavedPlayer[];
   ownership: Record<string, { owner: number; houses: number; mortgaged: boolean }>;
-  auction?: { spaceId: string; highestBid: number; highestBidder: number | null; turn: number } | null;
+  // turn è la posizione nella lista bidders, non il numero del giocatore
+  auction?: { spaceId: string; highestBid: number; highestBidder: number | null; bidders: number[]; turn: number } | null;
 }
 
 // Legge lo stato corrente della partita dal salvataggio automatico del browser.
@@ -147,7 +148,7 @@ test.describe('flussi di gioco nel browser', () => {
     const inizioAsta = await leggiStato(page);
     expect(inizioAsta.phase).toBe('auction');
     const spaceId = inizioAsta.auction!.spaceId;
-    const vincitoreAtteso = inizioAsta.auction!.turn;
+    const vincitoreAtteso = inizioAsta.auction!.bidders[inizioAsta.auction!.turn];
     await expect(page.getByRole('heading', { name: /Asta:/ })).toBeVisible();
 
     // Il primo offerente fa un'offerta, il secondo passa

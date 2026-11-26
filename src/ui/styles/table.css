@@ -1,0 +1,288 @@
+/* Partita in stile gioco da tavolo classico, coerente con la schermata iniziale:
+   la partita si gioca sul panno verde, il tabellone ha la cornice d'inchiostro e le caselle di cartoncino,
+   i pannelli sono atti di proprietà e i pulsanti sono tasti in rilievo.
+   Si muove solo con transform e opacity; con il movimento ridotto (base.css) tutto resta fermo. */
+
+/* ---------- colori del tavolo (i colori di base sono in fun.css) ---------- */
+:root {
+  --tbl-felt: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.05) 0 1px, transparent 1.5px) 0 0 / 5px 5px,
+    radial-gradient(ellipse 90% 80% at 50% 30%, #2e7d52 0%, #1f6140 50%, #0f3a25 100%);
+  --tbl-paper: #fbf6e6;
+  --tbl-paper-2: #f3ead0;
+  --tbl-ink: #1f2421;
+  --tbl-centre: #dcebd5;
+  --tbl-key: 0 3px 0 var(--tbl-ink);
+  --tbl-key-down: 0 1px 0 var(--tbl-ink);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --tbl-felt: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.04) 0 1px, transparent 1.5px) 0 0 / 5px 5px,
+      radial-gradient(ellipse 90% 80% at 50% 30%, #1d4d34 0%, #12362a 50%, #081d14 100%);
+    --tbl-paper: #2b2a24;
+    --tbl-paper-2: #23221d;
+    --tbl-ink: #050605;
+    --tbl-centre: #1c2f25;
+  }
+}
+
+/* ---------- il panno verde sotto la partita ---------- */
+body:has(.game) { background: #1d5a3a; background-image: var(--tbl-felt); background-attachment: fixed; }
+@media (prefers-color-scheme: dark) { body:has(.game) { background-color: #0c2418; } }
+
+/* ---------- tabellone 2D: cornice d'inchiostro, caselle di cartoncino ---------- */
+.game .board {
+  background: var(--tbl-ink); border: 5px solid var(--tbl-ink); border-radius: 12px; gap: 2px;
+  box-shadow: 0 0 0 3px var(--game-gold), 0 0 0 6px var(--tbl-ink), 0 24px 50px rgba(0, 0, 0, 0.45);
+}
+.game2d .board { width: calc(min(100cqw, 100cqh) - 18px); height: calc(min(100cqw, 100cqh) - 18px); }
+.game .space { background: var(--tbl-paper); color: var(--ink); }
+.game .space .name { font-weight: 700; letter-spacing: 0.01em; }
+.game .space .price { font-weight: 700; color: color-mix(in srgb, var(--ink) 70%, transparent); }
+.game .band { border-radius: 0; margin: -2px -2px 3px; width: calc(100% + 4px); height: 21%; box-shadow: 0 2px 0 var(--tbl-ink); }
+.game .space.owned { background: color-mix(in srgb, var(--own) 18%, var(--tbl-paper)); }
+.game .space:hover { filter: none; background: color-mix(in srgb, var(--game-gold) 22%, var(--tbl-paper)); }
+.game .space.owned:hover { background: color-mix(in srgb, var(--own) 30%, var(--tbl-paper)); }
+.game .space.selected { outline: 4px solid var(--game-gold); outline-offset: -4px; z-index: 2; }
+/* angoli: grandi, colorati, come sul tabellone della schermata iniziale */
+.game .space.corner { font-family: var(--font-title); font-weight: 900; text-transform: uppercase; font-size: clamp(5.5px, 0.7vw, 9.5px); letter-spacing: 0.02em; }
+.game .space.corner .icon { font-size: 2.3em; margin-bottom: 2px; }
+.game .space.t-start { background: var(--game-gold); color: #1d1d1b; }
+.game .space.t-jail { background: color-mix(in srgb, var(--game-coral) 70%, var(--tbl-paper)); color: #1d1d1b; }
+.game .space.t-free { background: color-mix(in srgb, var(--game-teal) 30%, var(--tbl-paper)); }
+.game .space.t-goToJail { background: color-mix(in srgb, var(--game-blue) 28%, var(--tbl-paper)); }
+.game .space.t-card .icon, .game .space.t-tax .icon { font-size: 1.7em; }
+.game .space.t-card { background: color-mix(in srgb, var(--game-lilac) 14%, var(--tbl-paper)); }
+.game .space.t-tax { background: var(--tbl-paper-2); }
+@media (prefers-color-scheme: dark) { .game .space.t-jail, .game .space.t-start { color: #1d1d1b; } .game .space.t-jail { background: #d98a70; } }
+/* centro: il prato del tabellone con il titolo sulla targa */
+.game .center {
+  background:
+    repeating-linear-gradient(45deg, rgba(31, 36, 33, 0.03) 0 2px, transparent 2px 14px),
+    repeating-linear-gradient(-45deg, rgba(31, 36, 33, 0.03) 0 2px, transparent 2px 14px),
+    var(--tbl-centre);
+}
+.game .center .title {
+  display: inline-block; margin: 4px 0 6px; padding: 0.12em 0.55em; border-radius: 12px;
+  font-size: 2.1em; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; text-shadow: none;
+  background: var(--game-crimson); border: 3px solid var(--tbl-ink);
+  box-shadow: inset 0 0 0 3px var(--game-crimson), inset 0 0 0 6px var(--game-gold), 0 8px 18px rgba(0, 0, 0, 0.3);
+  transform: rotate(-3deg);
+}
+.game .table-log li {
+  background: var(--tbl-paper); border: 1.5px solid color-mix(in srgb, var(--tbl-ink) 25%, transparent);
+  border-radius: 8px; box-shadow: 0 2px 0 color-mix(in srgb, var(--tbl-ink) 18%, transparent);
+}
+.game .table-log li:first-child { border-color: var(--tbl-ink); box-shadow: var(--tbl-key); }
+.game .table-turn { background: var(--tbl-paper); padding: 4px 14px 4px 6px; border-radius: 999px; border: 2px solid var(--tbl-ink); box-shadow: var(--tbl-key); }
+
+/* pedine: dischetti come gettoni, con un po' di volume */
+.game .pawn {
+  border: 2px solid #fff; background-image: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.55), transparent 55%);
+  box-shadow: 0 0 0 1.5px var(--tbl-ink), 0 3px 0 var(--tbl-ink), 0 4px 6px rgba(0, 0, 0, 0.35);
+}
+.game .pawn.now { box-shadow: 0 0 0 1.5px var(--tbl-ink), 0 0 0 4px var(--game-gold), 0 4px 0 var(--tbl-ink), 0 6px 8px rgba(0, 0, 0, 0.4); }
+@keyframes pawn-now { 50% { transform: translateY(-4px) scale(1.06); } }
+.game .owner { border: 1.5px solid #fff; box-shadow: 0 0 0 1px var(--tbl-ink); }
+
+/* barra degli strumenti sopra il tabellone */
+.game .view-buttons.overlay {
+  background: color-mix(in srgb, var(--tbl-paper) 92%, transparent); border: 2px solid var(--tbl-ink); border-radius: 999px;
+  box-shadow: var(--tbl-key), 0 8px 20px rgba(0, 0, 0, 0.25); padding: 3px 6px; flex-wrap: nowrap; max-width: calc(100% - 20px); overflow-x: auto; scrollbar-width: none;
+}
+.game .view-buttons.overlay button { border-radius: 999px; white-space: nowrap; font-weight: 700; }
+.game .view-buttons.overlay button:hover { background: color-mix(in srgb, var(--game-gold) 30%, transparent); }
+.game3d .stage { border: 3px solid var(--tbl-ink); box-shadow: 0 0 0 3px var(--game-gold), 0 0 0 6px var(--tbl-ink), 0 24px 50px rgba(0, 0, 0, 0.45); }
+@media (max-width: 1600px) { .game3d .view-buttons.overlay .lbl { display: none; } .game3d .view-buttons.overlay button { min-width: 44px; font-size: 1.05rem; } }
+@media (max-width: 1100px) { .game .view-buttons.overlay .lbl { display: none; } .game .view-buttons.overlay button { min-width: 44px; font-size: 1.05rem; } }
+
+/* ---------- dadi veri: cubetti bianchi con i puntini ---------- */
+.dice { display: inline-flex; gap: 0.18em; vertical-align: middle; }
+.die {
+  --s: 1.05em; width: var(--s); height: var(--s); display: inline-grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  padding: calc(var(--s) * 0.13); border-radius: calc(var(--s) * 0.2); background: linear-gradient(145deg, #fff 0%, #f1ece0 100%);
+  border: max(1.5px, calc(var(--s) * 0.045)) solid var(--tbl-ink); box-shadow: 0 calc(var(--s) * 0.07) 0 var(--tbl-ink);
+}
+.pip { width: 76%; height: 76%; place-self: center; border-radius: 50%; background: var(--tbl-ink); }
+.die[data-v="1"] .pip, .die[data-v="5"] .p5 { background: var(--game-crimson); }
+.p1 { grid-area: 1 / 1; } .p3 { grid-area: 1 / 3; } .p4 { grid-area: 2 / 1; } .p5 { grid-area: 2 / 2; }
+.p6 { grid-area: 2 / 3; } .p7 { grid-area: 3 / 1; } .p9 { grid-area: 3 / 3; }
+.hud .dice, .action-bar .dice { font-size: 1.7em; }
+.center-dice .dice { font-size: 3.2em; }
+@media (prefers-color-scheme: dark) { .die { background: linear-gradient(145deg, #fbf8ef 0%, #ddd6c4 100%); border-color: #000; } }
+
+/* ---------- pannello laterale: atti di proprietà ---------- */
+.game .hud {
+  background: var(--tbl-paper); border: 2px solid var(--tbl-ink); border-radius: 14px; color: var(--ink);
+  box-shadow: inset 0 0 0 4px var(--tbl-paper), inset 0 0 0 5px color-mix(in srgb, var(--tbl-ink) 18%, transparent), var(--deed-shadow);
+}
+/* testata dell'atto: il colore di chi gioca */
+.game .hud .turn, .game .action-bar .turn {
+  background: color-mix(in srgb, var(--c, var(--accent)) 24%, var(--tbl-paper)); color: var(--ink);
+  border: 2px solid var(--tbl-ink); border-top: 10px solid var(--c, var(--accent)); border-radius: 10px;
+  box-shadow: var(--tbl-key); padding: 6px 12px 8px;
+}
+.game .action-bar .turn { padding: 6px 10px; }
+.game .roll-total { background: var(--tbl-paper); border: 2px solid var(--tbl-ink); font-size: 1.05em; }
+.game .turn .token { box-shadow: 0 0 0 1.5px var(--tbl-ink); }
+.game .news, .game .offer, .game .trade-editor, .game .summary, .game .details {
+  background: var(--panel); border: 1.5px solid color-mix(in srgb, var(--tbl-ink) 30%, transparent); border-radius: 10px;
+}
+.game .news { border-left: 6px solid var(--game-teal); }
+.game .offer { border-left: 6px solid var(--game-gold); }
+.game .news h4 { color: #0d6363; }
+@media (prefers-color-scheme: dark) { .game .news h4 { color: #6fd1b0; } }
+
+/* ---------- pulsanti: tasti in rilievo ---------- */
+.game .actions button, .game .summary-actions button, .game .hud > button, .game .slots-box button, .game .drawer-btn, .game .drawer-close {
+  background: var(--tbl-paper); color: var(--ink); border: 2px solid var(--tbl-ink); border-radius: 12px; font-weight: 800;
+  box-shadow: var(--tbl-key); transition: transform 0.15s var(--bounce), box-shadow 0.1s, background-color 0.15s;
+}
+.game .actions button:not(:disabled):hover, .game .summary-actions button:hover, .game .drawer-btn:hover {
+  background: color-mix(in srgb, var(--game-gold) 25%, var(--tbl-paper)); transform: translateY(-2px); box-shadow: 0 5px 0 var(--tbl-ink);
+}
+.game .actions button:not(:disabled):active, .game .summary-actions button:active, .game .drawer-btn:active { transform: translateY(2px); box-shadow: var(--tbl-key-down); }
+.game .actions button.primary {
+  position: relative; overflow: hidden; color: #fff; border-color: var(--tbl-ink); text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  background: linear-gradient(180deg, #3f9a6b 0%, #2f7a54 55%, #276848 100%);
+  box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.22), var(--tbl-key); letter-spacing: 0.02em;
+}
+.game .actions button.primary:not(:disabled):hover { background: linear-gradient(180deg, #48a777 0%, #348560 55%, #2b7150 100%); box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.22), 0 5px 0 var(--tbl-ink); }
+.game .actions button.primary::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 35%; left: -50%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent); animation: shine 4s ease-in-out infinite 1s;
+}
+.game .actions button.danger { background: linear-gradient(180deg, #d24a52 0%, var(--game-crimson) 60%); color: #fff; border-color: var(--tbl-ink); }
+.game .actions button[data-action=roll] { font-size: 1.2rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.game .actions button[data-action=roll]::before { content: '🎲 '; }
+@media (prefers-color-scheme: dark) {
+  .game .actions button.primary { color: #fff; }
+}
+
+/* ---------- giocatori: schede con la testata colorata ---------- */
+.game .player {
+  background: var(--tbl-paper); border: 2px solid var(--tbl-ink); border-radius: 12px; padding: 14px 12px 10px;
+  box-shadow: 0 3px 0 var(--tbl-ink), 0 8px 18px rgba(0, 0, 0, 0.22); transition: transform 0.3s var(--bounce), box-shadow 0.3s;
+}
+.game .player::before { left: 0; right: 0; top: 0; bottom: auto; width: auto; height: 7px; border-bottom: 2px solid var(--tbl-ink); }
+.game .player.active {
+  border-color: var(--tbl-ink); transform: translateY(-3px) rotate(-0.6deg);
+  background: color-mix(in srgb, var(--c, var(--accent)) 10%, var(--tbl-paper));
+  box-shadow: 0 0 0 3px var(--game-gold), 0 5px 0 var(--tbl-ink), 0 14px 26px rgba(0, 0, 0, 0.3);
+}
+.game .player .badge { background: var(--game-gold); color: #1d1d1b; border: 1.5px solid var(--tbl-ink); }
+.game .money { font-family: var(--font-title); font-size: 1.3em; }
+.game .chip { border-radius: 6px; border: 1.5px solid var(--tbl-ink); border-left: 6px solid var(--g, var(--line)); font-weight: 700; background: var(--panel); }
+.game .chip:hover { background: color-mix(in srgb, var(--g, var(--line)) 22%, var(--panel)); }
+.game .side > .saved, .game .side > .link, .game .side .report-link, .game .slots-box > summary { color: #e9f3ec; }
+.game .slots-box > summary { background: rgba(0, 0, 0, 0.18); border-radius: 10px; padding: 6px 10px; }
+.game .side > .link:hover { color: #fff; }
+.game .hud .hint, .game .hud .log-box { color: var(--muted); }
+
+/* ---------- carta della casella: un atto di proprietà vero ---------- */
+.game .space-card {
+  background: var(--tbl-paper); border: 2px solid var(--tbl-ink); border-radius: 12px; padding: 0 0 8px;
+  box-shadow: inset 0 0 0 4px var(--tbl-paper), inset 0 0 0 5px color-mix(in srgb, var(--tbl-ink) 18%, transparent), 0 20px 40px rgba(0, 0, 0, 0.4);
+  animation: deed-in 0.35s var(--bounce);
+}
+@keyframes deed-in { from { opacity: 0; transform: translate(-50%, 30px) rotate(-3deg) scale(0.92); } }
+.game .space-card .details { border: none; background: transparent; }
+.game .space-card .details h3 { justify-content: center; text-align: center; text-transform: uppercase; letter-spacing: 0.04em; font-size: 1.05em; padding: 8px 40px; margin: 0 -14px 8px; border-bottom: 2px solid var(--tbl-ink); }
+.game .space-card .details h3 .dot { width: 14px; height: 14px; border: 1.5px solid var(--tbl-ink); }
+.game .space-card .rents tr.now td { background: color-mix(in srgb, var(--game-gold) 35%, transparent); }
+
+/* ---------- avvisi e momenti forti ---------- */
+.notice {
+  background: var(--tbl-paper); border: 2px solid var(--tbl-ink); border-left: 8px solid var(--game-gold);
+  border-radius: 10px; font-weight: 700; box-shadow: var(--tbl-key), 0 10px 24px rgba(0, 0, 0, 0.3);
+  animation: notice-drop 0.4s var(--bounce);
+}
+@keyframes notice-drop { from { opacity: 0; transform: translateY(-20px) rotate(-2deg); } }
+.moment {
+  background: var(--tbl-paper); border: 3px solid var(--tbl-ink); border-top: 14px solid var(--c, var(--accent)); border-radius: 16px;
+  box-shadow: inset 0 0 0 4px var(--tbl-paper), inset 0 0 0 5px color-mix(in srgb, var(--tbl-ink) 18%, transparent), 0 6px 0 var(--tbl-ink), 0 24px 50px rgba(0, 0, 0, 0.45);
+  padding: 20px 28px;
+}
+.moment p { font-family: var(--font-title); font-weight: 900; font-size: 1.25em; }
+.moment-icon { font-size: 3.2em; animation: bump 0.6s var(--bounce) 0.1s both; }
+@keyframes moment-pop { from { opacity: 0; transform: scale(0.6) rotate(-6deg); } 12% { opacity: 1; transform: scale(1.06) rotate(1deg); } 20% { transform: scale(1) rotate(0); } 85% { opacity: 1; } to { opacity: 0; transform: translateY(-10px); } }
+.money-delta { border: 1.5px solid var(--tbl-ink); }
+
+/* ---------- fine partita: il vincitore sulla targa, il podio con le medaglie ---------- */
+.game .winner {
+  display: inline-block; margin: 6px 0; padding: 0.25em 0.8em; border-radius: 12px; color: #fff; text-align: center;
+  background: var(--game-crimson); border: 3px solid var(--tbl-ink); font-family: var(--font-title); font-weight: 900;
+  box-shadow: inset 0 0 0 3px var(--game-crimson), inset 0 0 0 6px var(--game-gold), 0 8px 18px rgba(0, 0, 0, 0.3);
+  transform: rotate(-2deg); animation: plate-in 0.7s var(--bounce) both;
+}
+.game .summary { box-shadow: none; }
+.game .summary h4 { text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.95em; }
+.game .standings li { padding: 6px 8px; border-radius: 10px; background: var(--tbl-paper-2); animation: pop-in 0.4s var(--bounce) both; }
+.game .standings li:nth-child(2) { animation-delay: 0.1s; }
+.game .standings li:nth-child(3) { animation-delay: 0.2s; }
+.game .standings li:first-child { background: color-mix(in srgb, var(--game-gold) 35%, var(--tbl-paper)); border: 2px solid var(--tbl-ink); box-shadow: var(--tbl-key); font-size: 1.08em; }
+.game .standings .medal { font-size: 1.35em; }
+.game .awards li { padding: 6px 8px; border-radius: 10px; border: 1.5px dashed color-mix(in srgb, var(--tbl-ink) 30%, transparent); }
+.game .award-emoji { font-size: 1.5em; }
+
+/* ---------- telefono: la barra dei comandi è un atto appoggiato sul panno ---------- */
+@media (max-width: 900px) {
+  .game .action-bar {
+    background: var(--tbl-paper); border: 2px solid var(--tbl-ink); border-bottom: none;
+    box-shadow: 0 -3px 0 var(--game-gold), 0 -6px 0 var(--tbl-ink), 0 -10px 30px rgba(0, 0, 0, 0.35);
+  }
+  .game .side { background: var(--tbl-felt); background-color: #1d5a3a; }
+  .game .side .view-buttons.in-drawer { background: var(--tbl-paper); border: 2px solid var(--tbl-ink); border-radius: 14px; padding: 6px; box-shadow: var(--tbl-key); }
+  .game2d .board { width: calc(min(100cqw, 100cqh) - 12px); height: calc(min(100cqw, 100cqh) - 12px); }
+  .game .board { border-width: 3px; box-shadow: 0 0 0 2px var(--game-gold), 0 0 0 4px var(--tbl-ink), 0 14px 30px rgba(0, 0, 0, 0.45); }
+  .game .space.corner { font-size: clamp(5px, 1.45vw, 8.5px); letter-spacing: 0; }
+  .game .center .title { display: none; }
+}
+@media (max-width: 600px) {
+  .game .space .name { font-weight: 600; }
+  .game .space .price { display: none; }
+}
+
+/* ---------- computer: la partita a tutto schermo, i pannelli sopra ai lati ----------
+   Il tabellone (2D o 3D) occupa tutta la finestra; il turno e i comandi stanno a destra,
+   i giocatori a sinistra (sugli schermi medi tutto a destra), la barra degli strumenti in basso al centro. */
+@media (min-width: 901px) {
+  .game { display: block; max-width: none; margin: 0; padding: 0; min-height: 100vh; min-height: 100dvh; --panel-w: 340px; --gap: 14px; }
+  .game .stage, .game2d .stage, .game3d .stage {
+    position: fixed; inset: 0; height: 100vh; height: 100dvh; border-radius: 0; border: none; box-shadow: none;
+  }
+  /* nel 2D il tabellone sta nello spazio libero tra i pannelli */
+  .game2d .stage { padding: 18px calc(var(--panel-w) + var(--gap) * 2) 18px var(--gap); }
+  .game .side {
+    position: fixed; z-index: 10; top: var(--gap); right: var(--gap); bottom: var(--gap); width: var(--panel-w);
+    overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 2px 4px 8px; gap: 12px;
+  }
+  .game .side > .saved, .game .side > .link, .game .side .report-link, .game .slots-box > summary { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+  .game3d .side > .saved, .game3d .side > .link, .game3d .side .report-link, .game3d .slots-box {
+    background: rgba(15, 40, 27, 0.72); border-radius: 10px; padding: 4px 10px; align-self: stretch; text-align: center;
+  }
+  /* strumenti della vista: in basso al centro, sopra la partita */
+  .game .view-buttons.overlay, .game2d .view-buttons.overlay {
+    top: auto; right: auto; bottom: calc(var(--gap) + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 9;
+  }
+  .game2d .view-buttons.overlay { left: calc((100vw - var(--panel-w) - var(--gap)) / 2); }
+  .game .view-buttons.overlay .lbl { display: none; }
+  .game .view-buttons.overlay button { min-width: 44px; font-size: 1.05rem; }
+  .game .space-card { bottom: 84px; max-height: calc(100% - 110px); }
+  .game3d .space-card { left: calc((100vw - var(--panel-w)) / 2); }
+  .game .view3d-reset { right: calc(var(--panel-w) + var(--gap) * 2); bottom: calc(var(--gap) + 72px + env(safe-area-inset-bottom)); }
+  .game2d .board { width: calc(min(100cqw, 100cqh) - 12px); height: calc(min(100cqw, 100cqh) - 12px); }
+}
+/* schermi larghi: i giocatori nel pannello di sinistra */
+@media (min-width: 1280px) {
+  .game { --left-w: 310px; }
+  .game .players-list .money { font-size: 1.15em; white-space: nowrap; }
+  .game .players-list .player-head strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .game .players-list .badge { white-space: nowrap; }
+  .game .players-list {
+    position: fixed; z-index: 10; top: var(--gap); left: var(--gap); width: var(--left-w); max-height: calc(100vh - var(--gap) * 2);
+    overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 2px 4px 10px;
+  }
+  .game2d .stage { padding-left: calc(var(--left-w) + var(--gap) * 2); }
+  .game2d .view-buttons.overlay { left: calc(var(--left-w) + var(--gap) + (100vw - var(--panel-w) - var(--left-w) - var(--gap) * 2) / 2); }
+  .game3d .space-card { left: 50%; }
+}
