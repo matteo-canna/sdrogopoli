@@ -23,6 +23,7 @@ import { soundFor } from './sounds';
 import { refreshBoards, renderSetup, setupLooks, SEATS_SHOWN, type SetupChoice } from './setup';
 import { decodeBoard, linkCode as linkBoardCode, loadCustomBoards, saveCustomBoard } from './boardStore';
 import { setupOffline } from './pwa';
+import { DESKTOP, setupDesktopLinks } from './platform';
 import { reportUrl } from './report';
 import { defaultSlotName, deleteSlot, downloadSave, FILE_EXT, listSlots, parseSaveText, saveSlot } from './slots';
 import { cleanCode, codeFromHash, openTransport, renderLobby, tableCode, updateLobby, type LobbyView } from './online';
@@ -443,7 +444,8 @@ function showSetup(): void {
       openFile(file);
       return true;
     },
-  }, {
+  }, DESKTOP ? undefined : {
+    // nella versione per Mac non c'è il gioco online
     onCreate: () => void enterTable('host', tableCode()),
     onJoin: (raw) => {
       const code = cleanCode(raw);
@@ -1262,7 +1264,9 @@ document.addEventListener('keydown', (e) => {
   render();
 });
 
-setupOffline();
+// nella versione per Mac i file sono già sul computer: niente service worker
+if (!DESKTOP) setupOffline();
+setupDesktopLinks();
 
 // lingua cambiata nelle impostazioni: si ridisegna tutto (il 3D rifà le scritte delle caselle)
 window.addEventListener(LANG_EVENT, () => {
@@ -1286,8 +1290,9 @@ if (boardLink) {
 }
 
 // link di un tavolo (#tavolo=CODICE): si entra subito
-const linkCode = codeFromHash(location.hash);
-const savedTable = readSession(HOST_TABLE);
+// (nella versione per Mac non c'è il gioco online)
+const linkCode = DESKTOP ? null : codeFromHash(location.hash);
+const savedTable = DESKTOP ? null : readSession(HOST_TABLE);
 if (linkCode) void enterTable('guest', linkCode);
 else if (savedTable) {
   // la pagina di chi ha creato il tavolo si è ricaricata: si riapre lo stesso tavolo
@@ -1299,7 +1304,7 @@ else if (savedTable) {
   }
 }
 window.addEventListener('hashchange', () => {
-  const code = codeFromHash(location.hash);
+  const code = DESKTOP ? null : codeFromHash(location.hash);
   if (code && code !== online?.code) {
     if (online) leaveTable();
     void enterTable('guest', code);

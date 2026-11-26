@@ -18,11 +18,15 @@
     "squadre": "vite-node scripts/squadre.ts",
     "quote": "vite-node scripts/quote.ts",
     "caselle": "vite-node scripts/caselle.ts",
-    "simula:valle": "vite-node scripts/simula.ts -- 300 4 docs/bilanciamento-valle.md valle"
+    "simula:valle": "vite-node scripts/simula.ts -- 300 4 docs/bilanciamento-valle.md valle",
+    "build:desktop": "tsc --noEmit && vite build --mode desktop --base ./ --outDir dist-desktop",
+    "mac": "tauri dev",
+    "build:mac": "tauri build"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",
     "@playwright/test": "^1.63.0",
+    "@tauri-apps/cli": "^2.12.6",
     "@types/node": "^22.10.2",
     "@types/three": "^0.170.0",
     "gltfpack": "^0.22.0",
