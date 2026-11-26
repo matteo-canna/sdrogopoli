@@ -17,6 +17,7 @@
     "preset": "vite-node scripts/preset.ts",
     "squadre": "vite-node scripts/squadre.ts",
     "quote": "vite-node scripts/quote.ts",
+    "caselle": "vite-node scripts/caselle.ts",
     "simula:valle": "vite-node scripts/simula.ts -- 300 4 docs/bilanciamento-valle.md valle"
   },
   "devDependencies": {
