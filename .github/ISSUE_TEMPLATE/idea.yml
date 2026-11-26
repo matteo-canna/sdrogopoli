@@ -1,0 +1,44 @@
+name: Proponi un'idea
+description: Una regola nuova, una miglioria o qualcosa che ti piacerebbe vedere nel gioco.
+title: "Idea: "
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Grazie per l'idea! Il gioco resta gratuito: niente pubblicità, acquisti o server a pagamento.
+  - type: textarea
+    id: idea
+    attributes:
+      label: Qual è l'idea?
+      description: Descrivila con parole semplici.
+    validations:
+      required: true
+  - type: textarea
+    id: perche
+    attributes:
+      label: Perché sarebbe utile o divertente?
+      description: Cosa migliora per chi gioca.
+    validations:
+      required: false
+  - type: dropdown
+    id: parte
+    attributes:
+      label: Che parte del gioco riguarda?
+      options:
+        - Regole e partita
+        - Tabellone, caselle o carte
+        - Personaggi e pedine
+        - Grafica e vista 3D
+        - Telefono e tablet
+        - Gioco online
+        - Altro
+    validations:
+      required: false
+  - type: textarea
+    id: esempi
+    attributes:
+      label: Esempi o immagini
+      description: Se l'hai visto in un altro gioco o hai uno schizzo, mettilo qui.
+    validations:
+      required: false

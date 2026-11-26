@@ -1,0 +1,7 @@
+# Le segnalazioni libere restano attive: il pulsante "Segnala un problema" del gioco
+# apre una segnalazione già compilata (titolo e testo nell'indirizzo) senza modello.
+blank_issues_enabled: true
+contact_links:
+  - name: Gioca a Gioco Folle!
+    url: https://matteo-canna.github.io/sdrogopoli/
+    about: Apri il gioco e usa il pulsante "Segnala un problema" per una segnalazione già compilata.
