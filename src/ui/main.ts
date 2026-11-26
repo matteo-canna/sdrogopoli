@@ -24,6 +24,7 @@ import { refreshBoards, renderSetup, setupLooks, SEATS_SHOWN, type SetupChoice }
 import { decodeBoard, linkCode as linkBoardCode, loadCustomBoards, saveCustomBoard } from './boardStore';
 import { setupOffline } from './pwa';
 import { reportUrl } from './report';
+import { logToText } from './logText';
 import { defaultSlotName, deleteSlot, downloadSave, FILE_EXT, listSlots, parseSaveText, saveSlot } from './slots';
 import { cleanCode, codeFromHash, openTransport, renderLobby, tableCode, updateLobby, type LobbyView } from './online';
 import { HostRoom, type HostSnapshot } from '../net/host';
@@ -35,7 +36,7 @@ import { animateMoney, bigMoments, momentText, moneyChanges, moneyNotices, showM
 import { shareResult } from './share';
 import { dailyResult } from './daily';
 import { Replay, REPLAY_SPEEDS, type ReplaySpeed } from './replay';
-import { t, text, type MsgKey } from '../i18n';
+import { getLang, t, text, type MsgKey } from '../i18n';
 import { applySettings, LANG_EVENT, loadSettings, openSettings } from './settings';
 
 // senza "rng": i dadi vengono dal generatore della partita, che parte da un seme casuale.
@@ -563,6 +564,7 @@ function infoHtml(s: GameState): string {
     ${news.length ? `<div class="news"><h4>${t('news.title')}</h4><ul>${news.map((l) => `<li>${escapeHtml(text(l))}</li>`).join('')}</ul></div>` : ''}
     ${selected ? '' : `<p class="hint">${t('hint.tapSpace')}</p>`}
     <details class="log-box"><summary>${t('log.title')}</summary>
+      <div class="log-tools"><button type="button" data-action="copyLog">📋 ${t('log.copy')}</button></div>
       <ol class="log">${s.log.slice().reverse().map((l) => `<li>${escapeHtml(text(l))}</li>`).join('')}</ol>
     </details>`;
 }
@@ -1056,6 +1058,27 @@ app.addEventListener('click', (e) => {
     case 'replay':
       openReplay();
       return;
+    case 'copyLog': {
+      const content = logToText(state, getLang());
+      const download = () => {
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'registro.txt';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        showNotices([{ k: 'log.downloaded' }]);
+      };
+      if (navigator.clipboard?.writeText) {
+        void navigator.clipboard.writeText(content).then(
+          () => showNotices([{ k: 'log.copied' }]),
+          () => download(),
+        );
+      } else {
+        download();
+      }
+      return;
+    }
     case 'settings':
       openSettings((next) => {
         audio.setVolumes(next.sfxVolume, next.musicVolume);
