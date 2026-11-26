@@ -1,0 +1,64 @@
+name: Segnala un problema
+description: Qualcosa nel gioco non funziona o funziona in modo strano.
+title: "Problema: "
+labels: ["segnalazione"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Grazie per la segnalazione! Il modo più semplice è usare il pulsante **"Segnala un problema"** dentro il gioco: compila da solo versione, browser e ultime mosse.
+        Se scrivi da qui, riempi i campi qui sotto come riesci. Non serve sapere di programmazione.
+  - type: textarea
+    id: cosa
+    attributes:
+      label: Cosa è successo?
+      description: Scrivi cosa stavi facendo e cosa non ha funzionato. Se puoi, aggiungi una schermata.
+      placeholder: Es. "Ho comprato una via ma i soldi non sono scesi."
+    validations:
+      required: true
+  - type: textarea
+    id: atteso
+    attributes:
+      label: Cosa ti aspettavi?
+      description: Cosa sarebbe dovuto succedere secondo te.
+    validations:
+      required: false
+  - type: input
+    id: versione
+    attributes:
+      label: Versione
+      description: Si legge in fondo alla pagina del gioco, es. "0.2.0 (25 nov, 16:40)".
+      placeholder: 0.2.0 (25 nov, 16:40)
+    validations:
+      required: false
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      description: Quale browser e dispositivo usi, es. "Chrome su Android" o "Safari su iPhone".
+    validations:
+      required: false
+  - type: input
+    id: schermo
+    attributes:
+      label: Schermo
+      description: Grandezza dello schermo, vista (2D o 3D) e lingua, se le conosci.
+      placeholder: 1280×800, vista 3d, lingua it
+    validations:
+      required: false
+  - type: input
+    id: partita
+    attributes:
+      label: Partita
+      description: Giro, numero di giocatori e fase della partita, se il problema è capitato giocando.
+      placeholder: Giro 12, 4 giocatori, fase …
+    validations:
+      required: false
+  - type: textarea
+    id: registro
+    attributes:
+      label: Ultime righe del registro
+      description: Le ultime mosse dal registro della partita, se ci sono.
+      render: text
+    validations:
+      required: false
