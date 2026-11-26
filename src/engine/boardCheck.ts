@@ -13,12 +13,16 @@ export interface BoardIssue {
   n?: number;
 }
 
-export type BoardCheck = { ok: true; data: BoardData } | { ok: false; errors: BoardIssue[] };
+export type BoardCheck =
+  | { ok: true; data: BoardData; warnings: BoardIssue[] }
+  | { ok: false; errors: BoardIssue[]; warnings?: BoardIssue[] };
 
 export const MIN_SPACES = 20;
 export const MAX_SPACES = 48;
 export const MAX_NAME = 40;
 export const MAX_TITLE = 40;
+// oltre questa lunghezza il nome rischia di stringersi troppo sul cartellino della casella
+export const MAX_TAG_NAME = 28;
 
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const COLOR = /^#[0-9a-f]{6}$/i;
@@ -151,13 +155,39 @@ export function validateBoard(raw: unknown, cards: CardsData): BoardCheck {
   for (const i of [0, side, 2 * side, 3 * side]) if ('price' in all[i]) errors.push({ code: 'corner', id: all[i].id });
 
   const groupIds = new Set(groups.map((g) => g.id));
+  const warnings: BoardIssue[] = [];
+  // prezzo massimo per quartiere, per controllare se le case costano più della via più cara
+  const maxPriceByGroup = new Map<string, number>();
   for (const s of all) {
+    if (s.type === 'property') {
+      maxPriceByGroup.set(s.group, Math.max(maxPriceByGroup.get(s.group) ?? 0, s.price));
+    }
+  }
+  const seenNames = new Map<string, { name: string; count: number }>();
+  for (const s of all) {
+    if (s.name.length > MAX_TAG_NAME) warnings.push({ code: 'longName', id: s.id, n: s.name.length });
+    if (s.type !== 'card' && s.name) {
+      const key = s.name.toLowerCase();
+      const prev = seenNames.get(key);
+      if (prev) prev.count += 1;
+      else seenNames.set(key, { name: s.name, count: 1 });
+    }
     if (s.type === 'property' || s.type === 'station' || s.type === 'utility') {
       if (s.mortgage >= s.price) errors.push({ code: 'mortgage', id: s.id });
     }
+    if (s.type === 'station' && Array.isArray(s.rent) && s.rent.some((r, i) => i > 0 && r <= s.rent[i - 1])) {
+      warnings.push({ code: 'stationRentOrder', id: s.id });
+    }
     if (s.type !== 'property') continue;
     if (!groupIds.has(s.group)) errors.push({ code: 'spaceGroup', id: s.id });
-    else if (Array.isArray(s.rent) && s.rent.some((r, i) => i > 0 && r <= s.rent[i - 1])) errors.push({ code: 'rentOrder', id: s.id });
+    else {
+      if (Array.isArray(s.rent) && s.rent.some((r, i) => i > 0 && r <= s.rent[i - 1])) errors.push({ code: 'rentOrder', id: s.id });
+      const maxPrice = maxPriceByGroup.get(s.group) ?? 0;
+      if (maxPrice > 0 && s.housePrice > maxPrice) warnings.push({ code: 'houseCost', id: s.id, n: s.housePrice });
+    }
+  }
+  for (const { name, count } of seenNames.values()) {
+    if (count > 1) warnings.push({ code: 'nameDup', id: name, n: count });
   }
   for (const g of groups) {
     const n = all.filter((s) => s.type === 'property' && s.group === g.id).length;
@@ -186,7 +216,7 @@ export function validateBoard(raw: unknown, cards: CardsData): BoardCheck {
   for (const role of cardRoles(cards)) {
     if (!idSet.has(targetSpace(data, role))) errors.push({ code: 'target', id: role });
   }
-  return errors.length ? { ok: false, errors } : { ok: true, data };
+  return errors.length ? { ok: false, errors, ...(warnings.length ? { warnings } : {}) } : { ok: true, data, warnings };
 }
 
 // I ruoli (o gli id) delle caselle dove mandano le carte "vai a", anche dentro le carte con scelta.
