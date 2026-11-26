@@ -1,7 +1,7 @@
 // Giocatore controllato dal computer: sceglie sempre un'azione valida in base allo stato.
 // Il livello (facile, normale, difficile) e il carattere (costruttore, collezionista…) cambiano
 // alcune manopole: riserva di soldi, voglia di comprare e costruire, offerte e scambi.
-import { actingPlayer, computeRent, groupHasBuildings, interestOn, landmarkPrice, ownsWholeGroup, sameTeam, sharePrice, sharesOf, targetSpace, unmortgageCost, HOTEL, MAX_COUNTERS, MIN_BID, type Action } from './rules';
+import { actingPlayer, computeRent, groupHasBuildings, interestOn, landmarkPrice, ownsWholeGroup, sameTeam, sharePrice, sharesOf, targetSpace, tradeCompletions, unmortgageCost, HOTEL, MAX_COUNTERS, MIN_BID, type Action } from './rules';
 import type { BotLevel, BotProfile, BotStyle, GameContext, GameState, Player, TradeSide } from './state';
 import { JAIL_FINE, SHARES_PER_GROUP, THEATRE_MIN_RENT, type LandmarkId } from './state';
 import type { PropertySpace, Space } from './types';
@@ -351,10 +351,43 @@ function chooseAuctionAction(state: GameState, ctx: GameContext, me: number): Ac
 function chooseTradeResponse(state: GameState, ctx: GameContext): Action {
   const t = state.trade!;
   const me = t.to;
-  const k = knobsOf(state.players[me]);
+  const player = state.players[me];
+  const k = knobsOf(player);
+  const isSmart = player.bot?.level !== 'facile';
   const interest = interestOn(state, ctx, t.give.spaces);
-  if (state.players[me].money - t.get.money + t.give.money < interest) return { type: 'rejectTrade' };
-  const received = t.give.money - interest + t.give.spaces.reduce((sum, id) => sum + valueFor(state, ctx, me, id, k), 0);
+  if (player.money - t.get.money + t.give.money < interest) return { type: 'rejectTrade' };
+
+  const completions = tradeCompletions(state, ctx, t);
+  const completedByMe = new Set(completions.filter((c) => c.player === me).map((c) => c.group));
+  const meCompletes = completedByMe.size > 0;
+  const otherCompletes = completions.some((c) => c.player === t.from);
+
+  const received =
+    t.give.money -
+    interest +
+    t.give.spaces.reduce((sum, id) => {
+      const space = spaceOf(ctx, id);
+      if (isSmart && space.type === 'property' && completedByMe.has(space.group)) {
+        const base = state.ownership[id]?.mortgaged ? space.price - space.mortgage : space.price;
+        return sum + base * 2.5;
+      }
+      return sum + valueFor(state, ctx, me, id, k);
+    }, 0);
+
+  const givenSpacesValue = t.get.spaces.reduce((sum, id) => {
+    const space = spaceOf(ctx, id);
+    return sum + ('price' in space ? space.price : 0);
+  }, 0);
+  const breaksMine = t.get.spaces.some(wouldCompleteMine);
+
+  // Scambio reciproco (entrambi completano un quartiere): le vie cedute erano bloccate dall'altro.
+  if (isSmart && meCompletes && otherCompletes && !breaksMine) {
+    const reciprocalLost = t.get.money + givenSpacesValue * 0.5;
+    const margin = sameTeam(state, me, t.from) ? k.acceptMargin * 0.6 : k.acceptMargin;
+    if (received >= reciprocalLost * margin && received > 0) return { type: 'acceptTrade' };
+    return { type: 'rejectTrade' };
+  }
+
   // cedere una casella che completa il quartiere dell'avversario costa molto di più
   const lost =
     t.get.money +
@@ -365,11 +398,15 @@ function chooseTradeResponse(state: GameState, ctx: GameContext): Action {
     }, 0);
   // con un compagno di squadra si guarda il bene comune: basta che lo scambio non sia rovinoso
   const margin = sameTeam(state, me, t.from) ? k.acceptMargin * 0.6 : k.acceptMargin;
-  if (received >= lost * margin && received > 0) return { type: 'acceptTrade' };
+  // Regola per normale e difficile: rifiuta uno scambio che fa completare un quartiere all'altro
+  // e non a sé, a meno che riceva almeno il 150% del valore delle vie date più 100.
+  const minForCompletion = isSmart && otherCompletes && !meCompletes ? t.get.money + Math.round(givenSpacesValue * 1.5) + 100 : 0;
+  const required = Math.max(lost * margin, sameTeam(state, me, t.from) ? minForCompletion * 0.6 : minForCompletion);
+  if (received >= required && received > 0) return { type: 'acceptTrade' };
   // offerta di soldi per le mie vie, non troppo lontana: chiedo quanto mi serve per accettare
   if (k.counters && (t.counters ?? 0) < MAX_COUNTERS && !t.give.spaces.length && t.get.spaces.length && !t.get.money && received >= lost * 0.6) {
-    const ask = Math.ceil((lost * k.acceptMargin + interest) / 10) * 10;
-    if (ask <= Math.max(state.players[t.from].money, 0)) {
+    const ask = Math.ceil((Math.max(lost * k.acceptMargin, minForCompletion) + interest) / 10) * 10;
+    if (ask + interestOn(state, ctx, t.get.spaces) <= Math.max(state.players[t.from].money, 0)) {
       return { type: 'counterTrade', offer: { give: { money: 0, spaces: [...t.get.spaces] }, get: { money: ask, spaces: [] } } };
     }
   }
@@ -382,11 +419,52 @@ function chooseTradeResponse(state: GameState, ctx: GameContext): Action {
   }
 }
 
-// Se manca una sola via per completare un quartiere, prova a comprarla da chi la possiede.
+// Se due giocatori si completerebbero un quartiere a vicenda propone lo scambio reciproco;
+// altrimenti, se manca una sola via per completare un quartiere, prova a comprarla.
 function tryProposeTrade(state: GameState, ctx: GameContext, k: Knobs): Action | null {
   if (!k.proposeTrades || state.tradeProposedThisTurn) return null;
   const me = state.current;
-  const money = state.players[me].money;
+  const player = state.players[me];
+  const money = player.money;
+  const isSmart = player.bot?.level !== 'facile';
+
+  if (isSmart) {
+    for (const gMine of ctx.board.groups) {
+      if (groupHasBuildings(state, ctx, gMine.id)) continue;
+      const myGroup = groupOf(ctx, gMine.id);
+      const myMissing = myGroup.filter((s) => state.ownership[s.id]?.owner !== me);
+      if (myMissing.length === 0 || myMissing.length >= myGroup.length) continue;
+      const other = state.ownership[myMissing[0].id]?.owner;
+      if (other === undefined || other === me || state.players[other].bankrupt) continue;
+      if (!myMissing.every((s) => state.ownership[s.id]?.owner === other)) continue;
+
+      for (const gTheirs of ctx.board.groups) {
+        if (gTheirs.id === gMine.id || groupHasBuildings(state, ctx, gTheirs.id)) continue;
+        const theirGroup = groupOf(ctx, gTheirs.id);
+        const theirMissing = theirGroup.filter((s) => state.ownership[s.id]?.owner !== other);
+        if (theirMissing.length === 0 || theirMissing.length >= theirGroup.length) continue;
+        if (!theirMissing.every((s) => state.ownership[s.id]?.owner === me)) continue;
+
+        const giveSpaces = theirMissing.map((s) => s.id);
+        const getSpaces = myMissing.map((s) => s.id);
+        const giveValue = theirMissing.reduce((sum, s) => sum + s.price, 0);
+        const getValue = myMissing.reduce((sum, s) => sum + s.price, 0);
+        // evita di proporre uno scambio reciproco troppo sbilanciato che verrebbe rifiutato a ogni turno
+        if (giveValue > getValue * 2.5 || getValue > giveValue * 2.5) continue;
+        if (interestOn(state, ctx, getSpaces) > money) continue;
+        if (interestOn(state, ctx, giveSpaces) > state.players[other].money) continue;
+        return {
+          type: 'proposeTrade',
+          offer: {
+            to: other,
+            give: { money: 0, spaces: giveSpaces },
+            get: { money: 0, spaces: getSpaces },
+          },
+        };
+      }
+    }
+  }
+
   for (const g of ctx.board.groups) {
     const group = groupOf(ctx, g.id);
     const missing = group.filter((s) => state.ownership[s.id]?.owner !== me);
@@ -395,9 +473,11 @@ function tryProposeTrade(state: GameState, ctx: GameContext, k: Knobs): Action |
     const own = state.ownership[target.id];
     if (!own || state.players[own.owner].bankrupt) continue;
     if (group.some((s) => (state.ownership[s.id]?.houses ?? 0) > 0)) continue;
-    const offer = Math.min(Math.round(target.price * k.offerMult), money - k.reserve);
+    const minOffer = Math.max(target.price * 2.3, isSmart ? Math.round(target.price * 1.5) + 100 : 0);
+    const desired = Math.max(Math.round(target.price * k.offerMult), Math.ceil(minOffer / 10) * 10);
+    const offer = Math.min(desired, money - k.reserve);
     // sotto questa cifra l'altro computer rifiuterebbe comunque
-    if (offer < target.price * 2.3) continue;
+    if (offer < minOffer) continue;
     const give: TradeSide = { money: offer, spaces: [] };
     return { type: 'proposeTrade', offer: { to: own.owner, give, get: { money: 0, spaces: [target.id] } } };
   }
