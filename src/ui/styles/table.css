@@ -241,3 +241,48 @@ body:has(.game) { background: #1d5a3a; background-image: var(--tbl-felt); backgr
   .game .space .name { font-weight: 600; }
   .game .space .price { display: none; }
 }
+
+/* ---------- computer: la partita a tutto schermo, i pannelli sopra ai lati ----------
+   Il tabellone (2D o 3D) occupa tutta la finestra; il turno e i comandi stanno a destra,
+   i giocatori a sinistra (sugli schermi medi tutto a destra), la barra degli strumenti in basso al centro. */
+@media (min-width: 901px) {
+  .game { display: block; max-width: none; margin: 0; padding: 0; min-height: 100vh; min-height: 100dvh; --panel-w: 340px; --gap: 14px; }
+  .game .stage, .game2d .stage, .game3d .stage {
+    position: fixed; inset: 0; height: 100vh; height: 100dvh; border-radius: 0; border: none; box-shadow: none;
+  }
+  /* nel 2D il tabellone sta nello spazio libero tra i pannelli */
+  .game2d .stage { padding: 18px calc(var(--panel-w) + var(--gap) * 2) 18px var(--gap); }
+  .game .side {
+    position: fixed; z-index: 10; top: var(--gap); right: var(--gap); bottom: var(--gap); width: var(--panel-w);
+    overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 2px 4px 8px; gap: 12px;
+  }
+  .game .side > .saved, .game .side > .link, .game .side .report-link, .game .slots-box > summary { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+  .game3d .side > .saved, .game3d .side > .link, .game3d .side .report-link, .game3d .slots-box {
+    background: rgba(15, 40, 27, 0.72); border-radius: 10px; padding: 4px 10px; align-self: stretch; text-align: center;
+  }
+  /* strumenti della vista: in basso al centro, sopra la partita */
+  .game .view-buttons.overlay, .game2d .view-buttons.overlay {
+    top: auto; right: auto; bottom: calc(var(--gap) + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 9;
+  }
+  .game2d .view-buttons.overlay { left: calc((100vw - var(--panel-w) - var(--gap)) / 2); }
+  .game .view-buttons.overlay .lbl { display: none; }
+  .game .view-buttons.overlay button { min-width: 44px; font-size: 1.05rem; }
+  .game .space-card { bottom: 84px; max-height: calc(100% - 110px); }
+  .game3d .space-card { left: calc((100vw - var(--panel-w)) / 2); }
+  .game .view3d-reset { right: calc(var(--panel-w) + var(--gap) * 2); }
+  .game2d .board { width: calc(min(100cqw, 100cqh) - 12px); height: calc(min(100cqw, 100cqh) - 12px); }
+}
+/* schermi larghi: i giocatori nel pannello di sinistra */
+@media (min-width: 1280px) {
+  .game { --left-w: 310px; }
+  .game .players-list .money { font-size: 1.15em; white-space: nowrap; }
+  .game .players-list .player-head strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .game .players-list .badge { white-space: nowrap; }
+  .game .players-list {
+    position: fixed; z-index: 10; top: var(--gap); left: var(--gap); width: var(--left-w); max-height: calc(100vh - var(--gap) * 2);
+    overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 2px 4px 10px;
+  }
+  .game2d .stage { padding-left: calc(var(--left-w) + var(--gap) * 2); }
+  .game2d .view-buttons.overlay { left: calc(var(--left-w) + var(--gap) + (100vw - var(--panel-w) - var(--left-w) - var(--gap) * 2) / 2); }
+  .game3d .space-card { left: 50%; }
+}
