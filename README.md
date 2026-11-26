@@ -15,7 +15,7 @@ Gioco da tavolo digitale ispirato ai giochi di compravendita immobiliare. Nome, 
 - `src/data/` — caselle, proprietà, carte (JSON)
 - `tests/` — test del motore
 
-Stato e decisioni: vedi [`STATO.md`](STATO.md).
+Stato e decisioni: vedi [`STATO.md`](STATO.md). Compiti pronti da far fare a un'altra IA, con la guida per integrarli: [`docs/compiti-ia.md`](docs/compiti-ia.md).
 
 ## Crediti
 - Personaggi 3D: [KayKit Adventurers](https://kaylousberg.com) di Kay Lousberg, licenza CC0 (vedi `public/characters/LICENSE-KayKit.txt`).
