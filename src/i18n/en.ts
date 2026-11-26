@@ -457,6 +457,8 @@ export const en: Record<MsgKey, string> = {
   'boardText.citta': '40 spaces, 8 neighbourhoods: the full game.',
   'board.valle': 'Narrow Valley',
   'boardText.valle': '28 spaces, 6 neighbourhoods: laps come round faster and the game ends sooner.',
+  'board.isola': 'Island of Winds',
+  'boardText.isola': '32 spaces, 7 neighbourhoods: a medium lap past the harbour, vineyards and lighthouse.',
   'setup.quickNote': 'With two players the quick game is on ({n} properties each): it takes about half as long. Change it in the house rules.',
   'setup.start': 'Start the game',
   'setup.durationCustom': 'Length: depends on the rules you choose.',

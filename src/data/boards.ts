@@ -6,6 +6,8 @@ import cittaJson from './board.json';
 import cittaEn from './board.en.json';
 import valleJson from './board.valle.json';
 import valleEn from './board.valle.en.json';
+import isolaJson from './board.isola.json';
+import isolaEn from './board.isola.en.json';
 
 export interface BoardChoice {
   id: string;
@@ -19,6 +21,7 @@ export interface BoardChoice {
 export const BOARDS: BoardChoice[] = [
   { id: 'citta', data: cittaJson as BoardData, names: cittaEn as Record<string, string> },
   { id: 'valle', data: valleJson as BoardData, names: valleEn as Record<string, string> },
+  { id: 'isola', data: isolaJson as BoardData, names: isolaEn as Record<string, string> },
 ];
 
 export const DEFAULT_BOARD = BOARDS[0].id;

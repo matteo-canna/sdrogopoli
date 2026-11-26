@@ -3,15 +3,16 @@
 Si sceglie prima di iniziare, nella schermata iniziale. Il tabellone scelto resta per la prossima
 partita e finisce nel salvataggio, così una partita ripresa torna sul suo.
 
-| | Città sul Lago (`citta`) | Valle Stretta (`valle`) |
-| --- | --- | --- |
-| caselle | 40 (10 per lato) | 28 (7 per lato) |
-| quartieri | 8 | 6 |
-| vie in vendita | 22 | 15 |
-| fermate / servizi | 4 / 2 | 2 / 1 |
-| giri per finire (4 computer) | 48 (mediana) | 28 (mediana) |
+| | Città sul Lago (`citta`) | Isola dei Venti (`isola`) | Valle Stretta (`valle`) |
+| --- | --- | --- | --- |
+| caselle | 40 (10 per lato) | 32 (8 per lato) | 28 (7 per lato) |
+| quartieri | 8 | 7 | 6 |
+| vie in vendita | 22 | 18 | 15 |
+| fermate / servizi | 4 / 2 | 3 / 1 | 2 / 1 |
+| giri per finire (4 computer) | 48 (mediana) | 33 (mediana) | 28 (mediana) |
 
-I rapporti di equilibrio li scrivono `npm run simula` (`docs/bilanciamento.md`) e
+I rapporti di equilibrio li scrivono `npm run simula` (`docs/bilanciamento.md`),
+`npm run simula -- 300 4 docs/bilanciamento-isola.md isola` (`docs/bilanciamento-isola.md`) e
 `npm run simula:valle` (`docs/bilanciamento-valle.md`).
 
 Online si gioca sempre sul tabellone predefinito, così chi crea il tavolo e chi entra vedono le

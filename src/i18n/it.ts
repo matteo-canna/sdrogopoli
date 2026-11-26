@@ -450,6 +450,8 @@ export const it = {
   'boardText.citta': '40 caselle, 8 quartieri: la partita completa.',
   'board.valle': 'Valle Stretta',
   'boardText.valle': '28 caselle, 6 quartieri: si gira più in fretta e la partita finisce prima.',
+  'board.isola': 'Isola dei Venti',
+  'boardText.isola': '32 caselle, 7 quartieri: un giro intermedio tra il porto, i vigneti e il faro.',
   'setup.quickNote': 'In due è attiva la partita rapida ({n} proprietà a testa): dura circa la metà. Si cambia nelle regole della casa.',
   'setup.start': 'Inizia la partita',
   'setup.durationCustom': 'Durata: dipende dalle regole scelte.',
