@@ -23,7 +23,9 @@ import { soundFor } from './sounds';
 import { refreshBoards, renderSetup, setupLooks, SEATS_SHOWN, type SetupChoice } from './setup';
 import { decodeBoard, linkCode as linkBoardCode, loadCustomBoards, saveCustomBoard } from './boardStore';
 import { setupOffline } from './pwa';
+import { DESKTOP, setupDesktopLinks } from './platform';
 import { reportUrl } from './report';
+import { logToText } from './logText';
 import { defaultSlotName, deleteSlot, downloadSave, FILE_EXT, listSlots, parseSaveText, saveSlot } from './slots';
 import { cleanCode, codeFromHash, openTransport, renderLobby, tableCode, updateLobby, type LobbyView } from './online';
 import { HostRoom, type HostSnapshot } from '../net/host';
@@ -35,7 +37,7 @@ import { animateMoney, bigMoments, momentText, moneyChanges, moneyNotices, showM
 import { shareResult } from './share';
 import { dailyResult } from './daily';
 import { Replay, REPLAY_SPEEDS, type ReplaySpeed } from './replay';
-import { t, text, type MsgKey } from '../i18n';
+import { getLang, t, text, type MsgKey } from '../i18n';
 import { applySettings, LANG_EVENT, loadSettings, openSettings } from './settings';
 
 // senza "rng": i dadi vengono dal generatore della partita, che parte da un seme casuale.
@@ -443,7 +445,8 @@ function showSetup(): void {
       openFile(file);
       return true;
     },
-  }, {
+  }, DESKTOP ? undefined : {
+    // nella versione per Mac non c'è il gioco online
     onCreate: () => void enterTable('host', tableCode()),
     onJoin: (raw) => {
       const code = cleanCode(raw);
@@ -571,6 +574,7 @@ function infoHtml(s: GameState): string {
     ${news.length ? `<div class="news"><h4>${t('news.title')}</h4><ul>${news.map((l) => `<li>${escapeHtml(text(l))}</li>`).join('')}</ul></div>` : ''}
     ${selected ? '' : `<p class="hint">${t('hint.tapSpace')}</p>`}
     <details class="log-box"><summary>${t('log.title')}</summary>
+      <div class="log-tools"><button type="button" data-action="copyLog">📋 ${t('log.copy')}</button></div>
       <ol class="log">${s.log.slice().reverse().map((l) => `<li>${escapeHtml(text(l))}</li>`).join('')}</ol>
     </details>`;
 }
@@ -1068,6 +1072,27 @@ app.addEventListener('click', (e) => {
       if (online) return;
       startGame(rematchSetup(state, lastSetup ?? { boardId: currentBoard(), rules: state.rules, tipsOn: tutorial.on }, ctx));
       return;
+    case 'copyLog': {
+      const content = logToText(state, getLang());
+      const download = () => {
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'registro.txt';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        showNotices([{ k: 'log.downloaded' }]);
+      };
+      if (navigator.clipboard?.writeText) {
+        void navigator.clipboard.writeText(content).then(
+          () => showNotices([{ k: 'log.copied' }]),
+          () => download(),
+        );
+      } else {
+        download();
+      }
+      return;
+    }
     case 'settings':
       openSettings((next) => {
         audio.setVolumes(next.sfxVolume, next.musicVolume);
@@ -1274,7 +1299,9 @@ document.addEventListener('keydown', (e) => {
   render();
 });
 
-setupOffline();
+// nella versione per Mac i file sono già sul computer: niente service worker
+if (!DESKTOP) setupOffline();
+setupDesktopLinks();
 
 // lingua cambiata nelle impostazioni: si ridisegna tutto (il 3D rifà le scritte delle caselle)
 window.addEventListener(LANG_EVENT, () => {
@@ -1298,8 +1325,9 @@ if (boardLink) {
 }
 
 // link di un tavolo (#tavolo=CODICE): si entra subito
-const linkCode = codeFromHash(location.hash);
-const savedTable = readSession(HOST_TABLE);
+// (nella versione per Mac non c'è il gioco online)
+const linkCode = DESKTOP ? null : codeFromHash(location.hash);
+const savedTable = DESKTOP ? null : readSession(HOST_TABLE);
 if (linkCode) void enterTable('guest', linkCode);
 else if (savedTable) {
   // la pagina di chi ha creato il tavolo si è ricaricata: si riapre lo stesso tavolo
@@ -1311,7 +1339,7 @@ else if (savedTable) {
   }
 }
 window.addEventListener('hashchange', () => {
-  const code = codeFromHash(location.hash);
+  const code = DESKTOP ? null : codeFromHash(location.hash);
   if (code && code !== online?.code) {
     if (online) leaveTable();
     void enterTable('guest', code);
