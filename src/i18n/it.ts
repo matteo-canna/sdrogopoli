@@ -648,6 +648,7 @@ export const it = {
   'summary.rounds.one': '1 giro',
   'summary.rounds.other': '{n} giri',
   'summary.awards': 'Premi',
+  'summary.rematch': '🔁 Rivincita',
   'leader.title': 'Classifica tra amici',
   'leader.name': 'Nome',
   'leader.wins': 'Vittorie',

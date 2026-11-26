@@ -659,6 +659,7 @@ export const en: Record<MsgKey, string> = {
   'summary.rounds.one': '1 round',
   'summary.rounds.other': '{n} rounds',
   'summary.awards': 'Awards',
+  'summary.rematch': '🔁 Rematch',
   'leader.title': 'Friends leaderboard',
   'leader.name': 'Name',
   'leader.wins': 'Wins',
