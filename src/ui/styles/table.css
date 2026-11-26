@@ -269,7 +269,7 @@ body:has(.game) { background: #1d5a3a; background-image: var(--tbl-felt); backgr
   .game .view-buttons.overlay button { min-width: 44px; font-size: 1.05rem; }
   .game .space-card { bottom: 84px; max-height: calc(100% - 110px); }
   .game3d .space-card { left: calc((100vw - var(--panel-w)) / 2); }
-  .game .view3d-reset { right: calc(var(--panel-w) + var(--gap) * 2); }
+  .game .view3d-reset { right: calc(var(--panel-w) + var(--gap) * 2); bottom: calc(var(--gap) + 72px + env(safe-area-inset-bottom)); }
   .game2d .board { width: calc(min(100cqw, 100cqh) - 12px); height: calc(min(100cqw, 100cqh) - 12px); }
 }
 /* schermi larghi: i giocatori nel pannello di sinistra */
