@@ -334,16 +334,57 @@ function valueFor(state: GameState, ctx: GameContext, playerId: number, spaceId:
   return base;
 }
 
+// Stima quanto vale una casella all'asta per un giocatore (usata dal livello difficile):
+// prezzo base, più un premio se completa il quartiere o gli manca una sola via, più un premio
+// di blocco se un avversario completerebbe il quartiere, meno una penalità se dopo l'acquisto
+// gli resterebbero meno di 150 contanti.
+export function auctionValue(state: GameState, ctx: GameContext, playerId: number, spaceId: string): number {
+  const space = spaceOf(ctx, spaceId);
+  if (!space || !('price' in space)) return 0;
+  const player = state.players[playerId];
+  if (!player) return 0;
+  const k = knobsOf(player);
+  let value = space.price + (space.type !== 'property' ? Math.round(space.price * (k.stationBonus / 2)) : 0);
+  const completes = wouldComplete(state, ctx, playerId, spaceId);
+  if (completes) {
+    value += Math.round(space.price * 0.9);
+  } else if (space.type === 'property') {
+    const group = groupOf(ctx, space.group);
+    const ownedByMe = group.filter((g) => g.id !== spaceId && state.ownership[g.id]?.owner === playerId).length;
+    // comprandola gli manca una sola via per completare il quartiere
+    if (ownedByMe > 0 && group.length - (ownedByMe + 1) === 1) {
+      value += Math.round(space.price * 0.35);
+    }
+  }
+  const blocks = state.players.some(
+    (p) => p.id !== playerId && !p.bankrupt && !sameTeam(state, playerId, p.id) && wouldComplete(state, ctx, p.id, spaceId),
+  );
+  if (blocks) {
+    value += Math.round(space.price * 0.65);
+  }
+  const cashAfter = player.money - space.price;
+  if (cashAfter < RESERVE) {
+    value -= RESERVE - cashAfter;
+  }
+  return Math.max(0, value);
+}
+
 function chooseAuctionAction(state: GameState, ctx: GameContext, me: number): Action {
   const a = state.auction!;
-  const k = knobsOf(state.players[me]);
-  const money = state.players[me].money;
+  const player = state.players[me];
+  const k = knobsOf(player);
+  const money = player.money;
   const completes = wouldComplete(state, ctx, me, a.spaceId);
-  const blocks = state.players.some((p) => p.id !== me && !p.bankrupt && wouldComplete(state, ctx, p.id, a.spaceId));
-  const space = spaceOf(ctx, a.spaceId);
-  const price = 'price' in space ? space.price : 0;
-  const worth = price * (completes ? k.auction.completes : blocks ? k.auction.blocks : k.auction.base + (space.type !== 'property' ? k.stationBonus / 2 : 0));
-  const limit = Math.min(worth, money - (completes ? 20 : k.reserve / 2));
+  let limit: number;
+  if (player.bot?.level === 'difficile') {
+    limit = Math.min(auctionValue(state, ctx, me, a.spaceId), money - (completes ? 20 : k.reserve / 2));
+  } else {
+    const blocks = state.players.some((p) => p.id !== me && !p.bankrupt && wouldComplete(state, ctx, p.id, a.spaceId));
+    const space = spaceOf(ctx, a.spaceId);
+    const price = 'price' in space ? space.price : 0;
+    const worth = price * (completes ? k.auction.completes : blocks ? k.auction.blocks : k.auction.base + (space.type !== 'property' ? k.stationBonus / 2 : 0));
+    limit = Math.min(worth, money - (completes ? 20 : k.reserve / 2));
+  }
   const next = Math.max(MIN_BID, a.highestBid + 10);
   return next <= limit && a.highestBidder !== me ? { type: 'bid', amount: next } : { type: 'pass' };
 }
@@ -369,7 +410,7 @@ function chooseTradeResponse(state: GameState, ctx: GameContext): Action {
   // offerta di soldi per le mie vie, non troppo lontana: chiedo quanto mi serve per accettare
   if (k.counters && (t.counters ?? 0) < MAX_COUNTERS && !t.give.spaces.length && t.get.spaces.length && !t.get.money && received >= lost * 0.6) {
     const ask = Math.ceil((lost * k.acceptMargin + interest) / 10) * 10;
-    if (ask <= Math.max(state.players[t.from].money, 0)) {
+    if (ask + interestOn(state, ctx, t.get.spaces) <= Math.max(state.players[t.from].money, 0)) {
       return { type: 'counterTrade', offer: { give: { money: 0, spaces: [...t.get.spaces] }, get: { money: ask, spaces: [] } } };
     }
   }
