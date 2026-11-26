@@ -1,7 +1,23 @@
 // Suoni e musica generati al momento con la Web Audio API: nessun file audio,
 // tutto originale e gratuito. Il browser permette l'audio solo dopo un tocco dell'utente.
 
-type Sfx = 'dice' | 'hop' | 'coin' | 'pay' | 'buy' | 'card' | 'jail' | 'gavel' | 'win' | 'error' | 'click';
+type Sfx =
+  | 'dice'
+  | 'hop'
+  | 'coin'
+  | 'pay'
+  | 'buy'
+  | 'card'
+  | 'jail'
+  | 'gavel'
+  | 'win'
+  | 'error'
+  | 'click'
+  | 'event'
+  | 'wheel'
+  | 'share'
+  | 'landmark'
+  | 'goal';
 
 const PREF_SFX = 'sdrogopoli-effetti';
 const PREF_MUSIC = 'sdrogopoli-musica';
@@ -178,6 +194,31 @@ class AudioEngine {
         break;
       case 'click':
         this.tone(880, t, 0.04, 'sine', 0.08);
+        break;
+      case 'event':
+        // evento di quartiere: campanella squillante (< 1 s)
+        this.tone(1319, t, 0.45, 'sine', 0.2);
+        this.tone(2637, t, 0.3, 'sine', 0.08);
+        this.tone(1568, t + 0.14, 0.5, 'sine', 0.18);
+        break;
+      case 'wheel':
+        // Ruota del Mercato: giro con "tic" che rallentano (< 1 s)
+        for (let i = 0, at = 0; i < 8; i++, at += 0.035 + i * 0.018) {
+          this.tone(900 + (i % 2) * 180, t + at, 0.03, 'triangle', 0.16, 520);
+        }
+        break;
+      case 'share':
+        // quota comprata: moneta piccola e leggera (< 1 s)
+        this.tone(1397, t, 0.07, 'sine', 0.14);
+        this.tone(1760, t + 0.06, 0.18, 'triangle', 0.13);
+        break;
+      case 'landmark':
+        // edificio speciale: accordo ascendente (< 1 s)
+        [440, 554, 659, 880, 1109].forEach((f, i) => this.tone(f, t + i * 0.075, 0.34, 'triangle', 0.16));
+        break;
+      case 'goal':
+        // traguardo sbloccato: fanfara corta (< 1 s)
+        [587, 740, 880, 1175].forEach((f, i) => this.tone(f, t + i * 0.09, i === 3 ? 0.45 : 0.12, 'triangle', 0.2));
         break;
     }
   }
