@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permessi della finestra del gioco: solo aprire i link esterni nel browser.",
+  "windows": ["main"],
+  "permissions": ["core:default", "opener:default"]
+}
