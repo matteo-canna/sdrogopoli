@@ -429,6 +429,7 @@ export const it = {
   'setup.join': 'Entra',
   'setup.badCode': 'Il codice ha 6 caratteri, lettere e numeri. Controllalo e riprova.',
   'setup.tagline': 'Compra le vie della città, costruisci case e manda in rovina gli amici. Da {min} a {max} giocatori sullo stesso dispositivo, oppure online.',
+  'setup.taglineDesktop': 'Compra le vie della città, costruisci case e manda in rovina gli amici. Da {min} a {max} giocatori su questo computer.',
   'setup.resumeTitle': 'Partita in corso',
   'setup.continue': 'Continua la partita',
   'setup.savedGame': 'Partita salvata',

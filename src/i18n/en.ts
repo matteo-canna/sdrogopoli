@@ -436,6 +436,7 @@ export const en: Record<MsgKey, string> = {
   'setup.join': 'Join',
   'setup.badCode': 'The code has 6 characters, letters and numbers. Check it and try again.',
   'setup.tagline': 'Buy the streets of the city, build houses and bankrupt your friends. {min} to {max} players on the same device, or online.',
+  'setup.taglineDesktop': 'Buy the streets of the city, build houses and bankrupt your friends. {min} to {max} players on this computer.',
   'setup.resumeTitle': 'Game in progress',
   'setup.continue': 'Continue the game',
   'setup.savedGame': 'Saved game',
