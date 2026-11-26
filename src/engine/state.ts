@@ -24,6 +24,17 @@ export interface Player {
   bot?: BotProfile;
   // squadra (solo con la regola "squadre"): 0 o 1, i compagni vincono e perdono insieme
   team?: number;
+  // prestito attivo con la banca (solo con la regola "loans"): uno alla volta per giocatore
+  loan?: Loan | null;
+}
+
+export interface Loan {
+  // somma ricevuta in prestito (100, 200 o 300)
+  amount: number;
+  // somma totale da restituire (importo + 10% arrotondato a 10)
+  due: number;
+  // giro entro cui va restituito (takenRound + LOAN_ROUNDS)
+  dueRound: number;
 }
 
 export type BotLevel = 'facile' | 'normale' | 'difficile';
@@ -87,6 +98,21 @@ export interface GameRules {
   // edifici speciali: chi ha un quartiere completo ci costruisce un edificio con un effetto suo
   // (regola facoltativa)
   landmarks?: boolean;
+  // prestiti dalla banca: un giocatore può chiedere un prestito (100, 200 o 300) da restituire
+  // col 10% in più entro LOAN_ROUNDS giri (regola facoltativa)
+  loans?: boolean;
+}
+
+// ---------- prestiti dalla banca (regola facoltativa) ----------
+
+export const LOAN_AMOUNTS = [100, 200, 300] as const;
+export type LoanAmount = (typeof LOAN_AMOUNTS)[number];
+export const LOAN_INTEREST = 0.1;
+export const LOAN_ROUNDS = 5;
+
+// Calcola l'importo totale da restituire per un prestito: importo + 10%, arrotondato a 10.
+export function loanRepayment(amount: number): number {
+  return Math.round((amount * (1 + LOAN_INTEREST)) / 10) * 10;
 }
 
 // ---------- quote di quartiere ed edifici speciali (regole facoltative) ----------

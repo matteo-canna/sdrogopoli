@@ -30,7 +30,12 @@ export function migrateState(raw: GameState, ctx: GameContext, seed: number): Ga
   const s = structuredClone(raw);
   s.auction ??= null;
   s.trade ??= null;
-  s.rules ??= defaultRules(ctx.board);
+  s.rules = { ...defaultRules(ctx.board), ...s.rules };
+  for (const p of s.players) {
+    if (p.loan !== undefined && p.loan !== null) {
+      p.loan = { amount: p.loan.amount, due: p.loan.due, dueRound: p.loan.dueRound };
+    }
+  }
   s.round ??= 1;
   s.pot ??= 0;
   s.tradeProposedThisTurn ??= false;
