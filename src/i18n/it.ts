@@ -851,6 +851,7 @@ export const it = {
   'editor.spaceN': 'Casella {n}',
   'editor.ok': '✅ Il tabellone è valido.',
   'editor.errors': 'Da sistemare prima di salvarlo:',
+  'editor.warnings': 'Avvisi (il tabellone si può comunque usare):',
   'editor.save': 'Salva e scegli',
   'editor.saved': 'Tabellone salvato: «{name}». È scelto per la prossima partita.',
   'editor.export': 'Esporta file',
@@ -892,6 +893,10 @@ export const it = {
   'boardErr.stations': 'Le fermate sono {n}: al massimo 4.',
   'boardErr.utilities': 'I servizi sono {n}: al massimo 2.',
   'boardErr.target': 'Le carte che mandano su «{id}» non trovano la loro casella.',
+  'boardErr.stationRentOrder': 'Gli affitti della fermata {id} dovrebbero crescere col numero di fermate.',
+  'boardErr.houseCost': 'Sulla casella {id} una casa costa {n}, più della via più cara del quartiere.',
+  'boardErr.nameDup': 'Il nome «{id}» compare su {n} caselle.',
+  'boardErr.longName': 'Il nome della casella {id} ha {n} caratteri (oltre 28 potrebbe tagliarsi sul cartellino).',
 
   // ---- quote di quartiere ed edifici speciali ----
   'rules.shares': 'Quote di quartiere: {n} quote per quartiere, ognuna rende il {pct}% degli affitti pagati lì',
