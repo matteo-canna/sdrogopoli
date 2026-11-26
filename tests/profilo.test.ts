@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { emptyProfile } from '../src/ui/achievements';
+import { emptyProfile, MAX_PROFILE_HISTORY, updateProfile } from '../src/ui/achievements';
 import { emptyProgress, parseProgress, type Progress } from '../src/ui/prefs';
-import { mergeProgress, parseProfileFile, profileFile, profileRows } from '../src/ui/profile';
+import { mergeProgress, parseProfileFile, profileFile, profileRows, renderProfileHistory } from '../src/ui/profile';
+import { emptyStats } from '../src/engine';
+import { ctxWith, newGame } from './helpers';
 
 const money = (n: number) => `Ş ${n}`;
 
@@ -44,5 +46,69 @@ describe('profilo', () => {
     expect(rows.some((r) => r.value === 'Ş 3000')).toBe(true);
     // nessuna partita: niente divisione per zero
     expect(profileRows(emptyProfile(), money).find((r) => r.value.includes('%'))!.value).toBe('0 (0%)');
+  });
+
+  it('aggiunge una voce allo storico a fine partita e la mostra in cima', () => {
+    const s = newGame(['Anna', 'Computer']);
+    s.players[1].isBot = true;
+    s.winner = 0;
+    s.round = 18;
+    const p = updateProfile(emptyProfile(), { state: s, ctx: ctxWith(), seat: 0, stats: emptyStats(), online: false }, 'rapida', '2026-11-26T10:00:00.000Z');
+    expect(p.history).toEqual([
+      {
+        date: '2026-11-26T10:00:00.000Z',
+        board: 'citta',
+        preset: 'rapida',
+        players: [
+          { name: 'Anna', bot: false },
+          { name: 'Computer', bot: true },
+        ],
+        winner: 'Anna',
+        rounds: 18,
+      },
+    ]);
+    const html = renderProfileHistory(p);
+    expect(html).toContain('Città sul Lago');
+    expect(html).toContain('Rapida');
+    expect(html).toContain('Anna');
+    expect(html).toContain('18 giri');
+  });
+
+  it('tiene al massimo 20 partite nello storico, con la più recente in alto', () => {
+    const s = newGame(['Anna', 'Bruno']);
+    s.winner = 0;
+    let p = emptyProfile();
+    for (let i = 1; i <= 25; i++) {
+      s.round = i;
+      p = updateProfile(p, { state: s, ctx: ctxWith(), seat: 0, stats: emptyStats(), online: false }, 'classica', `2026-11-${String(i).padStart(2, '0')}T12:00:00.000Z`);
+    }
+    expect(p.history).toHaveLength(MAX_PROFILE_HISTORY);
+    expect(p.history![0].rounds).toBe(25);
+    expect(p.history![MAX_PROFILE_HISTORY - 1].rounds).toBe(6);
+  });
+
+  it('importa senza errori un profilo vecchio senza history e conserva history quando presente', () => {
+    const oldRaw = JSON.stringify({
+      kind: 'sdrogopoli-profilo',
+      version: 1,
+      progress: {
+        profile: { games: 5, wins: 2, bestWorth: 4200, rentReceived: 800, built: 12, trades: 3, cleanGames: 2, winsByPreset: { classica: 2 }, onlineWins: 0 },
+        unlocked: ['prima-partita', 'prima-vittoria'],
+        title: 'prima-vittoria',
+      },
+    });
+    const importedOld = parseProfileFile(oldRaw, parseProgress);
+    expect(importedOld).not.toBeNull();
+    expect(importedOld!.profile.games).toBe(5);
+    expect(importedOld!.profile.history).toBeUndefined();
+    expect(renderProfileHistory(importedOld!.profile)).toContain('Nessuna partita');
+
+    const withHistory = progress({
+      games: 1,
+      wins: 1,
+      history: [{ date: '2026-11-26T10:00:00.000Z', board: 'valle', preset: 'sprint', players: [{ name: 'Anna', bot: false }], winner: 'Anna', rounds: 14 }],
+    });
+    const parsedWithHistory = parseProfileFile(JSON.stringify(profileFile(withHistory)), parseProgress);
+    expect(parsedWithHistory).toEqual(withHistory);
   });
 });
