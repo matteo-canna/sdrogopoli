@@ -131,11 +131,11 @@ export function renderBoard(state: GameState, selected: string | null): string {
       .join('');
     const owner = own ? playerBadge(state, own.owner, 'owner') : '';
     const ownColor = own ? playerColor(state.players[own.owner]) : '';
-    const price = 'price' in space && !own && !here.length ? `<span class="price">${space.price}</span>` : '';
+    const price = 'price' in space && !own && !here.length ? `<span class="price">${board.currency.symbol} ${space.price}</span>` : '';
     const icon = ICONS[space.type] ? `<span class="icon">${ICONS[space.type]}</span>` : '';
     const label = spaceLabel(state, i);
     return `
-      <button class="space ${side(i)} ${own ? 'owned' : ''} ${selected === space.id ? 'selected' : ''} ${own?.mortgaged ? 'mortgaged' : ''}"
+      <button class="space ${side(i)} t-${space.type} ${own ? 'owned' : ''} ${selected === space.id ? 'selected' : ''} ${own?.mortgaged ? 'mortgaged' : ''}"
         style="grid-row:${row};grid-column:${col}${own ? `;--own:${ownColor}` : ''}" data-space="${space.id}" tabindex="${space.id === stop ? 0 : -1}" aria-label="${escapeHtml(label)}">
         ${color ? `<span class="band" style="background:${color}">${housePips(own?.houses ?? 0)}${space.type === 'property' && state.landmarks?.[space.group] ? `<span class="lm" title="${t(`landmarkName.${state.landmarks[space.group].id}` as MsgKey)}">${LANDMARK_ICONS[state.landmarks[space.group].id]}</span>` : ''}</span>` : ''}
         ${owner}
@@ -391,9 +391,16 @@ export function renderTurnActions(state: GameState): string {
 }
 
 const DIE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+// Puntini di ogni faccia nella griglia 3×3 del dado (1 = in alto a sinistra, 9 = in basso a destra).
+const PIPS: number[][] = [[], [5], [1, 9], [1, 5, 9], [1, 3, 7, 9], [1, 3, 5, 7, 9], [1, 3, 4, 6, 7, 9]];
+function die(v: number): string {
+  return `<span class="die" data-v="${v}" aria-hidden="true">${PIPS[v].map((n) => `<i class="pip p${n}"></i>`).join('')}</span>`;
+}
+// Due dadi veri disegnati con il CSS; il lettore di schermo legge i simboli dei dadi.
 export function renderDice(state: GameState): string {
   if (!state.lastRoll) return '';
-  return `<span class="dice">${DIE[state.lastRoll[0]]}${DIE[state.lastRoll[1]]}</span>`;
+  const [a, b] = state.lastRoll;
+  return `<span class="dice">${die(a)}${die(b)}<span class="sr-only">${DIE[a]}${DIE[b]}</span></span>`;
 }
 
 function spaceNames(ids: string[]): string {
