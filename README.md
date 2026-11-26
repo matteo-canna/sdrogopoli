@@ -16,6 +16,7 @@ Gioco da tavolo digitale ispirato ai giochi di compravendita immobiliare. Nome, 
 - `tests/` — test del motore
 
 Stato e decisioni: vedi [`STATO.md`](STATO.md).
+Regolamento completo per i giocatori: vedi [`docs/regolamento.md`](docs/regolamento.md).
 
 ## Crediti
 - Personaggi 3D: [KayKit Adventurers](https://kaylousberg.com) di Kay Lousberg, licenza CC0 (vedi `public/characters/LICENSE-KayKit.txt`).
