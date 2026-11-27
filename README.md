@@ -17,6 +17,8 @@ Gioco da tavolo digitale ispirato ai giochi di compravendita immobiliare. Nome, 
 
 Stato e decisioni: vedi [`STATO.md`](STATO.md).
 Regolamento completo per i giocatori: vedi [`docs/regolamento.md`](docs/regolamento.md).
+
+App per Mac da installare (senza gioco online): vedi [`docs/app-mac.md`](docs/app-mac.md).
 Stato e decisioni: vedi [`STATO.md`](STATO.md). Compiti pronti da far fare a un'altra IA, con la guida per integrarli: [`docs/compiti-ia.md`](docs/compiti-ia.md).
 
 ## Crediti
