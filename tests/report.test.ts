@@ -13,6 +13,6 @@ describe('Segnala un problema', () => {
     const body = url.searchParams.get('body')!;
     expect(body).toContain('TestBrowser/1.0');
     expect(body).toContain('390×844, vista 2d');
-    expect(body).toContain('> Ada compra Vicolo dei Gatti Neri.');
+    expect(body).toContain('> Giro 1 · Ada · Ada compra Vicolo dei Gatti Neri.');
   });
 });
