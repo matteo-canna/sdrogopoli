@@ -1,12 +1,73 @@
 // Partita in corso: stato attuale, stato iniziale con il registro delle azioni e "Annulla".
 // Non tocca la pagina: l'interfaccia chiama questi metodi e poi ridisegna.
-import { actingPlayer, applyAction, fileBoard, fileBoardData, isUndoable, newSave, raiseMoney, readSave, SAVE_VERSION, type Action, type SaveFile, type GameContext, type GameState } from '../engine';
-import { board, currentBoard, currentChoice, setBoard } from '../data';
+import { actingPlayer, applyAction, fileBoard, fileBoardData, isUndoable, newSave, raiseMoney, readSave, SAVE_VERSION, type Action, type GameRules, type PlayerSetup, type SaveFile, type GameContext, type GameState } from '../engine';
+import { board, boardChoice, cards, currentBoard, currentChoice, setBoard } from '../data';
 import { adoptBoard } from './boardStore';
 import { KEYS, readPref, removePref, writePref } from './prefs';
+import { standings } from './summary';
 
 export function randomSeed(): number {
   return Math.floor(Math.random() * 2 ** 32);
+}
+
+export interface RematchOptions {
+  players?: PlayerSetup[];
+  rules?: Partial<GameRules>;
+  tipsOn?: boolean;
+  seed?: number;
+  daily?: string;
+  boardId?: string;
+  ctx?: GameContext;
+  nextSeed?: () => number;
+}
+
+export interface RematchSetup {
+  players: PlayerSetup[];
+  rules: GameRules;
+  tipsOn: boolean;
+  seed: number;
+  boardId: string;
+  // posto precedente di ogni nuovo posto (ordine inverso della classifica finale)
+  seatOrder: number[];
+}
+
+// Prepara la rivincita: stessi giocatori, aspetto, livello e carattere dei computer, tabellone e regole;
+// seme nuovo e posti nell'ordine inverso della classifica finale (chi era ultimo parte primo).
+export function rematchSetup(
+  finalState: GameState,
+  previousSetup: RematchOptions = {},
+  gameCtx?: GameContext,
+  seedFn: () => number = previousSetup.nextSeed ?? randomSeed,
+): RematchSetup {
+  const boardId = previousSetup.boardId ?? currentBoard();
+  const resolvedBoard = boardChoice(boardId).data;
+  const ctx: GameContext = gameCtx ?? previousSetup.ctx ?? { board: resolvedBoard, cards };
+  const seatOrder = standings(finalState, ctx).slice().reverse();
+  const players: PlayerSetup[] = seatOrder.map((oldId) => {
+    const p = finalState.players[oldId];
+    const prev = previousSetup.players?.[oldId];
+    const isBot = prev?.isBot ?? p.isBot;
+    const appearance = prev?.appearance ?? p.appearance;
+    const bot = isBot ? (prev?.bot ?? p.bot) : undefined;
+    return {
+      name: prev?.name ?? p.name,
+      isBot,
+      ...(appearance ? { appearance: { ...appearance } } : {}),
+      ...(bot ? { bot: { ...bot } } : {}),
+    };
+  });
+  const rules: GameRules = { ...finalState.rules, ...(previousSetup.rules ?? {}) };
+  const prevSeed = (previousSetup.seed ?? finalState.seed ?? 0) >>> 0;
+  let seed = seedFn() >>> 0;
+  if (seed === prevSeed) seed = ((seed + 1) >>> 0) || 1;
+  return {
+    players,
+    rules,
+    tipsOn: previousSetup.tipsOn ?? true,
+    seed,
+    boardId,
+    seatOrder,
+  };
 }
 
 export class GameSession {

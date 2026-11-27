@@ -131,7 +131,11 @@ function chartSvg(state: GameState): string {
 }
 
 // `extra`: il titolo scelto da chi gioca qui (per posto) e i traguardi appena raggiunti.
-export function renderSummary(state: GameState, ctx: GameContext, extra?: { titles?: Record<number, string>; unlocked?: { icon: string; title: string; prize: string }[]; canReplay?: boolean }): string {
+export function renderSummary(
+  state: GameState,
+  ctx: GameContext,
+  extra?: { titles?: Record<number, string>; unlocked?: { icon: string; title: string; prize: string }[]; canReplay?: boolean; canRematch?: boolean },
+): string {
   // medaglie per i primi tre, poi la posizione (fino all'8°)
   const medals = ['🥇', '🥈', '🥉'];
   const order = standings(state, ctx);
@@ -147,6 +151,7 @@ export function renderSummary(state: GameState, ctx: GameContext, extra?: { titl
   const prizes = awards(state)
     .map((a) => `<li><span class="award-emoji">${a.emoji}</span><div><strong>${a.title}</strong>: ${esc(state.players[a.playerId].name)}<br><small>${a.detail}</small></div></li>`)
     .join('');
+  const showRematch = extra?.canRematch !== false;
   return `<section class="summary">
       <h4>${t('summary.title')} · ${tn('summary.rounds', state.round)}</h4>
       <ol class="standings">${rows}</ol>
@@ -160,6 +165,7 @@ export function renderSummary(state: GameState, ctx: GameContext, extra?: { titl
           : ''
       }
       <div class="summary-actions">
+        ${showRematch ? `<button type="button" class="primary" data-action="rematch">${t('summary.rematch')}</button>` : ''}
         <button type="button" data-action="share">${t('share.button')}</button>
         ${extra?.canReplay ? `<button type="button" data-action="replay">${t('replay.button')}</button>` : ''}
       </div>
