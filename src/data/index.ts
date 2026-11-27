@@ -4,11 +4,15 @@
 // per questo non si copia il tabellone in una costante al caricamento del modulo.
 import type { BoardData, CardsData } from '../engine/types';
 import cardsJson from './cards.json';
+import cantiereJson from './cards.cantiere.json';
+import cantiereEnJson from './cards.cantiere.en.json';
 import { boardChoice, DEFAULT_BOARD, type BoardChoice } from './boards';
 
 export { BOARDS, DEFAULT_BOARD, addCustomBoard, boardChoice, customBoards, isBuiltinBoard, removeCustomBoard, type BoardChoice } from './boards';
 
 export const cards = cardsJson as CardsData;
+export const cantiereCards = cantiereJson as CardsData;
+export const cantiereCardsEn = cantiereEnJson as Record<string, { text: string; options?: string[] }>;
 
 export let board: BoardData = boardChoice(DEFAULT_BOARD).data;
 let current: BoardChoice = boardChoice(DEFAULT_BOARD);

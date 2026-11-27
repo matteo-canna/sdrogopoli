@@ -5,7 +5,7 @@ import { actingPlayer, computeRent, groupHasBuildings, interestOn, landmarkPrice
 import type { BotLevel, BotProfile, BotStyle, GameContext, GameState, Player, TradeSide } from './state';
 import { JAIL_FINE, SHARES_PER_GROUP, THEATRE_MIN_RENT, type LandmarkId } from './state';
 import type { PropertySpace, Space } from './types';
-import { cardValue } from './cards';
+import { cardValue, findCard } from './cards';
 
 // Soldi che il computer normale cerca di tenere da parte per pagare affitti e tasse.
 const RESERVE = 150;
@@ -465,7 +465,7 @@ export function chooseBotAction(state: GameState, ctx: GameContext): Action {
       if (k.payJail && me.inJail && me.money >= JAIL_FINE + k.reserve * 2 && Object.keys(state.ownership).length < 20) return { type: 'payJailFine' };
       return { type: 'roll' };
     case 'cardChoice': {
-      const card = ctx.cards.cards.find((c) => c.id === state.pendingCard);
+      const card = findCard(ctx.cards, state.pendingCard);
       if (!card || card.effect.kind !== 'choice') return { type: 'chooseCard', option: 0 };
       // il facile prende la prima; gli altri quella che conviene di più
       if (k.mistakes) return { type: 'chooseCard', option: 0 };

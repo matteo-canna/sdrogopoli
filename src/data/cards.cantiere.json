@@ -1,0 +1,19 @@
+{
+  "decks": {
+    "cantiere": { "name": "Imprevisti del Cantiere" }
+  },
+  "cards": [
+    { "id": "cantiere-01", "deck": "cantiere", "text": "Scavi fortunati: sotto le fondamenta spunta una vecchia cassaforte. Incassa 120.", "effect": { "kind": "gain", "amount": 120 } },
+    { "id": "cantiere-02", "deck": "cantiere", "text": "La betoniera blocca l'incrocio nell'ora di punta. Multa per il traffico: paga 80.", "effect": { "kind": "pay", "amount": 80 } },
+    { "id": "cantiere-03", "deck": "cantiere", "text": "Bonus comunale per i pannelli solari sul tetto nuovo. Incassa 90.", "effect": { "kind": "gain", "amount": 90 } },
+    { "id": "cantiere-04", "deck": "cantiere", "text": "Pioggia improvvisa sul cemento fresco: bisogna rifare il vialetto. Paga 70.", "effect": { "kind": "pay", "amount": 70 } },
+    { "id": "cantiere-05", "deck": "cantiere", "text": "Inaugurazione del cantiere con panini e bibite per tutti. Paga 20 a ogni giocatore.", "effect": { "kind": "payEachPlayer", "amount": 20 } },
+    { "id": "cantiere-06", "deck": "cantiere", "text": "I vicini fanno una colletta per ringraziarti del marciapiede nuovo. Ogni giocatore ti dà 20.", "effect": { "kind": "collectFromEachPlayer", "amount": 20 } },
+    { "id": "cantiere-07", "deck": "cantiere", "text": "Controllo straordinario delle impalcature. Paga 20 per ogni casa e 70 per ogni palazzo.", "effect": { "kind": "repairs", "perHouse": 20, "perHotel": 70 } },
+    { "id": "cantiere-08", "deck": "cantiere", "text": "Il fornitore di mattoni ti fa uno sconto quantità. Incassa 35.", "effect": { "kind": "gain", "amount": 35 } },
+    { "id": "cantiere-09", "deck": "cantiere", "text": "Cantiere aperto senza il cartello regolamentare: i Vigili ti portano in Caserma.", "effect": { "kind": "goToJail" } },
+    { "id": "cantiere-10", "deck": "cantiere", "text": "Torni in magazzino a prendere i sacchi di calce: vai indietro di 2 caselle.", "effect": { "kind": "moveBy", "steps": -2 } },
+    { "id": "cantiere-11", "deck": "cantiere", "text": "I lavori finiscono in anticipo: come festeggi con la squadra?", "effect": { "kind": "choice", "options": [{ "label": "Incassi il premio di velocità: ricevi 60", "effect": { "kind": "gain", "amount": 60 } }, { "label": "Corri in {space} a firmare un nuovo contratto", "effect": { "kind": "moveTo", "space": "studio" } }] } },
+    { "id": "cantiere-12", "deck": "cantiere", "text": "Un tubo dell'acqua perde proprio sotto il ponteggio.", "effect": { "kind": "choice", "options": [{ "label": "Chiami l'idraulico d'urgenza: paghi 75", "effect": { "kind": "pay", "amount": 75 } }, { "label": "Sistemi casa per casa: paghi 25 per ogni casa e 80 per ogni palazzo", "effect": { "kind": "repairs", "perHouse": 25, "perHotel": 80 } }] } }
+  ]
+}
