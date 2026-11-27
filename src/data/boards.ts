@@ -4,21 +4,25 @@
 import type { BoardData } from '../engine/types';
 import cittaJson from './board.json';
 import cittaEn from './board.en.json';
+import cittaEs from './board.es.json';
 import valleJson from './board.valle.json';
 import valleEn from './board.valle.en.json';
+import valleEs from './board.valle.es.json';
 
 export interface BoardChoice {
   id: string;
   data: BoardData;
   // nomi inglesi delle caselle, per id
   names: Record<string, string>;
+  // nomi spagnoli delle caselle, per id
+  namesEs?: Record<string, string>;
   // fatto con l'editor: i nomi stanno nei dati (data.title, nomi di caselle e quartieri)
   custom?: boolean;
 }
 
 export const BOARDS: BoardChoice[] = [
-  { id: 'citta', data: cittaJson as BoardData, names: cittaEn as Record<string, string> },
-  { id: 'valle', data: valleJson as BoardData, names: valleEn as Record<string, string> },
+  { id: 'citta', data: cittaJson as BoardData, names: cittaEn as Record<string, string>, namesEs: cittaEs as Record<string, string> },
+  { id: 'valle', data: valleJson as BoardData, names: valleEn as Record<string, string>, namesEs: valleEs as Record<string, string> },
 ];
 
 export const DEFAULT_BOARD = BOARDS[0].id;

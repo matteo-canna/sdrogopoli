@@ -17,7 +17,7 @@ import { achievementTitle, EXTRA_COLORS, newlyUnlocked, titleLabel, updateProfil
 import { characterDef, colorName, playerColor } from './characters';
 import { audio } from './audio';
 import { KEYS, SKY_LABELS, SPEEDS, loadLeaderboard, loadPreset, loadProgress, loadSky, loadSpeed, loadTutorial, readPref, saveLeaderboard, saveProgress, saveTutorial, writePref, type Speed } from './prefs';
-import { GameSession, randomSeed } from './session';
+import { GameSession, randomSeed, rematchSetup } from './session';
 import { BotScheduler } from './bots';
 import { soundFor } from './sounds';
 import { refreshBoards, renderSetup, setupLooks, SEATS_SHOWN, type SetupChoice } from './setup';
@@ -477,7 +477,12 @@ function resumeSummary(s: GameState): string {
   return `<p class="resume-players">${who}</p><p class="resume-meta">${turn} · ${alive.length} in gioco</p>`;
 }
 
+let lastSetup: SetupChoice | null = null;
+
 function startGame(choice: SetupChoice): void {
+  bots.cancel();
+  destroy3d();
+  lastSetup = choice;
   resumeOffered = false;
   // la partita del giorno parte dal seme del giorno: stessi dadi e stesse carte per tutti
   dailyDay = choice.daily ?? null;
@@ -489,6 +494,9 @@ function startGame(choice: SetupChoice): void {
   tutorial.on = choice.tipsOn;
   saveTutorial(tutorial);
   selected = null;
+  tradeDraft = null;
+  error = '';
+  newGoals = [];
   newsFrom = 0;
   lastActorBot = false;
   session.save();
@@ -562,7 +570,7 @@ function infoHtml(s: GameState): string {
   const fresh = Math.min(Math.max((s.eventCount ?? 0) - newsFrom, 0), s.log.length, 8);
   const news = fresh ? s.log.slice(-fresh) : [];
   return `
-    ${s.phase === 'gameOver' ? renderSummary(s, ctx, { titles: myTitles(s), unlocked: newGoals, canReplay: !!session.toFile() }) : viewMode === '3d' ? renderEvents(s) : ''}
+    ${s.phase === 'gameOver' ? renderSummary(s, ctx, { titles: myTitles(s), unlocked: newGoals, canReplay: !!session.toFile(), canRematch: !online }) : viewMode === '3d' ? renderEvents(s) : ''}
     ${news.length ? `<div class="news"><h4>${t('news.title')}</h4><ul>${news.map((l) => `<li>${escapeHtml(text(l))}</li>`).join('')}</ul></div>` : ''}
     ${selected ? '' : `<p class="hint">${t('hint.tapSpace')}</p>`}
     <details class="log-box"><summary>${t('log.title')}</summary>
@@ -1059,6 +1067,10 @@ app.addEventListener('click', (e) => {
       return;
     case 'replay':
       openReplay();
+      return;
+    case 'rematch':
+      if (online) return;
+      startGame(rematchSetup(state, lastSetup ?? { boardId: currentBoard(), rules: state.rules, tipsOn: tutorial.on }, ctx));
       return;
     case 'copyLog': {
       const content = logToText(state, getLang());

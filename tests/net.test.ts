@@ -210,4 +210,87 @@ describe('tavolo online (rete finta)', () => {
     expect(bea.lastError).toBe('');
     expect(again.moves).toBe(snap.moves + 1);
   });
+
+  describe('rivincita a fine partita', () => {
+    function finishedTable() {
+      let now = 1_000;
+      const net = new FakeNetwork();
+      const host = new HostRoom(net.join('oste'), ctx, 'Ada', null, () => now);
+      const guests = ['Bea', 'Ciro'].map((n, i) => new GuestRoom(net.join(`ospite${i}`), n, null, `k-${n}`, () => now));
+      net.flush();
+      guests.forEach((g) => g.setReady(true));
+      net.flush();
+      host.start({ maxRounds: 1 }, 50);
+      net.flush();
+      // Si gioca l'unico giro finché la partita finisce (Ada 1ª, Bea 2ª, Ciro 3°).
+      host.state!.phase = 'gameOver';
+      host.state!.winner = 0;
+      host.state!.players[0].money = 2200;
+      host.state!.players[1].money = 1600;
+      host.state!.players[2].money = 900;
+      return { net, host, guests, setNow: (t: number) => (now = t) };
+    }
+
+    it('tutti accettano: riparte subito con ordine invertito rispetto alla classifica e seme nuovo', () => {
+      const { net, host, guests } = finishedTable();
+      expect(host.proposeRematch(99)).toBe(true);
+      net.flush();
+      expect(guests[0].rematch?.pending).toEqual([1, 2]);
+      guests[0].replyRematch(true);
+      net.flush();
+      expect(host.state!.phase).toBe('gameOver');
+      guests[1].replyRematch(true);
+      net.flush();
+
+      // Classifica precedente: Ada (0), Bea (1), Ciro (2) → ordine rivincita: Ciro (0), Bea (1), Ada (2)
+      expect(host.state!.phase).toBe('roll');
+      expect(host.state!.round).toBe(1);
+      expect(host.state!.seed).toBe(99);
+      expect(host.state!.players.map((p) => p.name)).toEqual(['Ciro', 'Bea', 'Ada']);
+      expect(host.state!.players.map((p) => p.isBot)).toEqual([false, false, false]);
+      expect(host.hostSeat).toBe(2);
+      expect(guests[0].seat).toBe(1);
+      expect(guests[1].seat).toBe(0);
+    });
+
+    it('uno rifiuta: il suo posto passa al computer e gli altri giocano', () => {
+      const { net, host, guests } = finishedTable();
+      expect(host.proposeRematch(101)).toBe(true);
+      net.flush();
+      guests[0].replyRematch(true);
+      guests[1].replyRematch(false);
+      net.flush();
+
+      expect(host.state!.phase).toBe('roll');
+      expect(host.state!.players.map((p) => p.name)).toEqual(['Ciro', 'Bea', 'Ada']);
+      // Ciro (ora al posto 0) ha rifiutato: il suo posto è del computer
+      expect(host.state!.players.map((p) => p.isBot)).toEqual([true, false, false]);
+      expect(host.isComputerSeat(0)).toBe(true);
+      expect(host.isComputerSeat(1)).toBe(false);
+      expect(guests[1].seat).toBeNull();
+      expect(guests[0].seat).toBe(1);
+    });
+
+    it('uno non risponde entro 30 secondi: allo scadere riparte col computer al suo posto', () => {
+      const { net, host, guests, setNow } = finishedTable();
+      expect(host.proposeRematch(202)).toBe(true);
+      net.flush();
+      guests[0].replyRematch(true);
+      net.flush();
+      expect(host.state!.phase).toBe('gameOver');
+
+      setNow(30_500);
+      expect(host.checkTimer()).toBe(false);
+      setNow(31_000);
+      expect(host.checkTimer()).toBe(true);
+      net.flush();
+
+      expect(host.state!.phase).toBe('roll');
+      expect(host.state!.players.map((p) => p.name)).toEqual(['Ciro', 'Bea', 'Ada']);
+      expect(host.state!.players.map((p) => p.isBot)).toEqual([true, false, false]);
+      expect(host.isComputerSeat(0)).toBe(true);
+      expect(guests[0].seat).toBe(1);
+      expect(guests[1].seat).toBeNull();
+    });
+  });
 });

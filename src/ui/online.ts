@@ -1,6 +1,6 @@
 // Tavolo online: codice e link da condividere, sala d'attesa con chi è collegato, nota sulla privacy.
 // La partita vera la tiene chi crea il tavolo (src/net/host.ts); qui c'è solo la pagina.
-import type { Appearance } from '../engine';
+import type { Appearance, GameState } from '../engine';
 import type { Member } from '../net/protocol';
 import type { Transport } from '../net/transport';
 import { BroadcastTransport } from '../net/broadcast';
@@ -213,4 +213,31 @@ export function updateLobby(app: HTMLElement, view: LobbyView): void {
       : '';
   }
   app.querySelector('[data-lobby-status]')!.textContent = view.status;
+}
+
+// Riquadro della rivincita a fine partita online: l'oste la propone, gli ospiti rispondono con "Ci sto" o "No, grazie".
+export function renderOnlineRematch(
+  state: GameState,
+  role: 'host' | 'guest',
+  seat: number | null,
+  rematch: { accepted: number[]; declined: number[]; pending: number[] } | null,
+): string {
+  if (state.phase !== 'gameOver') return '';
+  if (!rematch) {
+    return role === 'host'
+      ? `<div class="online-rematch"><button type="button" class="primary" data-action="proposeRematch">🔁 ${t('online.rematchPropose')}</button></div>`
+      : '';
+  }
+  const waiting = tn('online.rematchWaiting', rematch.pending.length);
+  if (role === 'guest' && seat !== null && rematch.pending.includes(seat)) {
+    return `<div class="online-rematch">
+      <p><strong>${t('online.rematchInvited')}</strong></p>
+      <div class="lobby-buttons">
+        <button type="button" class="primary" data-action="acceptRematch">${t('online.rematchAccept')}</button>
+        <button type="button" data-action="declineRematch">${t('online.rematchDecline')}</button>
+      </div>
+      <p class="hint">${escapeHtml(waiting)}</p>
+    </div>`;
+  }
+  return `<div class="online-rematch"><p class="hint">⏳ ${escapeHtml(waiting)}</p></div>`;
 }
