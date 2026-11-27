@@ -36,6 +36,8 @@ export function migrateState(raw: GameState, ctx: GameContext, seed: number): Ga
       p.loan = { amount: p.loan.amount, due: p.loan.due, dueRound: p.loan.dueRound };
     }
   }
+  s.rules ??= defaultRules(ctx.board);
+  if (s.auction && s.rules.fastAuctions) s.auction.bids ??= 0;
   s.round ??= 1;
   s.pot ??= 0;
   s.tradeProposedThisTurn ??= false;

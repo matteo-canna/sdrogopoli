@@ -621,6 +621,14 @@ function doDecline(state: GameState, ctx: GameContext): void {
 
 // ---------- aste ----------
 
+// Rilancio minimo nell'asta in corso: 10 con la regola normale, oppure crescente
+// (10 per i primi 3 rilanci, 20 per i successivi 3, poi 40, 80…) con rules.fastAuctions.
+export function minRaise(state: GameState): number {
+  if (!state.rules?.fastAuctions) return MIN_BID;
+  const bids = state.auction?.bids ?? 0;
+  return MIN_BID * 2 ** Math.floor(bids / 3);
+}
+
 // Apre l'asta per una casella. Con "queue" l'asta fa parte di una serie (le proprietà di chi
 // è fallito verso la banca): finita una si passa alla successiva, poi il turno riprende.
 function startAuction(state: GameState, ctx: GameContext, spaceId: string, queue?: string[]): void {
@@ -636,7 +644,15 @@ function startAuction(state: GameState, ctx: GameContext, spaceId: string, queue
     afterAuction(state, ctx, queue);
     return;
   }
-  state.auction = { spaceId, highestBid: 0, highestBidder: null, bidders, turn: 0, ...(queue ? { queue } : {}) };
+  state.auction = {
+    spaceId,
+    highestBid: 0,
+    highestBidder: null,
+    bidders,
+    turn: 0,
+    ...(state.rules?.fastAuctions ? { bids: 0 } : {}),
+    ...(queue ? { queue } : {}),
+  };
   state.phase = 'auction';
   log(state, 'log.auction', { space: space.id });
 }
@@ -656,10 +672,11 @@ function doBid(state: GameState, ctx: GameContext, amount: number): void {
   requirePhase(state, 'auction');
   const a = state.auction!;
   const bidder = state.players[a.bidders[a.turn]];
-  if (!Number.isInteger(amount) || amount < Math.max(MIN_BID, a.highestBid + 1)) throw new RuleError('err.bidTooLow');
+  if (!Number.isInteger(amount) || amount < a.highestBid + minRaise(state)) throw new RuleError('err.bidTooLow');
   if (amount > bidder.money) throw new RuleError('err.noMoney');
   a.highestBid = amount;
   a.highestBidder = bidder.id;
+  if (state.rules?.fastAuctions || a.bids !== undefined) a.bids = (a.bids ?? 0) + 1;
   log(state, 'log.bids', { name: bidder.name, amount });
   a.turn = (a.turn + 1) % a.bidders.length;
   checkAuctionEnd(state, ctx);
