@@ -35,31 +35,73 @@ export interface Award {
   detail: string;
 }
 
-// Premi simpatici: a chi ha fatto di più in ogni categoria (nessun premio se nessuno ha punti).
-export function awards(state: GameState): Award[] {
-  const defs: { emoji: string; title: string; value: (s: PlayerStats) => number; detail: (n: number) => string }[] = [
-    { emoji: '💰', title: t('award.rent'), value: (s) => s.rentReceived, detail: (n) => t('award.rentText', { amount: `${SYMBOL()} ${n}` }) },
-    { emoji: '🏗️', title: t('award.builder'), value: (s) => s.built, detail: (n) => tn('award.builderText', n) },
-    { emoji: '🛒', title: t('award.collector'), value: (s) => s.bought, detail: (n) => tn('award.collectorText', n) },
-    { emoji: '🤝', title: t('award.trader'), value: (s) => s.trades, detail: (n) => tn('award.traderText', n) },
-    { emoji: '🎲', title: t('award.lucky'), value: (s) => s.doubles, detail: (n) => tn('award.luckyText', n) },
-    { emoji: '💸', title: t('award.giver'), value: (s) => s.rentPaid + s.taxesPaid, detail: (n) => t('award.giverText', { amount: `${SYMBOL()} ${n}` }) },
-    { emoji: '🚓', title: t('award.jail'), value: (s) => s.jailVisits, detail: (n) => tn('award.jailText', n) },
-  ];
-  const result: Award[] = [];
-  for (const d of defs) {
-    let best = -1;
-    let bestValue = 0;
-    state.players.forEach((p) => {
-      const v = d.value(statsOf(state, p.id));
-      if (v > bestValue) {
-        bestValue = v;
-        best = p.id;
-      }
-    });
-    if (best >= 0) result.push({ emoji: d.emoji, title: d.title, playerId: best, detail: d.detail(bestValue) });
+// Guadagno da metà partita alla fine, per chi a metà partita era dietro al primo e non è fallito.
+function comebackValue(state: GameState, id: number): number {
+  const h = state.history ?? [];
+  if (h.length < 3 || state.players[id]?.bankrupt) return 0;
+  const mid = h[Math.floor(h.length / 2)] ?? [];
+  const end = h[h.length - 1] ?? [];
+  const midVal = mid[id] ?? 0;
+  if (midVal >= Math.max(0, ...mid)) return 0;
+  return Math.max(0, (end[id] ?? 0) - midVal);
+}
+
+// Case e palazzi in piedi sulle proprietà del giocatore a fine partita.
+function housesOwned(state: GameState, id: number): number {
+  return Object.values(state.ownership ?? {}).reduce((sum, o) => (o.owner === id ? sum + o.houses : sum), 0);
+}
+
+// Giri giocati: chi fallisce si ferma al giro della bancarotta, chi resta arriva all'ultimo giro.
+function touristRounds(state: GameState, id: number): number {
+  if (state.round <= 1) return 0;
+  return state.players[id]?.bankrupt ? (statsOf(state, id).bankruptRound ?? 0) : state.round;
+}
+
+// Somma delle oscillazioni di patrimonio per chi ha avuto almeno una salita e almeno una discesa.
+function rollercoasterValue(state: GameState, id: number): number {
+  const h = state.history ?? [];
+  let up = false;
+  let down = false;
+  let total = 0;
+  for (let i = 1; i < h.length; i++) {
+    const d = (h[i][id] ?? 0) - (h[i - 1][id] ?? 0);
+    if (d > 0) up = true;
+    if (d < 0) down = true;
+    total += Math.abs(d);
   }
-  return result;
+  return up && down ? total : 0;
+}
+
+// Premi simpatici: a chi ha fatto di più in ogni categoria (solo con un vincitore chiaro; al massimo 6).
+export function awards(state: GameState): Award[] {
+  const defs: { emoji: string; title: string; value: (id: number, s: PlayerStats) => number; detail: (n: number) => string }[] = [
+    { emoji: '💰', title: t('award.rent'), value: (_id, s) => s.rentReceived, detail: (n) => t('award.rentText', { amount: `${SYMBOL()} ${n}` }) },
+    { emoji: '🏗️', title: t('award.builder'), value: (_id, s) => s.built, detail: (n) => tn('award.builderText', n) },
+    { emoji: '🛒', title: t('award.collector'), value: (_id, s) => s.bought, detail: (n) => tn('award.collectorText', n) },
+    { emoji: '🤝', title: t('award.trader'), value: (_id, s) => s.trades, detail: (n) => tn('award.traderText', n) },
+    { emoji: '🎲', title: t('award.lucky'), value: (_id, s) => s.doubles, detail: (n) => tn('award.luckyText', n) },
+    { emoji: '💸', title: t('award.giver'), value: (_id, s) => s.rentPaid + s.taxesPaid, detail: (n) => t('award.giverText', { amount: `${SYMBOL()} ${n}` }) },
+    { emoji: '🚓', title: t('award.jail'), value: (_id, s) => s.jailVisits, detail: (n) => tn('award.jailText', n) },
+    { emoji: '🚀', title: t('award.comeback'), value: (id) => comebackValue(state, id), detail: (n) => t('award.comebackText', { amount: `${SYMBOL()} ${n}` }) },
+    { emoji: '🧱', title: t('award.goldenBrick'), value: (id) => housesOwned(state, id), detail: (n) => tn('award.goldenBrickText', n) },
+    { emoji: '🧳', title: t('award.tourist'), value: (id) => touristRounds(state, id), detail: (n) => tn('award.touristText', n) },
+    { emoji: '🧾', title: t('award.taxes'), value: (_id, s) => s.taxesPaid, detail: (n) => t('award.taxesText', { amount: `${SYMBOL()} ${n}` }) },
+    { emoji: '🎢', title: t('award.rollercoaster'), value: (id) => rollercoasterValue(state, id), detail: (n) => t('award.rollercoasterText', { amount: `${SYMBOL()} ${n}` }) },
+  ];
+  const valid: { award: Award; gap: number }[] = [];
+  for (const d of defs) {
+    const scores = state.players.map((p) => ({ id: p.id, v: d.value(p.id, statsOf(state, p.id)) })).sort((a, b) => b.v - a.v);
+    const first = scores[0];
+    const second = Math.max(0, scores[1]?.v ?? 0);
+    if (first && first.v > 0 && first.v > second) {
+      valid.push({
+        award: { emoji: d.emoji, title: d.title, playerId: first.id, detail: d.detail(first.v) },
+        gap: first.v - second,
+      });
+    }
+  }
+  const chosen = valid.length > 6 ? [...valid].sort((a, b) => b.gap - a.gap).slice(0, 6) : valid;
+  return chosen.map((x) => x.award);
 }
 
 // Grafico a linee del patrimonio giro per giro (SVG, si adatta alla larghezza).
