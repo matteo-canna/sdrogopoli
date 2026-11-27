@@ -3,7 +3,7 @@
 // alcune manopole: riserva di soldi, voglia di comprare e costruire, offerte e scambi.
 import { actingPlayer, computeRent, groupHasBuildings, interestOn, landmarkPrice, minRaise, ownsWholeGroup, sameTeam, sharePrice, sharesOf, targetSpace, unmortgageCost, HOTEL, MAX_COUNTERS, type Action } from './rules';
 import type { BotLevel, BotProfile, BotStyle, GameContext, GameState, Player, TradeSide } from './state';
-import { JAIL_FINE, SHARES_PER_GROUP, THEATRE_MIN_RENT, type LandmarkId } from './state';
+import { JAIL_FINE, LOAN_AMOUNTS, SHARES_PER_GROUP, THEATRE_MIN_RENT, type LandmarkId } from './state';
 import type { PropertySpace, Space } from './types';
 import { cardValue, findCard } from './cards';
 
@@ -197,7 +197,14 @@ export function raiseMoney(state: GameState, ctx: GameContext): Action | null {
     if (h.own.houses === groupMax) return { type: 'sell', spaceId: h.id };
   }
   const mortgageable = mortgageCandidates(state, ctx);
-  return mortgageable.length ? { type: 'mortgage', spaceId: mortgageable[0].id } : null;
+  if (mortgageable.length) return { type: 'mortgage', spaceId: mortgageable[0].id };
+  // il computer chiede un prestito solo se altrimenti dovrebbe dichiarare bancarotta e il prestito lo salva
+  const me = state.players[state.current];
+  if (state.rules?.loans && !me.loan) {
+    const amount = LOAN_AMOUNTS.find((a) => me.money + a >= 0);
+    if (amount) return { type: 'takeLoan', amount };
+  }
+  return null;
 }
 
 // Caselle che si possono ipotecare, prima quelle che non fanno parte di un quartiere completo.
@@ -305,6 +312,14 @@ function tryUnmortgage(state: GameState, ctx: GameContext, k: Knobs): Action | n
   const keep = k.mortgageToBuild ? Math.max(k.buildReserve, BUILD_RESERVE) * 4 : k.buildReserve * 2;
   const h = myHoldings(state, ctx).find((x) => x.own.mortgaged && 'mortgage' in x.space && money - unmortgageCost(x.space.mortgage) >= keep);
   return h ? { type: 'unmortgage', spaceId: h.id } : null;
+}
+
+// Rimborsa il prestito appena ha almeno il doppio del dovuto.
+function tryRepayLoan(state: GameState): Action | null {
+  if (!state.rules?.loans) return null;
+  const p = state.players[state.current];
+  if (!p.loan || p.money < p.loan.due * 2) return null;
+  return { type: 'repayLoan' };
 }
 
 // ---------- aste e scambi ----------
@@ -451,6 +466,7 @@ export function chooseBotAction(state: GameState, ctx: GameContext): Action {
     case 'endTurn':
       if (me.money < 0) return raiseMoney(state, ctx) ?? { type: 'bankrupt' };
       return (
+        tryRepayLoan(state) ??
         tryUnmortgage(state, ctx, k) ??
         tryProposeTrade(state, ctx, k) ??
         tryLandmark(state, ctx, k) ??

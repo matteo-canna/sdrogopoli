@@ -957,4 +957,12 @@ export const en: Record<MsgKey, string> = {
   'shares.holders': 'Held by: {names}.',
   'shares.buy': 'Buy a share ({amount})',
   'shares.sell': 'Sell a share back (+{amount})',
+
+  // ---- bank loans ----
+  'log.takesLoan': '{name} takes a loan of {amount} from the bank ({due} due by round {round}).',
+  'log.repaysLoan': '{name} repays the bank loan: {amount}.',
+  'log.loanDue': "{name}'s loan is due: the bank takes {amount} at Start.",
+  'err.loansOff': 'There are no bank loans in this game.',
+  'err.alreadyHasLoan': 'You already have an active loan.',
+  'err.noLoan': 'You have no loan to repay.',
 };

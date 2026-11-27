@@ -1,5 +1,6 @@
 // Regole di gioco: ogni azione produce un nuovo stato senza modificare quello precedente.
 import { rollDice } from './dice';
+import { defaultRules, emptyStats, loanRepayment, withRng, EVENT_IDS, FOUNTAIN_FACTOR, LANDMARK_IDS, LOAN_AMOUNTS, LOAN_ROUNDS, MARKET_HALL_PAY, SHARE_CUT, SHARES_PER_GROUP, THEATRE_MIN_RENT, type LandmarkId, JAIL_FINE, MARKET_IDS, MARKET_PAY, MAX_JAIL_ATTEMPTS, SPRINT_FACES, UPKEEP_PER_HOUSE, WHEEL_EVERY, type EventId, type GameContext, type GroupEvent, type MarketId, type SprintFace, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
 import { deckCards, findCard } from './cards';
 import { defaultRules, emptyStats, shuffle, withRng, EVENT_IDS, FOUNTAIN_FACTOR, LANDMARK_IDS, MARKET_HALL_PAY, SHARE_CUT, SHARES_PER_GROUP, THEATRE_MIN_RENT, type LandmarkId, JAIL_FINE, MARKET_IDS, MARKET_PAY, MAX_JAIL_ATTEMPTS, SPRINT_FACES, UPKEEP_PER_HOUSE, WHEEL_EVERY, type EventId, type GameContext, type GroupEvent, type MarketId, type SprintFace, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
 import type { BoardData, Card, CardEffect, DeckId, PropertySpace, Space } from './types';
@@ -29,7 +30,10 @@ export type Action =
   | { type: 'buyShare'; group: string }
   | { type: 'sellShare'; group: string }
   | { type: 'buildLandmark'; group: string; landmark: LandmarkId }
-  | { type: 'sellLandmark'; group: string };
+  | { type: 'sellLandmark'; group: string }
+  // prestiti dalla banca (regola facoltativa)
+  | { type: 'takeLoan'; amount: number }
+  | { type: 'repayLoan' };
 
 export const MIN_BID = 10;
 // controproposte per trattativa: chi riceve ne fa una, chi ha proposto può rispondere con un'altra
@@ -150,6 +154,8 @@ export function netWorth(state: GameState, ctx: GameContext, playerId: number): 
     total += holders.filter((h) => h === playerId).length * sharePrice(ctx, group);
   }
   for (const [group, lm] of Object.entries(state.landmarks ?? {})) if (lm.owner === playerId) total += landmarkPrice(ctx, group);
+  const loan = state.players[playerId].loan;
+  if (loan) total -= loan.due;
   return total;
 }
 
@@ -315,15 +321,23 @@ function moveForwardTo(state: GameState, ctx: GameContext, index: number): void 
 }
 
 function collectSalary(state: GameState, ctx: GameContext): void {
+  const p = current(state);
   const salary = salaryOf(state, ctx);
-  current(state).money += salary;
-  log(state, 'log.passGo', { name: current(state).name, amount: salary });
+  p.money += salary;
+  log(state, 'log.passGo', { name: p.name, amount: salary });
   // il mercato coperto rende a ogni passaggio dalla Partenza
   for (const [group, lm] of Object.entries(state.landmarks ?? {})) {
     if (lm.id !== 'mercato' || lm.owner !== state.current) continue;
     const amount = MARKET_HALL_PAY * groupProperties(ctx, group).length;
-    current(state).money += amount;
-    log(state, 'log.marketHall', { name: current(state).name, amount, group });
+    p.money += amount;
+    log(state, 'log.marketHall', { name: p.name, amount, group });
+  }
+  // prestito scaduto: passando dalla Partenza dopo il quinto giro si rimborsa in automatico
+  if (state.rules?.loans && p.loan && state.round >= p.loan.dueRound) {
+    const due = p.loan.due;
+    p.loan = null;
+    pay(state, p.id, due, null);
+    log(state, 'log.loanDue', { name: p.name, amount: due });
   }
 }
 
@@ -969,6 +983,31 @@ function doSellLandmark(state: GameState, ctx: GameContext, group: string): void
   log(state, 'log.sellsLandmark', { name: current(state).name, landmark: lm.id, group });
 }
 
+function doTakeLoan(state: GameState, amount: number): void {
+  requirePhase(state, 'roll', 'buy', 'endTurn');
+  if (!state.rules?.loans) throw new RuleError('err.loansOff');
+  if (!LOAN_AMOUNTS.includes(amount as (typeof LOAN_AMOUNTS)[number])) throw new RuleError('err.badAmount');
+  const p = current(state);
+  if (p.loan) throw new RuleError('err.alreadyHasLoan');
+  const due = loanRepayment(amount);
+  const dueRound = state.round + LOAN_ROUNDS;
+  p.money += amount;
+  p.loan = { amount, due, dueRound };
+  log(state, 'log.takesLoan', { name: p.name, amount, due, round: dueRound });
+}
+
+function doRepayLoan(state: GameState): void {
+  requirePhase(state, 'roll', 'buy', 'endTurn');
+  if (!state.rules?.loans) throw new RuleError('err.loansOff');
+  const p = current(state);
+  if (!p.loan) throw new RuleError('err.noLoan');
+  if (p.money < p.loan.due) throw new RuleError('err.noMoney');
+  const due = p.loan.due;
+  p.money -= due;
+  p.loan = null;
+  log(state, 'log.repaysLoan', { name: p.name, amount: due });
+}
+
 function nextPlayer(state: GameState, ctx: GameContext): void {
   const n = state.players.length;
   let i = state.current;
@@ -1172,6 +1211,7 @@ function doBankrupt(state: GameState, ctx: GameContext): void {
   }
   p.jailCards = [];
   p.money = 0;
+  p.loan = null;
   p.bankrupt = true;
   p.inJail = false;
   stat(state, p.id).bankruptRound = state.round;
@@ -1239,6 +1279,8 @@ export function applyAction(state: GameState, action: Action, gameCtx: GameConte
     case 'sellShare': doSellShare(next, ctx, action.group); break;
     case 'buildLandmark': doBuildLandmark(next, ctx, action.group, action.landmark); break;
     case 'sellLandmark': doSellLandmark(next, ctx, action.group); break;
+    case 'takeLoan': doTakeLoan(next, action.amount); break;
+    case 'repayLoan': doRepayLoan(next); break;
   }
   // obiettivi della partita: si controllano dopo ogni mossa, ma non a metà di un'asta o di uno scambio
   if (next.phase !== 'gameOver' && next.phase !== 'auction' && !next.trade) checkGoals(next, ctx);

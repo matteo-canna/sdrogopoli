@@ -948,6 +948,14 @@ export const it = {
   'shares.holders': 'Le hanno: {names}.',
   'shares.buy': 'Compra una quota ({amount})',
   'shares.sell': 'Rivendi una quota (+{amount})',
+
+  // ---- prestiti dalla banca ----
+  'log.takesLoan': '{name} chiede un prestito di {amount} alla banca (da restituire {due} entro il giro {round}).',
+  'log.repaysLoan': '{name} restituisce il prestito alla banca: {amount}.',
+  'log.loanDue': 'Scade il prestito di {name}: la banca trattiene {amount} alla Partenza.',
+  'err.loansOff': 'In questa partita non ci sono prestiti dalla banca.',
+  'err.alreadyHasLoan': 'Hai già un prestito in corso.',
+  'err.noLoan': 'Non hai prestiti da restituire.',
 } as const;
 
 export type MsgKey = keyof typeof it;
