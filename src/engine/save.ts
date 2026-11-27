@@ -32,6 +32,7 @@ export function migrateState(raw: GameState, ctx: GameContext, seed: number): Ga
   s.auction ??= null;
   s.trade ??= null;
   s.rules ??= defaultRules(ctx.board);
+  if (s.auction && s.rules.fastAuctions) s.auction.bids ??= 0;
   s.round ??= 1;
   s.pot ??= 0;
   s.tradeProposedThisTurn ??= false;

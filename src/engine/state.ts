@@ -90,6 +90,8 @@ export interface GameRules {
   landmarks?: boolean;
   // Imprevisti del Cantiere: portando un quartiere a 3 case totali si pesca dal terzo mazzo (regola facoltativa)
   buildCards?: boolean;
+  // aste con rilancio minimo crescente: parte da 10 e raddoppia ogni 3 rilanci (regola facoltativa)
+  fastAuctions?: boolean;
 }
 
 // ---------- quote di quartiere ed edifici speciali (regole facoltative) ----------
@@ -201,6 +203,8 @@ export interface Auction {
   bidders: number[];
   // indice in "bidders" di chi deve rispondere ora
   turn: number;
+  // numero di rilanci effettuati finora in questa asta
+  bids?: number;
   // aste in serie dopo una bancarotta verso la banca: caselle ancora da mettere all'asta
   queue?: string[];
 }
