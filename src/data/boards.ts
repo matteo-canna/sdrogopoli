@@ -7,6 +7,8 @@ import cittaEn from './board.en.json';
 import cittaEs from './board.es.json';
 import valleJson from './board.valle.json';
 import valleEn from './board.valle.en.json';
+import isolaJson from './board.isola.json';
+import isolaEn from './board.isola.en.json';
 import valleEs from './board.valle.es.json';
 
 export interface BoardChoice {
@@ -21,6 +23,9 @@ export interface BoardChoice {
 }
 
 export const BOARDS: BoardChoice[] = [
+  { id: 'citta', data: cittaJson as BoardData, names: cittaEn as Record<string, string> },
+  { id: 'valle', data: valleJson as BoardData, names: valleEn as Record<string, string> },
+  { id: 'isola', data: isolaJson as BoardData, names: isolaEn as Record<string, string> },
   { id: 'citta', data: cittaJson as BoardData, names: cittaEn as Record<string, string>, namesEs: cittaEs as Record<string, string> },
   { id: 'valle', data: valleJson as BoardData, names: valleEn as Record<string, string>, namesEs: valleEs as Record<string, string> },
 ];

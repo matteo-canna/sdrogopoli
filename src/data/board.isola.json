@@ -1,0 +1,465 @@
+{
+  "currency": {
+    "name": "foulbuck",
+    "plural": "foulbucks",
+    "symbol": "Ƒ"
+  },
+  "startingMoney": 1500,
+  "targets": {
+    "partenza": "i-partenza",
+    "lusso": "i-faro-2",
+    "studio": "i-scogliera-3"
+  },
+  "groups": [
+    {
+      "id": "saline",
+      "name": "Saline",
+      "color": "#52786a"
+    },
+    {
+      "id": "pescheria",
+      "name": "Mercato del Pesce",
+      "color": "#735a42"
+    },
+    {
+      "id": "porticciolo",
+      "name": "Porticciolo",
+      "color": "#1f8c8a"
+    },
+    {
+      "id": "vigneti",
+      "name": "Vigneti",
+      "color": "#7b4b94"
+    },
+    {
+      "id": "scogliera",
+      "name": "Scogliera",
+      "color": "#3d5a99"
+    },
+    {
+      "id": "calette",
+      "name": "Calette",
+      "color": "#c46b3e"
+    },
+    {
+      "id": "faro",
+      "name": "Capo del Faro",
+      "color": "#d4a843"
+    }
+  ],
+  "spaces": [
+    {
+      "type": "start",
+      "id": "i-partenza",
+      "name": "Partenza",
+      "salary": 200
+    },
+    {
+      "type": "property",
+      "id": "i-saline-1",
+      "name": "Vasche del Sale",
+      "group": "saline",
+      "price": 60,
+      "housePrice": 50,
+      "rent": [
+        2,
+        13,
+        40,
+        105,
+        145,
+        180
+      ],
+      "mortgage": 30
+    },
+    {
+      "type": "card",
+      "id": "i-quartiere-1",
+      "name": "Voci di Quartiere",
+      "deck": "quartiere"
+    },
+    {
+      "type": "property",
+      "id": "i-saline-2",
+      "name": "Argine dei Fenicotteri",
+      "group": "saline",
+      "price": 60,
+      "housePrice": 50,
+      "rent": [
+        4,
+        25,
+        80,
+        210,
+        285,
+        365
+      ],
+      "mortgage": 30
+    },
+    {
+      "type": "tax",
+      "id": "i-tassa-1",
+      "name": "Tassa di Sbarco",
+      "amount": 150
+    },
+    {
+      "type": "station",
+      "id": "i-molo-aliscafi",
+      "name": "Molo degli Aliscafi",
+      "price": 180,
+      "mortgage": 90,
+      "rent": [
+        30,
+        80,
+        160,
+        320
+      ]
+    },
+    {
+      "type": "property",
+      "id": "i-pescheria-1",
+      "name": "Banco delle Reti",
+      "group": "pescheria",
+      "price": 100,
+      "housePrice": 50,
+      "rent": [
+        6,
+        40,
+        115,
+        310,
+        430,
+        545
+      ],
+      "mortgage": 50
+    },
+    {
+      "type": "property",
+      "id": "i-pescheria-2",
+      "name": "Piazzetta delle Nasse",
+      "group": "pescheria",
+      "price": 120,
+      "housePrice": 50,
+      "rent": [
+        8,
+        50,
+        155,
+        415,
+        570,
+        730
+      ],
+      "mortgage": 60
+    },
+    {
+      "type": "jail",
+      "id": "i-torretta",
+      "name": "Torre della Guardia Costiera"
+    },
+    {
+      "type": "property",
+      "id": "i-porticciolo-1",
+      "name": "Banchina dei Gozzi",
+      "group": "porticciolo",
+      "price": 140,
+      "housePrice": 100,
+      "rent": [
+        10,
+        65,
+        195,
+        520,
+        715,
+        910
+      ],
+      "mortgage": 70
+    },
+    {
+      "type": "utility",
+      "id": "i-dissalatore",
+      "name": "Dissalatore dell'Isola",
+      "price": 150,
+      "mortgage": 75,
+      "diceMultiplier": [
+        6,
+        10
+      ]
+    },
+    {
+      "type": "property",
+      "id": "i-porticciolo-2",
+      "name": "Calata delle Vele",
+      "group": "porticciolo",
+      "price": 140,
+      "housePrice": 100,
+      "rent": [
+        10,
+        65,
+        195,
+        520,
+        715,
+        910
+      ],
+      "mortgage": 70
+    },
+    {
+      "type": "property",
+      "id": "i-porticciolo-3",
+      "name": "Largo delle Gomene",
+      "group": "porticciolo",
+      "price": 160,
+      "housePrice": 100,
+      "rent": [
+        12,
+        80,
+        235,
+        625,
+        860,
+        1090
+      ],
+      "mortgage": 80
+    },
+    {
+      "type": "card",
+      "id": "i-sorte-1",
+      "name": "Colpo di Sorte",
+      "deck": "sorte"
+    },
+    {
+      "type": "property",
+      "id": "i-vigneti-1",
+      "name": "Terrazza dello Zibibbo",
+      "group": "vigneti",
+      "price": 180,
+      "housePrice": 100,
+      "rent": [
+        14,
+        90,
+        275,
+        730,
+        1000,
+        1275
+      ],
+      "mortgage": 90
+    },
+    {
+      "type": "property",
+      "id": "i-vigneti-2",
+      "name": "Sentiero dei Filari",
+      "group": "vigneti",
+      "price": 180,
+      "housePrice": 100,
+      "rent": [
+        14,
+        90,
+        275,
+        730,
+        1000,
+        1275
+      ],
+      "mortgage": 90
+    },
+    {
+      "type": "free",
+      "id": "i-piazzetta",
+      "name": "Piazzetta dell'Ulivo"
+    },
+    {
+      "type": "property",
+      "id": "i-vigneti-3",
+      "name": "Poggio della Cantina",
+      "group": "vigneti",
+      "price": 200,
+      "housePrice": 100,
+      "rent": [
+        16,
+        105,
+        310,
+        830,
+        1145,
+        1455
+      ],
+      "mortgage": 100
+    },
+    {
+      "type": "station",
+      "id": "i-traghetto-baia",
+      "name": "Traghetto della Baia",
+      "price": 180,
+      "mortgage": 90,
+      "rent": [
+        30,
+        80,
+        160,
+        320
+      ]
+    },
+    {
+      "type": "property",
+      "id": "i-scogliera-1",
+      "name": "Passo del Maestrale",
+      "group": "scogliera",
+      "price": 220,
+      "housePrice": 150,
+      "rent": [
+        18,
+        115,
+        350,
+        935,
+        1285,
+        1640
+      ],
+      "mortgage": 110
+    },
+    {
+      "type": "card",
+      "id": "i-quartiere-2",
+      "name": "Voci di Quartiere",
+      "deck": "quartiere"
+    },
+    {
+      "type": "property",
+      "id": "i-scogliera-2",
+      "name": "Balcone delle Onde",
+      "group": "scogliera",
+      "price": 220,
+      "housePrice": 150,
+      "rent": [
+        18,
+        115,
+        350,
+        935,
+        1285,
+        1640
+      ],
+      "mortgage": 110
+    },
+    {
+      "type": "property",
+      "id": "i-scogliera-3",
+      "name": "Belvedere delle Falesie",
+      "group": "scogliera",
+      "price": 240,
+      "housePrice": 150,
+      "rent": [
+        20,
+        130,
+        390,
+        1040,
+        1430,
+        1820
+      ],
+      "mortgage": 120
+    },
+    {
+      "type": "property",
+      "id": "i-calette-1",
+      "name": "Cala delle Tartarughe",
+      "group": "calette",
+      "price": 260,
+      "housePrice": 150,
+      "rent": [
+        22,
+        170,
+        515,
+        1370,
+        1885,
+        2405
+      ],
+      "mortgage": 130
+    },
+    {
+      "type": "goToJail",
+      "id": "i-vai-in-torretta",
+      "name": "Fermato dalla Guardia"
+    },
+    {
+      "type": "property",
+      "id": "i-calette-2",
+      "name": "Baia dei Coralli",
+      "group": "calette",
+      "price": 260,
+      "housePrice": 150,
+      "rent": [
+        22,
+        170,
+        515,
+        1370,
+        1885,
+        2405
+      ],
+      "mortgage": 130
+    },
+    {
+      "type": "station",
+      "id": "i-navetta-faro",
+      "name": "Navetta del Promontorio",
+      "price": 180,
+      "mortgage": 90,
+      "rent": [
+        30,
+        80,
+        160,
+        320
+      ]
+    },
+    {
+      "type": "property",
+      "id": "i-calette-3",
+      "name": "Spiaggia delle Conchiglie",
+      "group": "calette",
+      "price": 280,
+      "housePrice": 150,
+      "rent": [
+        24,
+        190,
+        560,
+        1495,
+        2060,
+        2620
+      ],
+      "mortgage": 140
+    },
+    {
+      "type": "card",
+      "id": "i-sorte-2",
+      "name": "Colpo di Sorte",
+      "deck": "sorte"
+    },
+    {
+      "type": "property",
+      "id": "i-faro-1",
+      "name": "Salita della Lanterna",
+      "group": "faro",
+      "price": 320,
+      "housePrice": 200,
+      "rent": [
+        30,
+        175,
+        535,
+        1415,
+        1945,
+        2475
+      ],
+      "mortgage": 160
+    },
+    {
+      "type": "tax",
+      "id": "i-tassa-2",
+      "name": "Multa per Ancora Vietata",
+      "amount": 100
+    },
+    {
+      "type": "property",
+      "id": "i-faro-2",
+      "name": "Villa dei Venti",
+      "group": "faro",
+      "price": 380,
+      "housePrice": 200,
+      "rent": [
+        40,
+        230,
+        700,
+        1860,
+        2550,
+        3250
+      ],
+      "mortgage": 190
+    }
+  ]
+}

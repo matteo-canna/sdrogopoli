@@ -23,6 +23,10 @@ describe('scelta del tabellone', () => {
     expect(currentBoard()).toBe('valle');
     expect(board.spaces.length).toBe(28);
     expect(board.spaces.length).not.toBe(before);
+    setBoard('isola');
+    expect(currentBoard()).toBe('isola');
+    expect(board.spaces.length).toBe(32);
+    expect(board.groups.length).toBe(7);
   });
 
   it('un id sconosciuto torna al predefinito', () => {
@@ -102,6 +106,9 @@ describe('carte su tabelloni diversi', () => {
     setBoard('valle');
     const valle = cardText('sorte-02');
     expect(valle).toContain('Rifugio dei Miliardari');
+    setBoard('isola');
+    expect(cardText('sorte-02')).toContain('Villa dei Venti');
+    setBoard('valle');
     setLang('en');
     expect(cardText('sorte-02')).toContain('Rifugio dei Miliardari');
   });
