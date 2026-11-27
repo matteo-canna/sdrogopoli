@@ -1,7 +1,7 @@
-// Traguardi: 30 obiettivi controllati a fine partita per chi gioca su questo dispositivo.
+// Traguardi: 40 obiettivi controllati a fine partita per chi gioca su questo dispositivo.
 // Ognuno sblocca qualcosa: un titolo da mettere accanto al proprio nome o un colore in più per la pedina.
 // Tutto puro: il salvataggio lo fa prefs.ts, le prove stanno in tests/traguardi.test.ts.
-import { completeGroups, netWorth, type GameContext, type GameState, type PlayerStats } from '../engine';
+import { completeGroups, LANDMARK_IDS, netWorth, sameTeam, SHARES_PER_GROUP, type GameContext, type GameState, type PlayerStats } from '../engine';
 import { t, type MsgKey } from '../i18n';
 
 // Quello che si tiene da parte di partita in partita (il profilo, B51).
@@ -33,6 +33,8 @@ export const EXTRA_COLORS: Record<string, string> = {
   ametista: '#8d63c9',
   smeraldo: '#1f8f6a',
   corallo: '#ef6f5c',
+  zaffiro: '#1e5aa8',
+  rubino: '#b8293d',
 };
 
 export type Unlock = { kind: 'title'; id: string } | { kind: 'color'; id: string };
@@ -55,6 +57,7 @@ export interface Achievement {
 }
 
 const won = (a: AchievementCtx) => a.state.winner === a.seat;
+const teamWon = (a: AchievementCtx) => !!a.state.rules.teams && a.state.winner !== null && (a.state.winner === a.seat || sameTeam(a.state, a.state.winner, a.seat));
 const worth = (a: AchievementCtx) => netWorth(a.state, a.ctx, a.seat);
 
 export const ACHIEVEMENTS: Achievement[] = [
@@ -88,6 +91,16 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'vittoria-difficile', icon: '🤖', unlock: { kind: 'title', id: 'vittoria-difficile' }, done: (a) => won(a) && a.state.players.some((p) => p.bot?.level === 'difficile') },
   { id: 'tavolo-pieno', icon: '👥', unlock: { kind: 'title', id: 'tavolo-pieno' }, done: (a) => won(a) && a.state.players.length >= 6 },
   { id: 'tre-tipi', icon: '🎁', unlock: { kind: 'title', id: 'tre-tipi' }, done: (a) => Object.values(a.profile.winsByPreset).filter((n) => n > 0).length >= 3 },
+  { id: 'vittoria-squadra', icon: '🤜', unlock: { kind: 'title', id: 'vittoria-squadra' }, done: teamWon },
+  { id: 'vittoria-valle', icon: '🏔️', unlock: { kind: 'title', id: 'vittoria-valle' }, done: (a) => won(a) && (a.ctx.board.spaces[0]?.id === 'v-partenza' || a.ctx.board.spaces.length === 28) },
+  { id: 'tre-quote', icon: '📈', unlock: { kind: 'title', id: 'tre-quote' }, done: (a) => Object.values(a.state.shares ?? {}).some((holders) => holders.filter((h) => h === a.seat).length >= SHARES_PER_GROUP) },
+  { id: 'dividendi-500', icon: '💹', unlock: { kind: 'title', id: 'dividendi-500' }, done: (a) => (a.stats.dividends ?? 0) >= 500 },
+  { id: 'tre-edifici', icon: '🏛️', unlock: { kind: 'color', id: 'zaffiro' }, done: (a) => LANDMARK_IDS.every((id) => Object.values(a.state.landmarks ?? {}).some((l) => l.owner === a.seat && l.id === id)) },
+  { id: 'vittoria-festa', icon: '🎪', unlock: { kind: 'title', id: 'vittoria-festa' }, done: (a) => won(a) && !!a.state.rules.events && !!a.state.rules.wheel },
+  { id: 'partita-online', icon: '📡', unlock: { kind: 'title', id: 'partita-online' }, done: (a) => a.online },
+  { id: 'senza-case', icon: '⛺', unlock: { kind: 'title', id: 'senza-case' }, done: (a) => won(a) && a.stats.built === 0 },
+  { id: 'poche-vie', icon: '🎒', unlock: { kind: 'title', id: 'poche-vie' }, done: (a) => won(a) && Object.values(a.state.ownership).filter((o) => o.owner === a.seat).length < 3 },
+  { id: 'grande-rimonta', icon: '🔥', unlock: { kind: 'color', id: 'rubino' }, done: (a) => won(a) && (a.state.history ?? []).some((row) => (row[a.seat] ?? Infinity) <= 500) },
 ];
 
 function hotels(a: AchievementCtx): number {
