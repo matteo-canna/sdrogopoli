@@ -1,6 +1,8 @@
 // Regole di gioco: ogni azione produce un nuovo stato senza modificare quello precedente.
 import { rollDice } from './dice';
 import { defaultRules, emptyStats, loanRepayment, withRng, EVENT_IDS, FOUNTAIN_FACTOR, LANDMARK_IDS, LOAN_AMOUNTS, LOAN_ROUNDS, MARKET_HALL_PAY, SHARE_CUT, SHARES_PER_GROUP, THEATRE_MIN_RENT, type LandmarkId, JAIL_FINE, MARKET_IDS, MARKET_PAY, MAX_JAIL_ATTEMPTS, SPRINT_FACES, UPKEEP_PER_HOUSE, WHEEL_EVERY, type EventId, type GameContext, type GroupEvent, type MarketId, type SprintFace, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
+import { deckCards, findCard } from './cards';
+import { defaultRules, emptyStats, shuffle, withRng, EVENT_IDS, FOUNTAIN_FACTOR, LANDMARK_IDS, MARKET_HALL_PAY, SHARE_CUT, SHARES_PER_GROUP, THEATRE_MIN_RENT, type LandmarkId, JAIL_FINE, MARKET_IDS, MARKET_PAY, MAX_JAIL_ATTEMPTS, SPRINT_FACES, UPKEEP_PER_HOUSE, WHEEL_EVERY, type EventId, type GameContext, type GroupEvent, type MarketId, type SprintFace, type GameState, type Player, type PlayerStats, type TradeOffer, type TradeSide } from './state';
 import type { BoardData, Card, CardEffect, DeckId, PropertySpace, Space } from './types';
 import { format, type MsgKey, type Params } from '../i18n';
 
@@ -422,14 +424,21 @@ function finishMove(state: GameState): void {
 // ---------- carte ----------
 
 function drawCard(state: GameState, ctx: GameContext, deck: DeckId): void {
-  const id = state.decks[deck].shift();
+  if (deck === 'cantiere' && !state.decks.cantiere) {
+    state.decks.cantiere = shuffle(
+      deckCards(ctx.cards, 'cantiere').map((c) => c.id),
+      ctx.rng!,
+    );
+  }
+  const list = state.decks[deck];
+  const id = list?.shift();
   if (!id) return; // mazzo vuoto (tutte le carte "esci gratis" sono in mano)
-  const card = ctx.cards.cards.find((c) => c.id === id) as Card;
+  const card = findCard(ctx.cards, id) as Card;
   log(state, 'log.draws', { name: current(state).name, card: card.id });
   if (card.effect.kind === 'getOutOfJailFree') {
     current(state).jailCards.push(card.id);
   } else {
-    state.decks[deck].push(card.id); // torna in fondo al mazzo
+    list!.push(card.id); // torna in fondo al mazzo
     if (card.effect.kind === 'choice') {
       state.pendingCard = card.id;
       state.phase = 'cardChoice';
@@ -441,7 +450,7 @@ function drawCard(state: GameState, ctx: GameContext, deck: DeckId): void {
 
 function doChooseCard(state: GameState, ctx: GameContext, option: number): void {
   requirePhase(state, 'cardChoice');
-  const card = ctx.cards.cards.find((c) => c.id === state.pendingCard);
+  const card = findCard(ctx.cards, state.pendingCard);
   if (!card || card.effect.kind !== 'choice') throw new RuleError('err.noCardChoice');
   const chosen = card.effect.options[option];
   if (!chosen) throw new RuleError('err.badChoice');
@@ -848,8 +857,8 @@ function doUseJailCard(state: GameState, ctx: GameContext): void {
   if (!p.inJail) throw new RuleError('err.notInJail');
   const cardId = p.jailCards.pop();
   if (!cardId) throw new RuleError('err.noJailCard');
-  const card = ctx.cards.cards.find((c) => c.id === cardId) as Card;
-  state.decks[card.deck].push(card.id); // la carta torna in fondo al mazzo
+  const card = findCard(ctx.cards, cardId) as Card;
+  (state.decks[card.deck] ??= []).push(card.id); // la carta torna in fondo al mazzo
   p.inJail = false;
   p.jailAttempts = 0;
   log(state, 'log.jailCard', { name: p.name });
@@ -871,6 +880,14 @@ function doBuild(state: GameState, ctx: GameContext, spaceId: string): void {
   own.houses++;
   stat(state, p.id).built++;
   log(state, 'log.builds', { name: p.name, space: space.id });
+  // Con la regola facoltativa "Imprevisti del Cantiere", portando il quartiere a 3 case totali si pesca una carta.
+  if (state.rules?.buildCards && group.reduce((sum, g) => sum + g.houses, 0) === 3) {
+    log(state, 'log.buildCard', { name: p.name, group: space.group });
+    drawCard(state, ctx, 'cantiere');
+    if (state.phase !== 'buy' && state.phase !== 'cardChoice' && (p.money < 0 || p.inJail)) {
+      finishMove(state);
+    }
+  }
 }
 
 function doSell(state: GameState, ctx: GameContext, spaceId: string): void {
@@ -1189,8 +1206,8 @@ function doBankrupt(state: GameState, ctx: GameContext): void {
     state.pot = Math.max(0, (state.pot ?? 0) + p.money);
   }
   for (const cardId of p.jailCards) {
-    const card = ctx.cards.cards.find((c) => c.id === cardId) as Card;
-    state.decks[card.deck].push(card.id);
+    const card = findCard(ctx.cards, cardId) as Card;
+    (state.decks[card.deck] ??= []).push(card.id);
   }
   p.jailCards = [];
   p.money = 0;
