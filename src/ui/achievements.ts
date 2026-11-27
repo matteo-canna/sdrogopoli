@@ -1,8 +1,25 @@
 // Traguardi: 30 obiettivi controllati a fine partita per chi gioca su questo dispositivo.
 // Ognuno sblocca qualcosa: un titolo da mettere accanto al proprio nome o un colore in più per la pedina.
 // Tutto puro: il salvataggio lo fa prefs.ts, le prove stanno in tests/traguardi.test.ts.
+import { BOARDS, currentBoard } from '../data';
 import { completeGroups, netWorth, type GameContext, type GameState, type PlayerStats } from '../engine';
 import { t, type MsgKey } from '../i18n';
+
+export const MAX_PROFILE_HISTORY = 20;
+
+export interface ProfileHistoryPlayer {
+  name: string;
+  bot: boolean;
+}
+
+export interface ProfileHistoryEntry {
+  date: string;
+  board: string;
+  preset: string;
+  players: ProfileHistoryPlayer[];
+  winner: string;
+  rounds: number;
+}
 
 // Quello che si tiene da parte di partita in partita (il profilo, B51).
 export interface Profile {
@@ -19,6 +36,8 @@ export interface Profile {
   winsByPreset: Record<string, number>;
   // vittorie online
   onlineWins: number;
+  // ultime 20 partite giocate su questo dispositivo (più recente in alto)
+  history?: ProfileHistoryEntry[];
 }
 
 export function emptyProfile(): Profile {
@@ -114,7 +133,7 @@ export function newlyUnlocked(a: AchievementCtx, already: readonly string[]): Ac
 }
 
 // Il profilo dopo una partita finita.
-export function updateProfile(profile: Profile, a: Omit<AchievementCtx, 'profile'>, presetId: string): Profile {
+export function updateProfile(profile: Profile, a: Omit<AchievementCtx, 'profile'>, presetId: string, date = new Date().toISOString()): Profile {
   const next: Profile = { ...profile, winsByPreset: { ...profile.winsByPreset } };
   next.games++;
   next.bestWorth = Math.max(next.bestWorth, netWorth(a.state, a.ctx, a.seat));
@@ -127,6 +146,16 @@ export function updateProfile(profile: Profile, a: Omit<AchievementCtx, 'profile
     next.winsByPreset[presetId] = (next.winsByPreset[presetId] ?? 0) + 1;
     if (a.online) next.onlineWins++;
   }
+  const boardId = BOARDS.find((b) => b.data === a.ctx.board || b.data.spaces[0]?.id === a.ctx.board.spaces[0]?.id)?.id ?? currentBoard();
+  const entry: ProfileHistoryEntry = {
+    date,
+    board: boardId,
+    preset: presetId,
+    players: a.state.players.map((p) => ({ name: p.name, bot: !!p.isBot })),
+    winner: a.state.winner !== null && a.state.players[a.state.winner] ? a.state.players[a.state.winner].name : '',
+    rounds: a.state.round,
+  };
+  next.history = [entry, ...(profile.history ?? [])].slice(0, MAX_PROFILE_HISTORY);
   return next;
 }
 
