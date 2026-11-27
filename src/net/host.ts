@@ -2,10 +2,11 @@
 // deve giocare e manda lo stato a tutti. Muove il computer per i posti dei computer, per chi si è
 // scollegato e per chi ha lasciato scadere il tempo della mossa.
 import { actingPlayer, applyAction, BOT_STYLES, chooseBotAction, createGame, openRound, RuleError, type Action, type Appearance, type GameContext, type GameRules, type GameState, type PlayerSetup } from '../engine';
-import { PROTOCOL_VERSION, type Member, type NetMessage } from './protocol';
-import { cleanLook, cleanName, uniqueColors } from './sanitize';
+import { PROTOCOL_VERSION, REMATCH_TIMEOUT_MS, type Member, type NetMessage } from './protocol';
+import { cleanLook, cleanName, cleanRematchReply, uniqueColors } from './sanitize';
 import { SAY_GAP_MS, sayText } from './chat';
 import type { Transport } from './transport';
+import { rematchSetup } from '../ui/session';
 import { format, t, type Message } from '../i18n';
 
 // Motivo di un rifiuto: testo italiano per chi ha una versione vecchia, chiave per tradurlo.
@@ -38,11 +39,14 @@ export class HostRoom {
   limitMs: number | null = null;
   private lastMoveAt = 0;
   state: GameState | null = null;
-  readonly hostSeat = 0;
+  hostSeat = 0;
   moves = 0;
+  // proposta di rivincita in corso a fine partita (null se non c'è)
+  rematch: { accepted: Set<number>; declined: Set<number>; pending: Set<number>; startedAt: number; seed: number } | null = null;
   onChange: ((prev: GameState | null, next: GameState, action: Action | null) => void) | null = null;
   onLobby: ((members: Member[]) => void) | null = null;
   onSaid: ((seat: number, id: string) => void) | null = null;
+  onRematch: (() => void) | null = null;
   private lastSay = new Map<number, number>();
 
   constructor(
@@ -99,7 +103,16 @@ export class HostRoom {
       this.publishLobby();
       return;
     }
+    const oldSeat = this.seats.get(peer);
     if (!this.seats.delete(peer)) return;
+    if (this.rematch && oldSeat !== undefined && this.rematch.pending.delete(oldSeat)) {
+      this.rematch.declined.add(oldSeat);
+      if (this.rematch.pending.size === 0) {
+        this.launchRematch();
+        return;
+      }
+      this.publishRematch();
+    }
     // il posto resta a chi rientra con la stessa chiave; intanto lo muove il computer
     this.publishPresence();
     this.onChange?.(this.state, this.state!, null);
@@ -145,6 +158,16 @@ export class HostRoom {
     if (msg.t === 'say') {
       const seat = this.seats.get(from);
       if (seat !== undefined) this.say(seat, msg.id);
+      return;
+    }
+    if (msg.t === 'rematchReply') {
+      const clean = cleanRematchReply(msg);
+      const seat = this.seats.get(from);
+      if (!clean || !this.rematch || seat === undefined || !this.rematch.pending.delete(seat)) return;
+      if (clean.accept) this.rematch.accepted.add(seat);
+      else this.rematch.declined.add(seat);
+      if (this.rematch.pending.size === 0) this.launchRematch();
+      else this.publishRematch();
       return;
     }
     if (msg.t === 'action') {
@@ -290,12 +313,92 @@ export class HostRoom {
   }
 
   // Tempo scaduto: da qui in poi per quel posto gioca il computer, finché la persona non fa una mossa.
+  // A fine partita controlla anche i 30 secondi della proposta di rivincita.
   checkTimer(): boolean {
+    if (this.rematch && this.rematchTimeLeft() === 0) {
+      this.launchRematch();
+      return true;
+    }
     if (this.timeLeft() !== 0) return false;
     this.away.add(actingPlayer(this.state!));
     this.publishPresence();
     this.onChange?.(this.state, this.state!, null);
     return true;
+  }
+
+  // Millisecondi rimasti agli ospiti per rispondere alla proposta di rivincita.
+  rematchTimeLeft(): number | null {
+    if (!this.rematch) return null;
+    return Math.max(0, this.rematch.startedAt + REMATCH_TIMEOUT_MS - this.now());
+  }
+
+  // A fine partita l'oste propone la rivincita agli ospiti collegati.
+  proposeRematch(seed = Math.floor(Math.random() * 2 ** 32)): boolean {
+    if (!this.state || this.state.phase !== 'gameOver' || this.rematch) return false;
+    const guests = [...new Set(this.seats.values())].filter((s) => s !== this.hostSeat && !this.state!.players[s]?.isBot);
+    this.rematch = {
+      accepted: new Set([this.hostSeat]),
+      declined: new Set(),
+      pending: new Set(guests),
+      startedAt: this.now(),
+      seed,
+    };
+    if (this.rematch.pending.size === 0) this.launchRematch();
+    else this.publishRematch();
+    return true;
+  }
+
+  private publishRematch(): void {
+    if (!this.rematch) return;
+    this.transport.send({
+      t: 'rematch',
+      accepted: [...this.rematch.accepted],
+      declined: [...this.rematch.declined],
+      pending: [...this.rematch.pending],
+      timeoutMs: REMATCH_TIMEOUT_MS,
+    });
+    this.onRematch?.();
+  }
+
+  private launchRematch(): void {
+    const finalState = this.state;
+    const r = this.rematch;
+    if (!finalState || !r) return;
+    this.rematch = null;
+    const oldHostSeat = this.hostSeat;
+    const oldPeers = new Map<number, string>();
+    for (const [peer, seat] of this.seats) oldPeers.set(seat, peer);
+    const setup = rematchSetup(finalState, { rules: finalState.rules }, this.ctx, () => r.seed);
+    const newSeats = new Map<string, number>();
+    let nextHostSeat = 0;
+    const players: PlayerSetup[] = setup.players.map((pl, newSeat) => {
+      const oldSeat = setup.seatOrder[newSeat];
+      if (oldSeat === oldHostSeat) {
+        nextHostSeat = newSeat;
+        return { ...pl, isBot: false };
+      }
+      const peer = oldPeers.get(oldSeat);
+      if (r.accepted.has(oldSeat) && peer !== undefined) {
+        newSeats.set(peer, newSeat);
+        return { ...pl, isBot: false };
+      }
+      // chi ha rifiutato, non ha risposto in tempo o era già un computer passa al computer
+      return {
+        ...pl,
+        isBot: true,
+        bot: pl.bot ?? { level: 'normale', style: BOT_STYLES[newSeat % BOT_STYLES.length].id },
+      };
+    });
+    // chi non ha accettato non ha più un posto in questa partita: guarda soltanto
+    for (const [peer] of this.seats) {
+      if (!newSeats.has(peer)) this.transport.send({ t: 'welcome', seat: null }, peer);
+    }
+    this.seatOfKey.clear();
+    this.away.clear();
+    this.hostSeat = nextHostSeat;
+    this.moves++;
+    const next = openRound(createGame(players, this.ctx, setup.rules, setup.seed), this.ctx);
+    this.startWith(next, newSeats);
   }
 
   // Reazione o frase pronta di un posto: si manda a tutti (anche a chi l'ha scritta). Falso se scartata.
