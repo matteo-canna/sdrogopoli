@@ -1,17 +1,20 @@
-// Lingue del gioco. Tutte le frasi stanno in un file per lingua (it.ts, en.ts); qui si sceglie
+// Lingue del gioco. Tutte le frasi stanno in un file per lingua (it.ts, en.ts, es.ts); qui si sceglie
 // la lingua e si compongono le frasi con i loro valori ({name}, {amount}, ...).
 // I nomi delle vie e dei quartieri sono nomi propri della città e restano in italiano; le altre
-// caselle (Partenza, Caserma, fermate...) e le carte hanno la traduzione in src/data/*.en.json.
+// caselle (Partenza, Caserma, fermate...) e le carte hanno la traduzione in src/data/*.en.json e *.es.json.
 import { BOARDS, board, cards, currentChoice } from '../data';
 import cardsEn from '../data/cards.en.json';
+import cardsEs from '../data/cards.es.json';
 import { it, type MsgKey } from './it';
 import { en } from './en';
+import { es } from './es';
 
 export type { MsgKey } from './it';
-export type Lang = 'it' | 'en';
+export type Lang = 'it' | 'en' | 'es';
 export const LANGS: { id: Lang; label: string }[] = [
   { id: 'it', label: 'Italiano' },
   { id: 'en', label: 'English' },
+  { id: 'es', label: 'Español' },
 ];
 
 export type Params = Record<string, string | number>;
@@ -21,10 +24,11 @@ export interface Message {
   p?: Params;
 }
 
-const CATALOGS: Record<Lang, Record<MsgKey, string>> = { it, en };
+const CATALOGS: Record<Lang, Record<MsgKey, string>> = { it, en, es };
 const CARD_TEXT: Record<Lang, Record<string, { text: string; options?: string[] }>> = {
   it: Object.fromEntries(cards.cards.map((c) => [c.id, { text: c.text, options: c.effect.kind === 'choice' ? c.effect.options.map((o) => o.label) : undefined }])),
   en: cardsEn as Record<string, { text: string; options?: string[] }>,
+  es: cardsEs as Record<string, { text: string; options?: string[] }>,
 };
 
 let current: Lang = 'it';
@@ -38,11 +42,11 @@ export function setLang(lang: Lang): void {
   if (typeof document !== 'undefined') document.documentElement.lang = lang;
 }
 
-// Lingua del browser: italiano per chi ha l'italiano tra le lingue preferite, altrimenti inglese.
+// Lingua del browser: la prima lingua supportata tra quelle preferite, altrimenti inglese.
 export function detectLang(languages: readonly string[]): Lang {
   for (const l of languages) {
     const base = l.toLowerCase().slice(0, 2);
-    if (base === 'it' || base === 'en') return base;
+    if (base === 'it' || base === 'en' || base === 'es') return base;
   }
   return 'en';
 }
@@ -52,6 +56,7 @@ export function detectLang(languages: readonly string[]): Lang {
 const SPACE_NAMES: Record<Lang, Record<string, string>> = {
   it: Object.fromEntries(BOARDS.flatMap((b) => b.data.spaces.map((sp) => [sp.id, sp.name]))),
   en: Object.assign({}, ...BOARDS.map((b) => b.names)) as Record<string, string>,
+  es: Object.assign({}, ...BOARDS.map((b) => b.namesEs ?? {})) as Record<string, string>,
 };
 
 // Nomi dei quartieri di tutti i tabelloni (restano in italiano: sono nomi propri).
