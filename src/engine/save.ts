@@ -2,7 +2,8 @@
 // Con lo stato iniziale (che contiene il seme) e il registro si può rigiocare la partita
 // passo per passo e arrivare allo stesso stato: serve per annullare, rivedere e controllare.
 import { applyAction, type Action } from './rules';
-import { defaultRules, type GameContext, type GameState } from './state';
+import { deckCards } from './cards';
+import { defaultRules, shuffle, withRng, type GameContext, type GameState } from './state';
 import type { BoardData } from './types';
 
 // Versioni del salvataggio:
@@ -41,6 +42,13 @@ export function migrateState(raw: GameState, ctx: GameContext, seed: number): Ga
   if (s.rngState === undefined) {
     s.seed ??= seed >>> 0;
     s.rngState = s.seed;
+  }
+  if (s.rules.buildCards && !s.decks?.cantiere) {
+    const c = withRng(ctx, s);
+    s.decks.cantiere = shuffle(
+      deckCards(ctx.cards, 'cantiere').map((card) => card.id),
+      c.rng,
+    );
   }
   return s;
 }
