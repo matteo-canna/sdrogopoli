@@ -1,7 +1,7 @@
 // Giocatore controllato dal computer: sceglie sempre un'azione valida in base allo stato.
 // Il livello (facile, normale, difficile) e il carattere (costruttore, collezionista…) cambiano
 // alcune manopole: riserva di soldi, voglia di comprare e costruire, offerte e scambi.
-import { actingPlayer, computeRent, groupHasBuildings, interestOn, landmarkPrice, ownsWholeGroup, sameTeam, sharePrice, sharesOf, targetSpace, unmortgageCost, HOTEL, MAX_COUNTERS, MIN_BID, type Action } from './rules';
+import { actingPlayer, computeRent, groupHasBuildings, interestOn, landmarkPrice, minRaise, ownsWholeGroup, sameTeam, sharePrice, sharesOf, targetSpace, unmortgageCost, HOTEL, MAX_COUNTERS, type Action } from './rules';
 import type { BotLevel, BotProfile, BotStyle, GameContext, GameState, Player, TradeSide } from './state';
 import { JAIL_FINE, SHARES_PER_GROUP, THEATRE_MIN_RENT, type LandmarkId } from './state';
 import type { PropertySpace, Space } from './types';
@@ -344,7 +344,7 @@ function chooseAuctionAction(state: GameState, ctx: GameContext, me: number): Ac
   const price = 'price' in space ? space.price : 0;
   const worth = price * (completes ? k.auction.completes : blocks ? k.auction.blocks : k.auction.base + (space.type !== 'property' ? k.stationBonus / 2 : 0));
   const limit = Math.min(worth, money - (completes ? 20 : k.reserve / 2));
-  const next = Math.max(MIN_BID, a.highestBid + 10);
+  const next = a.highestBid + minRaise(state);
   return next <= limit && a.highestBidder !== me ? { type: 'bid', amount: next } : { type: 'pass' };
 }
 
