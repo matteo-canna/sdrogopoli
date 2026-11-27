@@ -1,0 +1,14 @@
+{
+  "cantiere-01": { "text": "Lucky digging: an old safe turns up under the foundations. Collect 120." },
+  "cantiere-02": { "text": "The cement mixer blocks the crossroads at rush hour. Traffic fine: pay 80." },
+  "cantiere-03": { "text": "Town grant for the solar panels on the new roof. Collect 90." },
+  "cantiere-04": { "text": "Sudden rain on the fresh concrete: the driveway must be redone. Pay 70." },
+  "cantiere-05": { "text": "Site opening with sandwiches and drinks for everyone. Pay 20 to every player." },
+  "cantiere-06": { "text": "The neighbours chip in to thank you for the new pavement. Every player gives you 20." },
+  "cantiere-07": { "text": "Special scaffolding inspection. Pay 20 for each house and 70 for each tower." },
+  "cantiere-08": { "text": "The brick supplier gives you a bulk discount. Collect 35." },
+  "cantiere-09": { "text": "Building site open without the proper sign: the Wardens take you to the Barracks." },
+  "cantiere-10": { "text": "Back to the warehouse to fetch the bags of lime: move back 2 spaces." },
+  "cantiere-11": { "text": "The work finishes ahead of schedule: how do you celebrate with the crew?", "options": ["Take the speed bonus: collect 60", "Hurry to {space} to sign a new contract"] },
+  "cantiere-12": { "text": "A water pipe is leaking right under the scaffolding.", "options": ["Call the emergency plumber: pay 75", "Fix it house by house: pay 25 for each house and 80 for each tower"] }
+}
