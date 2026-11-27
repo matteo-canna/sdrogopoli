@@ -35,6 +35,7 @@ jobs:
           VITE_TURN_URLS: ${{ vars.TURN_URLS }}
           VITE_TURN_USER: ${{ vars.TURN_USER }}
           VITE_TURN_PASS: ${{ vars.TURN_PASS }}
+      - run: npm run peso
       # prove nel browser: partita completa, accessibilità (axe), telefono, memoria del 3D, offline
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e

@@ -6,3 +6,6 @@ test-results
 playwright-report
 dist-itch
 gioco-folle-itch.zip
+dist-desktop
+src-tauri/target
+src-tauri/gen

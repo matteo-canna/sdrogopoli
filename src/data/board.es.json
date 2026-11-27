@@ -1,0 +1,20 @@
+{
+  "partenza": "Salida",
+  "quartiere-1": "Rumores del Barrio",
+  "quartiere-2": "Rumores del Barrio",
+  "quartiere-3": "Rumores del Barrio",
+  "sorte-1": "Golpe de Suerte",
+  "sorte-2": "Golpe de Suerte",
+  "sorte-3": "Golpe de Suerte",
+  "tassa-1": "Impuesto a los Sueños",
+  "tassa-2": "Multa por Diversión Excesiva",
+  "fermata-nord": "Terminal Norte",
+  "fermata-est": "Funicular Este",
+  "fermata-sud": "Ferry Sur",
+  "fermata-ovest": "Tranvía Oeste",
+  "caserma": "Cuartel (solo de visita)",
+  "acquedotto": "Acueducto Municipal",
+  "centrale": "Central Eléctrica a Pedales",
+  "panchina": "Banco del Parque",
+  "vai-in-caserma": "Detenido por los Guardias"
+}
