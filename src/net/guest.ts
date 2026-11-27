@@ -1,7 +1,7 @@
 // Un ospite: si presenta all'oste, aspetta l'inizio, manda le sue mosse e mostra lo stato che riceve.
 import { actingPlayer, type Action, type Appearance, type GameState } from '../engine';
 import { PROTOCOL_VERSION, type Member, type NetMessage } from './protocol';
-import { cleanLook, cleanName } from './sanitize';
+import { cleanLook, cleanName, cleanRematchProposal } from './sanitize';
 import { sayText } from './chat';
 import type { Transport } from './transport';
 import { it as italian } from '../i18n/it';
@@ -29,6 +29,8 @@ export class GuestRoom {
   limitMs: number | null = null;
   // quando è arrivata l'ultima mossa (per il conto alla rovescia, con l'orologio di questo dispositivo)
   lastMoveAt = 0;
+  // proposta di rivincita ricevuta dall'oste a fine partita
+  rematch: { accepted: number[]; declined: number[]; pending: number[]; timeoutMs: number; receivedAt: number } | null = null;
   private moves = -1;
   private seq = 0;
   private host: string | null = null;
@@ -38,6 +40,7 @@ export class GuestRoom {
   onHostLeft: (() => void) | null = null;
   onPresence: (() => void) | null = null;
   onSaid: ((seat: number, id: string) => void) | null = null;
+  onRematch: (() => void) | null = null;
   // l'oste è tornato dopo essere uscito
   onHostBack: (() => void) | null = null;
   private hadHost = false;
@@ -111,8 +114,16 @@ export class GuestRoom {
         });
         this.moves = msg.n;
         if (msg.action || !prev) this.lastMoveAt = this.now();
+        if (msg.state.phase !== 'gameOver') this.rematch = null;
         this.state = msg.state;
         this.onChange?.(prev, msg.state, msg.action);
+        return;
+      }
+      case 'rematch': {
+        const clean = cleanRematchProposal(msg, this.state?.players.length);
+        if (!clean) return;
+        this.rematch = { ...clean, receivedAt: this.now() };
+        this.onRematch?.();
         return;
       }
       case 'said':
@@ -142,6 +153,11 @@ export class GuestRoom {
 
   say(id: string): void {
     if (this.host && this.seat !== null) this.transport.send({ t: 'say', id }, this.host);
+  }
+
+  // Risponde alla proposta di rivincita dell'oste ("Ci sto" / "No, grazie").
+  replyRematch(accept: boolean): void {
+    if (this.host && this.seat !== null) this.transport.send({ t: 'rematchReply', accept: !!accept }, this.host);
   }
 
   leave(): void {

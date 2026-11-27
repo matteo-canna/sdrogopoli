@@ -6,6 +6,9 @@ import type { MsgKey, Params } from '../i18n';
 // 2: registro e motivi dei rifiuti come frasi da tradurre (chiave e valori)
 export const PROTOCOL_VERSION = 2;
 
+// Tempo massimo per rispondere alla proposta di rivincita: chi non risponde passa al computer.
+export const REMATCH_TIMEOUT_MS = 30_000;
+
 // Chi siede al tavolo prima dell'inizio.
 export interface Member {
   id: string;
@@ -22,7 +25,9 @@ export type ToHost =
   | { t: 'ready'; ready: boolean; name: string; look: Appearance | null }
   | { t: 'action'; action: Action; seq: number }
   // reazione o frase pronta (solo l'id, vedi chat.ts)
-  | { t: 'say'; id: string };
+  | { t: 'say'; id: string }
+  // risposta di un ospite alla proposta di rivincita a fine partita
+  | { t: 'rematchReply'; accept: boolean };
 
 // Dall'oste agli ospiti.
 export type ToGuest =
@@ -38,6 +43,8 @@ export type ToGuest =
   // posti scollegati, posti mossi dal computer perché il tempo è scaduto, tempo per ogni mossa
   | { t: 'presence'; offline: number[]; away: number[]; limitMs: number | null }
   | { t: 'said'; seat: number; id: string }
+  // proposta di rivincita a fine partita: chi ha accettato, chi ha rifiutato e chi deve ancora rispondere
+  | { t: 'rematch'; accepted: number[]; declined: number[]; pending: number[]; timeoutMs: number }
   | { t: 'bye'; reason: string; key?: MsgKey; p?: Params };
 
 export type NetMessage = ToHost | ToGuest;

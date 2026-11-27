@@ -3,6 +3,7 @@ import { BOARDS, DEFAULT_BOARD, board, currentBoard, setBoard } from '../data';
 import { savedBoards } from './boardStore';
 import { BOT_LEVELS, BOT_STYLES, PRESETS, SHARE_CUT, SHARES_PER_GROUP, WHEEL_EVERY, estimatedMinutes, type BotStyle, DEMO_MAX_PLAYERS, DEMO_ROUNDS, DEMO_SEAT_BONUS, MAX_PLAYERS, MIN_PLAYERS, QUICK_START_PROPERTIES, QUICK_START_TWO_PLAYERS, SEAT_BONUS, demoRules, type GameRules, type PlayerSetup } from '../engine';
 import { reportUrl } from './report';
+import { DESKTOP } from './platform';
 import { FILE_EXT, MAX_SLOTS, OLD_FILE_EXT, type Slot } from './slots';
 import { escapeHtml } from './view';
 import { renderIntro } from './intro';
@@ -257,7 +258,7 @@ export function renderSetup(app: HTMLElement, tipsOn: boolean, onStart: (choice:
       <header class="brand">
         <div class="brand-strip" aria-hidden="true">${board.groups.map((g, i) => `<span style="--c:${g.color};--i:${i}"></span>`).join('')}</div>
         <h1><span class="visually-hidden">Gioco Folle!</span>${titlePlate('Gioco Folle!')}</h1>
-        <p class="tagline">${t('setup.tagline', { min: MIN_PLAYERS, max: MAX_PLAYERS })}</p>
+        <p class="tagline">${t(DESKTOP ? 'setup.taglineDesktop' : 'setup.tagline', { min: MIN_PLAYERS, max: MAX_PLAYERS })}</p>
       </header>
       ${resume ? `<section class="card resume" aria-labelledby="resume-title">
         <h2 id="resume-title">${t('setup.resumeTitle')}</h2>

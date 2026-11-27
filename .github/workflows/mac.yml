@@ -1,0 +1,53 @@
+# Costruisce l'app per Mac (Tauri) e la lascia da scaricare tra gli "Artifacts" del run.
+# Nessuna firma Apple: è per uso personale (vedi docs/app-mac.md per aprirla la prima volta).
+name: App per Mac
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'src-tauri/**'
+      - '.github/workflows/mac.yml'
+      - 'src/ui/platform.ts'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mac-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # una sola app che funziona sia sui Mac Intel sia su quelli Apple (M1, M2…)
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm test
+      - run: npx tauri build --target universal-apple-darwin
+      - name: Prepara i file da scaricare
+        run: |
+          mkdir -p uscita
+          cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg uscita/
+          ditto -c -k --keepParent src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app "uscita/Gioco Folle (app).zip"
+          ls -la uscita
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gioco-folle-mac
+          path: uscita/
+          retention-days: 30
